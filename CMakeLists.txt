@@ -35,19 +35,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-option(BTOP_STATIC "Link btop statically" OFF)
 option(BTOP_LTO "Enable LTO" ON)
 option(BTOP_USE_MOLD "Use mold to link btop" OFF)
 option(BTOP_PEDANTIC "Enable a bunch of additional warnings" OFF)
 option(BTOP_WERROR "Compile with warnings as errors" OFF)
 option(BTOP_FORTIFY "Detect buffer overflows with _FORTIFY_SOURCE=3" ON)
 option(BTOP_GPU "Enable GPU support" ON)
-cmake_dependent_option(BTOP_RSMI_STATIC "Link statically to ROCm SMI" OFF "BTOP_GPU" OFF)
 
-if(BTOP_STATIC AND NOT APPLE)
-  # Set this before calling find_package
-  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-endif()
+# Set this before calling find_package
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
 add_executable(btop
   src/btop.cpp
@@ -59,28 +55,6 @@ add_executable(btop
   src/btop_theme.cpp
   src/btop_tools.cpp
 )
-
-if(APPLE)
-  target_sources(btop PRIVATE src/osx/btop_collect.cpp src/osx/sensors.cpp src/osx/smc.cpp)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-  target_sources(btop PRIVATE src/freebsd/btop_collect.cpp)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
-  target_sources(btop PRIVATE src/openbsd/btop_collect.cpp src/openbsd/sysctlbyname.cpp)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "NetBSD")
-  target_sources(btop PRIVATE src/netbsd/btop_collect.cpp)
-elseif(LINUX)
-  target_sources(btop PRIVATE src/linux/btop_collect.cpp)
-  if(BTOP_GPU)
-    target_sources(btop PRIVATE
-      src/linux/intel_gpu_top/intel_gpu_top.c
-      src/linux/intel_gpu_top/igt_perf.c
-      src/linux/intel_gpu_top/intel_device_info.c
-      src/linux/intel_gpu_top/intel_name_lookup_shim.c
-    )
-  endif()
-else()
-  message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} is not supported")
-endif()
 
 check_include_file_cxx(ranges CXX_HAVE_RANGES)
 if(NOT CXX_HAVE_RANGES)
@@ -123,9 +97,7 @@ if(BTOP_WERROR)
   target_compile_options(btop PRIVATE -Werror)
 endif()
 
-if(NOT APPLE)
-  target_compile_options(btop PRIVATE -fstack-clash-protection)
-endif()
+target_compile_options(btop PRIVATE -fstack-clash-protection)
 check_cxx_compiler_flag(-fstack-protector HAS_FSTACK_PROTECTOR)
 if(HAS_FSTACK_PROTECTOR)
   target_compile_options(btop PRIVATE -fstack-protector)
@@ -151,88 +123,16 @@ find_package(Threads REQUIRED)
 target_link_libraries(btop Threads::Threads)
 
 # Enable GPU support
-if(LINUX AND BTOP_GPU)
+if(BTOP_GPU)
   target_compile_definitions(btop PRIVATE GPU_SUPPORT)
-
-  if(BTOP_RSMI_STATIC)
-    # ROCm doesn't properly add it's folders to the module path if `CMAKE_MODULE_PATH` is already
-    # set
-    # We could also manually append ROCm's path here
-    set(_CMAKE_MODULE_PATH CMAKE_MODULE_PATH)
-    unset(CMAKE_MODULE_PATH)
-
-    # NOTE: This might be problematic in the future if other sub projects depend on this or if
-    # btop starts producing libraries
-    # Build a static ROCm library
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
-    add_subdirectory(lib/rocm_smi_lib EXCLUDE_FROM_ALL)
-
-    add_library(ROCm INTERFACE)
-    # Export ROCm's properties to a target
-    target_compile_definitions(ROCm INTERFACE RSMI_STATIC)
-    target_include_directories(ROCm INTERFACE lib/rocm_smi_lib/include)
-    target_link_libraries(ROCm INTERFACE rocm_smi64)
-
-    set(CMAKE_MODULE_PATH _CMAKE_MODULE_PATH)
-
-    target_link_libraries(btop ROCm)
-  endif()
 endif()
 
 if(BTOP_USE_MOLD)
   target_link_options(btop PRIVATE -fuse-ld=mold)
 endif()
 
-if(BTOP_STATIC)
-  target_compile_definitions(btop PRIVATE STATIC_BUILD)
-  target_link_options(btop PRIVATE -static LINKER:--fatal-warnings)
-endif()
-
-# Other platform depdendent flags
-if(APPLE)
-  target_link_libraries(btop
-    $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit>
-  )
-elseif(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-  # Avoid version mismatch for libstdc++ when a specific version of GCC is installed and not the
-  # default one since all use the default ones RPATH
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    string(REGEX MATCH "^[0-9]+" GCC_VERSION_MAJOR "${CMAKE_CXX_COMPILER_VERSION}")
-    set_target_properties(btop PROPERTIES
-      INSTALL_RPATH "/usr/local/lib/gcc${GCC_VERSION_MAJOR}"
-      BUILD_WITH_INSTALL_RPATH TRUE
-    )
-
-    # The gcc compiler wrapper doesn't add '--eh-frame-hdr' on FreeBSD with static builds
-    # https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=278551
-    if(BTOP_STATIC)
-      target_link_options(btop PRIVATE LINKER:--eh-frame-hdr)
-    endif()
-  endif()
-
-  find_package(devstat REQUIRED)
-  find_package(kvm REQUIRED)
-  target_link_libraries(btop devstat::devstat kvm::kvm)
-  if(BTOP_STATIC)
-    find_package(elf REQUIRED)
-    target_link_libraries(btop elf::elf)
-  endif()
-elseif(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(btop PRIVATE -static-libstdc++)
-  endif()
-  find_package(kvm REQUIRED)
-  target_link_libraries(btop kvm::kvm)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "NetBSD")
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(btop PRIVATE -static-libstdc++ -std=c++20 -DNDEBUG)
-  endif()
-  find_package(kvm REQUIRED)
-  find_package(proplib REQUIRED)
-  target_link_libraries(btop kvm::kvm proplib::proplib)
-endif()
-
+target_compile_definitions(btop PRIVATE STATIC_BUILD)
+target_link_options(btop PRIVATE -static LINKER:--fatal-warnings)
 
 # Check if lowdown is installed
 find_program(LOWDOWN_EXECUTABLE lowdown)
