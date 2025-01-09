@@ -1,0 +1,3 @@
+[submodule "third_party/libcosmo_plugin"]
+	path = third_party/libcosmo_plugin
+	url = https://github.com/bjia56/libcosmo_plugin.git
