@@ -167,7 +167,7 @@ jobs:
   apelink:
     name: Apelink btop
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, build_plugin]
 
     steps:
       - name: Checkout
