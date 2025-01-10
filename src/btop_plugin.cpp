@@ -189,7 +189,7 @@ namespace Config {
 
 namespace Logger {
 	void log_write(const Level level, const string& msg) {
-		plugin->call<int>("Logger::log_write", static_cast<size_t>(level), msg);
+		plugin->call<bool>("Logger::log_write", static_cast<size_t>(level), msg);
 	}
 }
 
@@ -307,15 +307,22 @@ void create_plugin_host() {
 
 	// Extract btop plugin from zipos
 	auto pluginPath = tmpdir / pluginName;
+	/*
 	if (!std::filesystem::exists(pluginPath)) {
 		std::filesystem::copy_file(ziposPluginPath.str() + pluginName, pluginPath);
 		chmod(pluginPath.c_str(), 0700);
 	}
+	*/
 
 	pluginHost = new PluginHost(pluginPath.string());
 
-	pluginHost->registerHandler<std::unordered_map<std::string_view, int>>("Config::get_ints", std::function([]() {
-		return Config::ints;
+	pluginHost->registerHandler<std::unordered_map<std::string, int>>("Config::get_ints", std::function([]() {
+		// convert map of string_view to map of string
+		std::unordered_map<std::string, int> result;
+		for (const auto& [key, value] : Config::ints) {
+			result[std::string(key)] = value;
+		}
+		return result;
 	}));
 	pluginHost->registerHandler<bool, std::string, int>("Config::ints_set_at", std::function([](string name, int value) {
 		Config::ints.at(name) = value;
