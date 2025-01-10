@@ -64,3 +64,8 @@ if(WIN32)
 else()
   target_link_libraries(${BINARY_NAME} PUBLIC Threads::Threads)
 endif()
+
+# error on undefined symbols
+if(NOT WIN32)
+  target_link_options(${BINARY_NAME} PRIVATE -Wl,--no-undefined)
+endif()
