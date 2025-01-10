@@ -164,8 +164,9 @@ void plugin_initializer(Plugin* plugin) {
 }
 
 namespace Config {
-	std::unordered_map<std::string, int>& get_ints() {
-		static auto result = plugin->call<std::unordered_map<std::string, int>>("Config::get_ints");
+	unordered_map<string, int>& get_ints() {
+		static unordered_map<string, int> result;
+		result = plugin->call<unordered_map<string, int>>("Config::get_ints");
 		return result;
 	}
 	void ints_set_at(const std::string_view name, const int value) {
@@ -175,11 +176,13 @@ namespace Config {
 		return plugin->call<bool>("Config::getB", std::string(name));
 	}
 	const int& getI(const std::string_view name) {
-		static auto result = plugin->call<int>("Config::getI", std::string(name));
+		static int result;
+		result = plugin->call<int>("Config::getI", std::string(name));
 		return result;
 	}
 	const string& getS(const std::string_view name) {
-		static auto result = plugin->call<string>("Config::getS", std::string(name));
+		static string result;
+		result = plugin->call<string>("Config::getS", std::string(name));
 		return result;
 	}
 	void push_back_available_batteries(const string& battery) {
@@ -410,31 +413,36 @@ namespace Gpu {
 		return pluginHost->call<bool>("Gpu::Rsmi::shutdown");
 	}
 	vector<gpu_info>& collect(bool no_update) {
-		static auto info = pluginHost->call<vector<gpu_info>, bool>("Gpu::collect", std::move(no_update));
-		return info;
+		static vector<gpu_info> result;
+		result = pluginHost->call<vector<gpu_info>, bool>("Gpu::collect", std::move(no_update));
+		return result;
 	}
 	int get_count() {
 		return pluginHost->call<int>("Gpu::get_count");
 	}
 	vector<string>& get_gpu_names() {
-		static auto info = pluginHost->call<vector<string>>("Gpu::get_gpu_names");
-		return info;
+		static vector<string> result;
+		result = pluginHost->call<vector<string>>("Gpu::get_gpu_names");
+		return result;
 	}
 	vector<int>& get_gpu_b_height_offsets() {
-		static auto info = pluginHost->call<vector<int>>("Gpu::get_gpu_b_height_offsets");
-		return info;
+		static vector<int> result;
+		result = pluginHost->call<vector<int>>("Gpu::get_gpu_b_height_offsets");
+		return result;
 	}
 	unordered_map<string, deque<long long>>& get_shared_gpu_percent() {
-		static auto info = pluginHost->call<unordered_map<string, deque<long long>>>("Gpu::get_shared_gpu_percent");
-		return info;
+		static unordered_map<string, deque<long long>> result;
+		result = pluginHost->call<unordered_map<string, deque<long long>>>("Gpu::get_shared_gpu_percent");
+		return result;
 	}
 }
 #endif
 
 namespace Cpu {
 	cpu_info& collect(bool no_update) {
-		static auto info = pluginHost->call<cpu_info, bool>("Cpu::collect", std::move(no_update));
-		return info;
+		static cpu_info result;
+		result = pluginHost->call<cpu_info, bool>("Cpu::collect", std::move(no_update));
+		return result;
 	}
 	string get_cpuHz() {
 		return pluginHost->call<string>("Cpu::get_cpuHz");
@@ -455,23 +463,27 @@ namespace Cpu {
 		return pluginHost->call<string>("Cpu::get_cpuName");
 	}
 	vector<string>& get_available_fields() {
-		static auto info = pluginHost->call<vector<string>>("Cpu::get_available_fields");
-		return info;
+		static vector<string> result;
+		result = pluginHost->call<vector<string>>("Cpu::get_available_fields");
+		return result;
 	}
 	vector<string>& get_available_sensors() {
-		static auto info = pluginHost->call<vector<string>>("Cpu::get_available_sensors");
-		return info;
+		static vector<string> result;
+		result = pluginHost->call<vector<string>>("Cpu::get_available_sensors");
+		return result;
 	}
 	tuple<int, float, long, string>& get_current_bat() {
-		static auto info = pluginHost->call<tuple<int, float, long, string>>("Cpu::get_current_bat");
-		return info;
+		static tuple<int, float, long, string> result;
+		result = pluginHost->call<tuple<int, float, long, string>>("Cpu::get_current_bat");
+		return result;
 	}
 }
 
 namespace Mem {
 	mem_info& collect(bool no_update) {
-		static auto info = pluginHost->call<mem_info, bool>("Mem::collect", std::move(no_update));
-		return info;
+		static mem_info result;
+		result = pluginHost->call<mem_info, bool>("Mem::collect", std::move(no_update));
+		return result;
 	}
 	uint64_t get_totalMem() {
 		return pluginHost->call<uint64_t>("Mem::get_totalMem");
@@ -486,8 +498,9 @@ namespace Mem {
 
 namespace Net {
 	net_info& collect(bool no_update) {
-		static net_info info = pluginHost->call<net_info, bool>("Net::collect", std::move(no_update));
-		return info;
+		static net_info result;
+		result = pluginHost->call<net_info, bool>("Net::collect", std::move(no_update));
+		return result;
 	}
 	string get_selected_iface() {
 		return pluginHost->call<string>("Net::get_selected_iface");
@@ -496,26 +509,30 @@ namespace Net {
 		pluginHost->call<bool, string>("Net::set_selected_iface", string(iface));
 	}
 	vector<string>& get_interfaces() {
-		static auto info = pluginHost->call<vector<string>>("Net::get_interfaces");
-		return info;
+		static vector<string> result;
+		result = pluginHost->call<vector<string>>("Net::get_interfaces");
+		return result;
 	}
 	unordered_map<string, uint64_t>& get_graph_max() {
-		static auto info = pluginHost->call<unordered_map<string, uint64_t>>("Net::get_graph_max");
-		return info;
+		static unordered_map<string, uint64_t> result;
+		result = pluginHost->call<unordered_map<string, uint64_t>>("Net::get_graph_max");
+		return result;
 	}
 	void set_rescale(bool rescale) {
 		pluginHost->call<bool>("Net::set_rescale", std::move(rescale));
 	}
 	unordered_map<string, net_info>& get_current_net() {
-		static auto info = pluginHost->call<unordered_map<string, net_info>>("Net::get_current_net");
-		return info;
+		static unordered_map<string, net_info> result;
+		result = pluginHost->call<unordered_map<string, net_info>>("Net::get_current_net");
+		return result;
 	}
 }
 
 namespace Proc {
 	vector<proc_info>& collect(bool no_update) {
-		static auto info = pluginHost->call<vector<proc_info>, bool>("Proc::collect", std::move(no_update));
-		return info;
+		static vector<proc_info> result;
+		result = pluginHost->call<vector<proc_info>, bool>("Proc::collect", std::move(no_update));
+		return result;
 	}
 	int get_numpids() {
 		return pluginHost->call<int>("Proc::get_numpids");

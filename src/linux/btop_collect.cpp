@@ -2981,10 +2981,9 @@ namespace Proc {
 			proc_sorter(current_procs, sorting, reverse, tree);
 		}
 
-		auto config_ints = Config::get_ints();
-
 		//* Generate tree view if enabled
 		if (tree and (not no_update or should_filter or sorted_change)) {
+			auto config_ints = Config::get_ints();
 			bool locate_selection = false;
 			if (auto find_pid = (collapse != -1 ? collapse : expand); find_pid != -1) {
 				auto collapser = rng::find(current_procs, find_pid, &proc_info::pid);
@@ -2998,7 +2997,7 @@ namespace Proc {
 					else if (expand > -1) {
 						collapser->collapsed = false;
 					}
-					if (Config::get_ints().at("proc_selected") > 0) locate_selection = true;
+					if (config_ints.at("proc_selected") > 0) locate_selection = true;
 				}
 				collapse = expand = -1;
 			}
