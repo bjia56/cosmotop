@@ -343,7 +343,7 @@ namespace Draw {
 
 		}
 
-		clock_str = uresize(clock_str, std::max(10, width - 66 - (Term::width >= 100 and Config::getB("show_battery") and Cpu::has_battery ? 22 : 0)));
+		clock_str = uresize(clock_str, std::max(10, width - 66 - (Term::width >= 100 and Config::getB("show_battery") and Cpu::get_has_battery() ? 22 : 0)));
 		out.clear();
 
 		if (clock_str.size() != clock_len) {
@@ -530,9 +530,9 @@ namespace Cpu {
     string draw(const cpu_info& cpu, const vector<Gpu::gpu_info>& gpus, bool force_redraw, bool data_same) {
 		if (Runner::stopping) return "";
 		if (force_redraw) redraw = true;
-		bool show_temps = (Config::getB("check_temp") and got_sensors);
+		bool show_temps = (Config::getB("check_temp") and get_got_sensors());
 		auto single_graph = Config::getB("cpu_single_graph");
-		bool hide_cores = show_temps and (cpu_temp_only or not Config::getB("show_coretemp"));
+		bool hide_cores = show_temps and (get_cpu_temp_only() or not Config::getB("show_coretemp"));
 		const int extra_width = (hide_cores ? max(6, 6 * b_column_size) : 0);
 	#ifdef GPU_SUPPORT
 		const auto& show_gpu_info = Config::getS("show_gpu_info");
@@ -542,11 +542,12 @@ namespace Cpu {
 	#else
 		(void)gpus;
 	#endif
+		auto available_fields = Cpu::get_available_fields();
 		auto graph_up_field = Config::getS("cpu_graph_upper");
-		if (graph_up_field == "Auto" or not v_contains(Cpu::available_fields, graph_up_field))
+		if (graph_up_field == "Auto" or not v_contains(available_fields, graph_up_field))
 			graph_up_field = "total";
 		auto graph_lo_field = Config::getS("cpu_graph_lower");
-		if (graph_lo_field == "Auto" or not v_contains(Cpu::available_fields, graph_lo_field)) {
+		if (graph_lo_field == "Auto" or not v_contains(available_fields, graph_lo_field)) {
 		#ifdef GPU_SUPPORT
 			graph_lo_field = show_gpu ? "gpu-totals" : graph_up_field;
 		#else
@@ -558,6 +559,9 @@ namespace Cpu {
 		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
 		auto& temp_scale = Config::getS("temp_scale");
 		auto cpu_bottom = Config::getB("cpu_bottom");
+		auto coreCount =  Shared::get_coreCount();
+		auto has_battery = get_has_battery();
+		auto cpuHz = get_cpuHz();
 
 		const string& title_left = Theme::c("cpu_box") + (cpu_bottom ? Symbols::title_left_down : Symbols::title_left);
 		const string& title_right = Theme::c("cpu_box") + (cpu_bottom ? Symbols::title_right_down : Symbols::title_right);
@@ -715,7 +719,7 @@ namespace Cpu {
 				{"unknown", "○"}
 			};
 
-			const auto& [percent, watts, seconds, status] = current_bat;
+			const auto& [percent, watts, seconds, status] = get_current_bat();
 
 			if (redraw or percent != old_percent or (watts != old_watts and Config::getB("show_battery_watts")) or seconds != old_seconds or status != old_status) {
 				old_percent = percent;
@@ -814,9 +818,9 @@ namespace Cpu {
 
 		//? Core text and graphs
 		int cx = 0, cy = 1, cc = 0, core_width = (b_column_size == 0 ? 2 : 3);
-		if (Shared::coreCount >= 100) core_width++;
-		for (const auto& n : iota(0, Shared::coreCount)) {
-			out += Mv::to(b_y + cy + 1, b_x + cx + 1) + Theme::c("main_fg") + (Shared::coreCount < 100 ? Fx::b + 'C' + Fx::ub : "")
+		if (coreCount >= 100) core_width++;
+		for (const auto& n : iota(0, coreCount)) {
+			out += Mv::to(b_y + cy + 1, b_x + cx + 1) + Theme::c("main_fg") + (coreCount < 100 ? Fx::b + 'C' + Fx::ub : "")
 				+ ljust(to_string(n), core_width);
 			if ((b_column_size > 0 or extra_width > 0) and cmp_less(n, core_graphs.size()))
 				out += Theme::c("inactive_fg") + graph_bg * (5 * b_column_size + extra_width) + Mv::l(5 * b_column_size + extra_width)
@@ -836,7 +840,7 @@ namespace Cpu {
 
 			out += Theme::c("div_line") + Symbols::v_line;
 
-			if ((++cy > ceil((double)Shared::coreCount / b_columns) or cy == b_height - 2) and n != Shared::coreCount - 1) {
+			if ((++cy > ceil((double)coreCount / b_columns) or cy == b_height - 2) and n != coreCount - 1) {
 				if (++cc >= b_columns) break;
 				cy = 1; cx = (b_width / b_columns) * cc;
 			}
@@ -1127,6 +1131,8 @@ namespace Mem {
 		auto totalMem = Mem::get_totalMem();
 		string out;
 		out.reserve(height * width);
+		auto has_swap = get_has_swap();
+		auto disk_ios = get_disk_ios();
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
@@ -1385,6 +1391,8 @@ namespace Net {
 			old_ip = ip_addr;
 			redraw = true;
 		}
+		auto selected_iface = get_selected_iface();
+		auto graph_max = get_graph_max();
 		string out;
 		out.reserve(width * height);
 		const string title_left = Theme::c("net_box") + Fx::ub + Symbols::title_left;
@@ -1489,7 +1497,7 @@ namespace Proc {
 		const int select_max = (Config::getB("show_detailed") ? Proc::select_max - 8 : Proc::select_max);
 		auto vim_keys = Config::getB("vim_keys");
 
-		int numpids = Proc::numpids;
+		int numpids = Proc::get_numpids();
 		if ((cmd_key == "up" or (vim_keys and cmd_key == "k")) and selected > 0) {
 			if (start > 0 and selected == 1) start--;
 			else selected--;
@@ -1545,7 +1553,8 @@ namespace Proc {
 	string draw(const vector<proc_info>& plist, bool force_redraw, bool data_same) {
 		if (Runner::stopping) return "";
 		auto proc_tree = Config::getB("proc_tree");
-		bool show_detailed = (Config::getB("show_detailed") and cmp_equal(Proc::detailed.last_pid, Config::getI("detailed_pid")));
+		auto detailed = Proc::get_detailed();
+		bool show_detailed = (Config::getB("show_detailed") and cmp_equal(detailed.last_pid, Config::getI("detailed_pid")));
 		bool proc_gradient = (Config::getB("proc_gradient") and not Config::getB("lowcolor") and Theme::gradients.contains("proc"));
 		auto proc_colors = Config::getB("proc_colors");
 		auto tty_mode = Config::getB("tty_mode");
@@ -1560,7 +1569,7 @@ namespace Proc {
 		const int height = show_detailed ? Proc::height - 8 : Proc::height;
 		const int select_max = show_detailed ? Proc::select_max - 8 : Proc::select_max;
 		auto totalMem = Mem::get_totalMem();
-		int numpids = Proc::numpids;
+		int numpids = Proc::get_numpids();
 		if (force_redraw) redraw = true;
 		string out;
 		out.reserve(width * height);
@@ -2012,6 +2021,9 @@ namespace Draw {
 		//* Calculate and draw cpu box outlines
 		if (Cpu::shown) {
 			using namespace Cpu;
+			auto coreCount = Shared::get_coreCount();
+			auto got_sensors = get_got_sensors();
+
 		#ifdef GPU_SUPPORT
 			int gpus_extra_height =
 				Config::getS("show_gpu_info") == "On" ? Gpu::count
@@ -2034,9 +2046,9 @@ namespace Draw {
 			y = cpu_bottom ? Term::height - height + 1 : 1;
 
 		#ifdef GPU_SUPPORT
-			b_columns = max(2, (int)ceil((double)(Shared::coreCount + 1) / (height - gpus_extra_height - 5)));
+			b_columns = max(2, (int)ceil((double)(coreCount + 1) / (height - gpus_extra_height - 5)));
 		#else
-			b_columns = max(1, (int)ceil((double)(Shared::coreCount + 1) / (height - 5)));
+			b_columns = max(1, (int)ceil((double)(coreCount + 1) / (height - 5)));
 		#endif
 			if (b_columns * (21 + 12 * show_temp) < width - (width / 3)) {
 				b_column_size = 2;
@@ -2057,9 +2069,9 @@ namespace Draw {
 			if (b_column_size == 0) b_width = (8 + 6 * show_temp) * b_columns + 1;
 		#ifdef GPU_SUPPORT
 			//gpus_extra_height = max(0, gpus_extra_height - 1);
-			b_height = min(height - 2, (int)ceil((double)Shared::coreCount / b_columns) + 4 + gpus_extra_height);
+			b_height = min(height - 2, (int)ceil((double)coreCount / b_columns) + 4 + gpus_extra_height);
 		#else
-			b_height = min(height - 2, (int)ceil((double)Shared::coreCount / b_columns) + 4);
+			b_height = min(height - 2, (int)ceil((double)coreCount / b_columns) + 4);
 		#endif
 
 			b_x = x + width - b_width - 1;
@@ -2070,7 +2082,7 @@ namespace Draw {
 			auto& custom = Config::getS("custom_cpu_name");
 			static const bool hasCpuHz = not Cpu::get_cpuHz().empty();
 			const string cpu_title = uresize(
-					(custom.empty() ? Cpu::cpuName : custom),
+					(custom.empty() ? Cpu::get_cpuName() : custom),
 					b_width - (Config::getB("show_cpu_freq") and hasCpuHz ? 14 : 4)
 			);
 			box += createBox(b_x, b_y, b_width, b_height, "", false, cpu_title);
@@ -2129,6 +2141,7 @@ namespace Draw {
 			auto show_disks = Config::getB("show_disks");
 			auto swap_disk = Config::getB("swap_disk");
 			auto mem_graphs = Config::getB("mem_graphs");
+			auto has_swap = get_has_swap();
 
 			width = round((double)Term::width * (Proc::shown ? width_p : 100) / 100);
 		#ifdef GPU_SUPPORT

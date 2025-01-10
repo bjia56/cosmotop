@@ -281,6 +281,7 @@ namespace Input {
 				bool keep_going = false;
 				bool no_update = true;
 				bool redraw = true;
+				auto detailed = Proc::get_detailed();
 				if (filtering) {
 					if (key == "enter" or key == "down") {
 						Config::set("proc_filter", Proc::filter.text);
@@ -402,19 +403,19 @@ namespace Input {
 				else if (is_in(key, "+", "-", "space") and Config::getB("proc_tree") and Config::getI("proc_selected") > 0) {
 					atomic_wait(Runner::active);
 					auto& pid = Config::getI("selected_pid");
-					if (key == "+" or key == "space") Proc::expand = pid;
-					if (key == "-" or key == "space") Proc::collapse = pid;
+					if (key == "+" or key == "space") Proc::set_expand(pid);
+					if (key == "-" or key == "space") Proc::set_collapse(pid);
 					no_update = false;
 				}
 				else if (is_in(key, "t", kill_key) and (Config::getB("show_detailed") or Config::getI("selected_pid") > 0)) {
 					atomic_wait(Runner::active);
-					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and Proc::detailed.status == "Dead") return;
+					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and detailed.status == "Dead") return;
 					Menu::show(Menu::Menus::SignalSend, (key == "t" ? SIGTERM : SIGKILL));
 					return;
 				}
 				else if (key == "s" and (Config::getB("show_detailed") or Config::getI("selected_pid") > 0)) {
 					atomic_wait(Runner::active);
-					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and Proc::detailed.status == "Dead") return;
+					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and detailed.status == "Dead") return;
 					Menu::show(Menu::Menus::SignalChoose);
 					return;
 				}
@@ -494,32 +495,35 @@ namespace Input {
 				bool keep_going = false;
 				bool no_update = true;
 				bool redraw = true;
+				auto interfaces = Net::get_interfaces();
+				auto selected_iface = Net::get_selected_iface();
 
 				if (is_in(key, "b", "n")) {
 					atomic_wait(Runner::active);
-					int c_index = v_index(Net::interfaces, Net::selected_iface);
-					if (c_index != (int)Net::interfaces.size()) {
+					int c_index = v_index(interfaces, selected_iface);
+					if (c_index != (int)interfaces.size()) {
 						if (key == "b") {
-							if (--c_index < 0) c_index = Net::interfaces.size() - 1;
+							if (--c_index < 0) c_index = interfaces.size() - 1;
 						}
 						else if (key == "n") {
-							if (++c_index == (int)Net::interfaces.size()) c_index = 0;
+							if (++c_index == (int)interfaces.size()) c_index = 0;
 						}
-						Net::selected_iface = Net::interfaces.at(c_index);
-						Net::rescale = true;
+						Net::set_selected_iface(interfaces.at(c_index));
+						Net::set_rescale(true);
 					}
 				}
 				else if (key == "y") {
 					Config::flip("net_sync");
-					Net::rescale = true;
+					Net::set_rescale(true);
 				}
 				else if (key == "a") {
 					Config::flip("net_auto");
-					Net::rescale = true;
+					Net::set_rescale(true);
 				}
 				else if (key == "z") {
 					atomic_wait(Runner::active);
-					auto& ndev = Net::current_net.at(Net::selected_iface);
+					auto current_net = Net::get_current_net();
+					auto& ndev = current_net.at(selected_iface);
 					if (ndev.stat.at("download").offset + ndev.stat.at("upload").offset > 0) {
 						ndev.stat.at("download").offset = 0;
 						ndev.stat.at("upload").offset = 0;

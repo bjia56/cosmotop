@@ -893,7 +893,7 @@ namespace Menu {
 			y = Term::height/2 - 9;
 			bg = Draw::createBox(x + 2, y, 78, 19, Theme::c("hi_fg"), true, "signals");
 			bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Send signal to PID " + to_string(s_pid) + " ("
-				+ uresize((s_pid == Config::getI("detailed_pid") ? Proc::detailed.entry.name : Config::getS("selected_name")), 30) + ")", 76);
+				+ uresize((s_pid == Config::getI("detailed_pid") ? Proc::get_detailed().entry.name : Config::getS("selected_name")), 30) + ")", 76);
 		}
 		else if (is_in(key, "escape", "q")) {
 			return Closed;
@@ -1013,7 +1013,7 @@ namespace Menu {
 		if (s_pid == 0) return Closed;
 		if (redraw) {
 			atomic_wait(Runner::active);
-			auto& p_name = (s_pid == Config::getI("detailed_pid") ? Proc::detailed.entry.name : Config::getS("selected_name"));
+			auto& p_name = (s_pid == Config::getI("detailed_pid") ? Proc::get_detailed().entry.name : Config::getS("selected_name"));
 			vector<string> cont_vec = {
 				Fx::b + Theme::c("main_fg") + "Send signal: " + Fx::ub + Theme::c("hi_fg") + to_string(signalToSend)
 				+ (signalToSend > 0 and signalToSend <= 32 ? Theme::c("main_fg") + " (" + P_Signals.at(signalToSend) + ')' : ""),
@@ -1186,15 +1186,20 @@ namespace Menu {
 			{"graph_symbol_mem", std::cref(Config::valid_graph_symbols_def)},
 			{"graph_symbol_net", std::cref(Config::valid_graph_symbols_def)},
 			{"graph_symbol_proc", std::cref(Config::valid_graph_symbols_def)},
-			{"cpu_graph_upper", std::cref(Cpu::available_fields)},
-			{"cpu_graph_lower", std::cref(Cpu::available_fields)},
-			{"cpu_sensor", std::cref(Cpu::available_sensors)},
+			{"cpu_graph_upper", std::cref(Cpu::get_available_fields())},
+			{"cpu_graph_lower", std::cref(Cpu::get_available_fields())},
+			{"cpu_sensor", std::cref(Cpu::get_available_sensors())},
 			{"selected_battery", std::cref(Config::available_batteries)},
 		#ifdef GPU_SUPPORT
 			{"show_gpu_info", std::cref(Config::show_gpu_values)},
 			{"graph_symbol_gpu", std::cref(Config::valid_graph_symbols_def)},
 		#endif
 		};
+
+		// ensure the following fields are updated from the plugin
+		Cpu::get_available_fields();
+		Cpu::get_available_sensors();
+
 		auto tty_mode = Config::getB("tty_mode");
 		auto vim_keys = Config::getB("vim_keys");
 		if (max_items == 0) {
@@ -1257,7 +1262,7 @@ namespace Menu {
 					}
 					else if (option == "cpu_core_map") {
 						atomic_wait(Runner::active);
-						Cpu::core_mapping = Cpu::get_core_mapping();
+						Cpu::update_core_mapping();
 					}
 				}
 				else if (selPred.test(isInt) and Config::intValid(option, editor.text)) {

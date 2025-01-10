@@ -93,6 +93,8 @@ namespace Shared {
 
 	extern long coreCount, page_size, clk_tck;
 
+	long get_coreCount();
+
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	struct KvmDeleter {
 		void operator()(kvm_t* handle) {
@@ -191,13 +193,21 @@ namespace Gpu {
 }
 
 namespace Cpu {
-	extern string box;
-	extern int x, y, width, height, min_width, min_height;
 	extern bool shown, redraw, got_sensors, cpu_temp_only, has_battery;
 	extern string cpuName, cpuHz;
 	extern vector<string> available_fields;
 	extern vector<string> available_sensors;
 	extern tuple<int, float, long, string> current_bat;
+	bool get_has_battery();
+	bool get_got_sensors();
+	bool get_cpu_temp_only();
+	string get_cpuName();
+	vector<string>& get_available_fields();
+	vector<string>& get_available_sensors();
+	tuple<int, float, long, string>& get_current_bat();
+
+	extern string box;
+	extern int x, y, width, height, min_width, min_height;
 
 	struct cpu_info {
 		std::unordered_map<string, deque<long long>> cpu_percent = {
@@ -228,6 +238,7 @@ namespace Cpu {
 	//* Parse /proc/cpu info for mapping of core ids
 	auto get_core_mapping() -> std::unordered_map<int, int>;
 	extern std::unordered_map<int, int> core_mapping;
+	auto update_core_mapping() -> bool;
 
 	auto get_cpuHz() -> string;
 
@@ -242,6 +253,9 @@ namespace Mem {
 	const array mem_names { "used"s, "available"s, "cached"s, "free"s };
 	const array swap_names { "swap_used"s, "swap_free"s };
 	extern int disk_ios;
+
+	bool get_has_swap();
+	int get_disk_ios();
 
 	struct disk_info {
 		std::filesystem::path dev;
@@ -291,6 +305,12 @@ namespace Net {
 	extern bool rescale;
 	extern std::unordered_map<string, uint64_t> graph_max;
 
+	string get_selected_iface();
+	void set_selected_iface(const string& iface);
+	vector<string>& get_interfaces();
+	std::unordered_map<string, uint64_t>& get_graph_max();
+	void set_rescale(bool rescale);
+
 	struct net_stat {
 		uint64_t speed{};
 		uint64_t top{};
@@ -320,6 +340,7 @@ namespace Net {
 	};
 
 	extern std::unordered_map<string, net_info> current_net;
+	std::unordered_map<string, net_info>& get_current_net();
 
 	//* Collect net upload/download stats
 	auto collect(bool no_update=false) -> net_info&;
@@ -330,6 +351,7 @@ namespace Net {
 
 namespace Proc {
 	extern atomic<int> numpids;
+	int get_numpids();
 
 	extern string box;
 	extern int x, y, width, height, min_width, min_height;
@@ -338,6 +360,10 @@ namespace Proc {
 	extern atomic<int> detailed_pid;
 	extern int selected_pid, start, selected, collapse, expand, filter_found, selected_depth;
 	extern string selected_name;
+
+	void set_collapse(int val);
+	void set_expand(int val);
+	void increment_filter_found();
 
 	//? Contains the valid sorting options for processes
 	const vector<string> sort_vector = {
@@ -403,6 +429,7 @@ namespace Proc {
 
 	//? Contains all info for proc detailed box
 	extern detail_container detailed;
+	detail_container get_detailed();
 
 	//* Collect and sort process information from /proc
 	auto collect(bool no_update = false) -> vector<proc_info>&;

@@ -139,7 +139,7 @@ namespace Proc {
 			if (!matches_filter(cur_proc, filter)) {
 				filtering = true;
 				cur_proc.filtered = true;
-				filter_found++;
+				increment_filter_found();
 			}
 			else {
 				found = true;
@@ -181,7 +181,7 @@ namespace Proc {
 				cur_proc.cpu_c += p.cpu_c;
 				cur_proc.mem += p.mem;
 				cur_proc.threads += p.threads;
-				filter_found++;
+				increment_filter_found();
 				p.filtered = true;
 			}
 			else if (Config::getB("proc_aggregate")) {

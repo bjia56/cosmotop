@@ -52,6 +52,7 @@ tab-size = 4
 #include "btop_theme.hpp"
 #include "btop_draw.hpp"
 #include "btop_menu.hpp"
+#include "btop_plugin.hpp"
 #include "config.h"
 #include "fmt/core.h"
 #include "fmt/ostream.h"
@@ -648,7 +649,7 @@ namespace Runner {
 
 						if (coreNum_reset) {
 							coreNum_reset = false;
-							Cpu::core_mapping = Cpu::get_core_mapping();
+							Cpu::update_core_mapping();
 							Global::resized = true;
 							Input::interrupt();
 							continue;
@@ -1068,6 +1069,7 @@ int main(int argc, char **argv) {
 
 	//? Platform dependent init and error check
 	try {
+		create_plugin_host();
 		Shared::init();
 	}
 	catch (const std::exception& e) {

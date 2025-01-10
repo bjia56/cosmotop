@@ -16,6 +16,8 @@ project("btop"
   LANGUAGES CXX C
 )
 
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/libcosmo_plugin)
+
 include(CheckCXXCompilerFlag)
 include(CheckIncludeFileCXX)
 include(CheckIPOSupported)
@@ -54,7 +56,10 @@ add_executable(btop
   src/btop_shared.cpp
   src/btop_theme.cpp
   src/btop_tools.cpp
+  src/btop_plugin.cpp
+  ${LIBCOSMO_PLUGIN_SOURCES}
 )
+target_compile_definitions(btop PRIVATE BTOP_PLUGIN_HOST)
 
 check_include_file_cxx(ranges CXX_HAVE_RANGES)
 if(NOT CXX_HAVE_RANGES)
@@ -115,7 +120,7 @@ target_compile_definitions(btop PRIVATE
   $<$<AND:$<NOT:$<CONFIG:Debug>>,$<BOOL:${BTOP_FORTIFY}>>:_FORTIFY_SOURCE=3>
 )
 
-target_include_directories(btop SYSTEM PRIVATE include)
+target_include_directories(btop SYSTEM PRIVATE include ${LIBCOSMO_PLUGIN_INCLUDE_DIRS})
 
 # Enable pthreads
 set(THREADS_PREFER_PTHREAD_FLAG ON)
