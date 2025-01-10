@@ -187,7 +187,7 @@ void create_plugin_host() {
 			pluginName = "libbtop.exe";
 		}
 	} else if (IsWindows()) {
-		pluginName = "libbtop.dll";
+		pluginName = "btop.dll";
 	} else if (IsOpenbsd() || IsNetbsd()) {
 		pluginName = "libbtop.exe";
 	}
