@@ -48,9 +48,6 @@ execute_process(
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   OUTPUT_VARIABLE GIT_COMMIT
   OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-set(CONFIGURE_COMMAND
-    "cmake -DBTOP_STATIC=${BTOP_STATIC} -DBTOP_USE_MOLD=${BTOP_USE_MOLD} -DBTOP_FORTIFY=${BTOP_FORTIFY} -DBTOP_GPU=${BTOP_GPU}"
-)
 get_filename_component(CXX_COMPILER_BASENAME "${CMAKE_CXX_COMPILER}" NAME)
 set(COMPILER "${CXX_COMPILER_BASENAME}")
 set(COMPILER_VERSION "${CMAKE_CXX_COMPILER_VERSION}")
@@ -65,3 +62,24 @@ find_package(Threads REQUIRED)
 target_link_libraries(btop Threads::Threads)
 
 target_compile_definitions(btop PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
+
+# Check if lowdown is installed
+find_program(LOWDOWN_EXECUTABLE lowdown)
+
+if(LOWDOWN_EXECUTABLE)
+  # Custom target to compile Markdown to man page using lowdown
+  add_custom_target(btop.1 ALL
+      COMMAND lowdown -s -Tman -o btop.1 manpage.md
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  # Install the man page
+  install(FILES btop.1 DESTINATION "share/man/man1")
+else()
+  message(WARNING "Command 'lowdown' not found: skipping generating man page btop.1")
+endif()
+
+install(TARGETS btop RUNTIME)
+install(FILES "btop.desktop" DESTINATION "share/applications")
+install(FILES "Img/icon.png" DESTINATION "share/icons/hicolor/48x48/apps" RENAME "btop.png")
+install(FILES "Img/icon.svg" DESTINATION "share/icons/hicolor/scalable/apps" RENAME "btop.svg")
+install(DIRECTORY "themes" DESTINATION "share/btop")
