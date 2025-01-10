@@ -969,6 +969,9 @@ int main(int argc, char **argv) {
 	//? Config init
 	init_config();
 
+	//? Plugin init
+	create_plugin_host();
+
 	//? Try to find and set a UTF-8 locale
 	if (std::setlocale(LC_ALL, "") != nullptr and not s_contains((string)std::setlocale(LC_ALL, ""), ";")
 	and str_to_upper(s_replace((string)std::setlocale(LC_ALL, ""), "-", "")).ends_with("UTF8")) {
@@ -1069,7 +1072,6 @@ int main(int argc, char **argv) {
 
 	//? Platform dependent init and error check
 	try {
-		create_plugin_host();
 		Shared::init();
 	}
 	catch (const std::exception& e) {
