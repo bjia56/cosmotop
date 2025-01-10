@@ -41,7 +41,7 @@ add_executable(btop
   src/btop_plugin.cpp
   ${LIBCOSMO_PLUGIN_SOURCES}
 )
-target_compile_definitions(btop PRIVATE BTOP_PLUGIN_HOST COSMO_PLUGIN_DEBUG_RPC)
+target_compile_definitions(btop PRIVATE BTOP_PLUGIN_HOST)
 
 # Generate build info
 execute_process(

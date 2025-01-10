@@ -62,7 +62,6 @@ target_include_directories(${BINARY_NAME} PRIVATE
 )
 target_compile_definitions(${BINARY_NAME} PRIVATE
   BTOP_PLUGIN
-  COSMO_PLUGIN_DEBUG_RPC
   GPU_SUPPORT
   FMT_HEADER_ONLY
   _FILE_OFFSET_BITS=64
