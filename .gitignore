@@ -87,3 +87,6 @@ _deps
 
 # CLion
 cmake-build-*
+
+# gdb
+.gdb_history
