@@ -210,7 +210,7 @@ jobs:
             /tmp/btop/btop-x86_64 \
             /tmp/btop/btop-aarch64
 
-          tree /tmp/btop-plugin
+          tree /tmp/btop-plugin || true
 
           sudo mkdir -p /zip/x86_64/linux
           sudo mkdir -p /zip/x86_64/macos
