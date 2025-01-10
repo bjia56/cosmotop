@@ -71,6 +71,99 @@ jobs:
         uses: fawazahmed0/action-debug-vscode@v3
         if: ${{ always() && inputs.debug_build }}
 
+  build_plugin:
+    name: Build btop plugin ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          #- runner: macos-13
+          #  arch: x86_64
+          #  os: MacOS
+          #- runner: macos-14
+          #  arch: arm64
+          #  os: MacOS
+          - runner: ubuntu-latest
+            arch: x86_64
+            os: Linux
+          #- runner: windows-latest
+          #  arch: x86_64
+          #  os: Windows
+          #- runner: ubuntu-latest
+          #  arch: x86_64
+          #  os: FreeBSD
+          #- runner: ubuntu-latest
+          #  arch: aarch64
+          #  os: FreeBSD
+          #- runner: ubuntu-latest
+          #  arch: x86_64
+          #  os: NetBSD
+          #- runner: ubuntu-latest
+          #  arch: x86_64
+          #  os: OpenBSD
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build plugin
+        if: ${{ !contains(matrix.os, 'BSD') }}
+        shell: bash
+        run: |
+          cd src/linux
+          cmake -B build
+          cmake --build build --parallel 4
+
+      - name: Start VM
+        if: ${{ matrix.os == 'FreeBSD' }}
+        uses: vmactions/freebsd-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+
+      - name: Start VM
+        if: ${{ matrix.os == 'NetBSD' }}
+        uses: vmactions/netbsd-vm@v1
+        with:
+          sync: nfs
+
+      - name: Start VM
+        if: ${{ matrix.os == 'OpenBSD' }}
+        uses: vmactions/openbsd-vm@v1
+        with:
+          sync: nfs
+          release: 7.3
+
+      - name: todo
+        if: ${{ matrix.os == 'FreeBSD' }}
+        shell: freebsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          ./btop.com --version
+
+      - name: todo
+        if: ${{ matrix.os == 'NetBSD' }}
+        shell: netbsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          ./btop.com --version
+
+      - name: todo
+        if: ${{ matrix.os == 'OpenBSD' }}
+        shell: openbsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          ./btop.com --version
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: btop-plugin-${{ matrix.os}}-${{ matrix.arch }}
+          path: ./src/linux/build/libbtop.so
+
   apelink:
     name: Apelink btop
     runs-on: ubuntu-latest
@@ -79,6 +172,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Load cosmocc version
         run: |
@@ -97,6 +192,13 @@ jobs:
           path: /tmp/btop/
           merge-multiple: true
 
+      - name: Download btop plugins
+        uses: actions/download-artifact@v4
+        with:
+          pattern: btop-plugin-*
+          path: /tmp/btop-plugin/
+          merge-multiple: true
+
       - name: Apelink
         run: |
           cosmo_bin=$(dirname $(which cosmocc))
@@ -107,6 +209,24 @@ jobs:
             -o btop.com \
             /tmp/btop/btop-x86_64 \
             /tmp/btop/btop-aarch64
+
+          tree /tmp/btop-plugin
+
+          sudo mkdir -p /zip/x86_64/linux
+          sudo mkdir -p /zip/x86_64/macos
+          sudo mkdir -p /zip/x86_64/windows
+          sudo mkdir -p /zip/x86_64/freebsd
+          sudo mkdir -p /zip/x86_64/openbsd
+          sudo mkdir -p /zip/x86_64/netbsd
+          sudo mkdir -p /zip/aarch64/linux
+          sudo mkdir -p /zip/aarch64/macos
+          sudo mkdir -p /zip/aarch64/windows
+          sudo mkdir -p /zip/aarch64/freebsd
+          sudo mkdir -p /zip/aarch64/openbsd
+          sudo mkdir -p /zip/aarch64/netbsd
+
+          cd /zip
+          zip -qr ${{ github.workspace }}/btop.com *
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
