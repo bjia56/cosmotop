@@ -45,6 +45,7 @@ stage/
 *.exe
 *.out
 *.app
+*.com
 
 # Compiled man page
 btop.1

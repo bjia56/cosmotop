@@ -391,6 +391,18 @@ namespace Config {
 		return locked.load();
 	}
 
+	bool getB(const std::string_view name) {
+		return bools.at(name);
+	}
+
+	const int& getI(const std::string_view name) {
+		return ints.at(name);
+	}
+
+	const string& getS(const std::string_view name) {
+		return strings.at(name);
+	}
+
 	fs::path conf_dir;
 	fs::path conf_file;
 
@@ -641,7 +653,7 @@ namespace Config {
 		#ifdef GPU_SUPPORT
 			if (box.starts_with("gpu")) {
 				int gpu_num = stoi(box.substr(3)) + 1;
-				if (gpu_num > Gpu::count) return false;
+				if (gpu_num > Gpu::get_count()) return false;
 			}
 		#endif
 		}

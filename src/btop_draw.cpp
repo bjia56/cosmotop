@@ -535,10 +535,11 @@ namespace Cpu {
 		bool hide_cores = show_temps and (get_cpu_temp_only() or not Config::getB("show_coretemp"));
 		const int extra_width = (hide_cores ? max(6, 6 * b_column_size) : 0);
 	#ifdef GPU_SUPPORT
+		auto gpu_count = Gpu::get_count();
 		const auto& show_gpu_info = Config::getS("show_gpu_info");
 		const bool gpu_always = show_gpu_info == "On";
 		const bool gpu_auto = show_gpu_info == "Auto";
-		const bool show_gpu = (gpus.size() > 0 and (gpu_always or (gpu_auto and Gpu::shown < Gpu::count)));
+		const bool show_gpu = (gpus.size() > 0 and (gpu_always or (gpu_auto and Gpu::shown < gpu_count)));
 	#else
 		(void)gpus;
 	#endif
@@ -607,7 +608,7 @@ namespace Cpu {
 						gpu_temp_graphs.resize(gpus.size());
 						gpu_mem_graphs.resize(gpus.size());
 						gpu_meters.resize(gpus.size());
-						const int gpu_draw_count = gpu_always ? Gpu::count : Gpu::count - Gpu::shown;
+						const int gpu_draw_count = gpu_always ? gpu_count : gpu_count - Gpu::shown;
 						graph_width = gpu_draw_count <= 0 ? graph_default_width : graph_default_width/gpu_draw_count - gpu_draw_count + 1 + graph_default_width%gpu_draw_count;
 						for (size_t i = 0; i < gpus.size(); i++) {
 							if (gpu_auto and v_contains(Gpu::shown_panels, i))
@@ -630,7 +631,7 @@ namespace Cpu {
 					} else {
 						graphs.resize(1);
 						graph_width = graph_default_width;
-						graphs[0] = Draw::Graph{ graph_width, graph_height, "cpu", safeVal(Gpu::shared_gpu_percent, graph_field), graph_symbol, invert, true };
+						graphs[0] = Draw::Graph{ graph_width, graph_height, "cpu", safeVal(Gpu::get_shared_gpu_percent(), graph_field), graph_symbol, invert, true };
 					}
 				}
 				else {
@@ -760,18 +761,18 @@ namespace Cpu {
 						if (gpu_auto and v_contains(Gpu::shown_panels, i))
 							continue;
 						out += graphs[i](safeVal(gpus[i].gpu_percent, graph_field), (data_same or redraw));
-						if (Gpu::count - (gpu_auto ? Gpu::shown : 0) > 1) {
+						if (gpu_count - (gpu_auto ? Gpu::shown : 0) > 1) {
 							auto i_str = to_string(i);
 							out += Mv::l(graph_width-1) + Mv::u(graph_height/2) + (graph_width > 5 ? "GPU" : "") + i_str
 								+ Mv::d(graph_height/2) + Mv::r(graph_width - 1 - (graph_width > 5)*3 - i_str.size());
 						}
 
-						if (++gpu_drawn < Gpu::count - (gpu_auto ? Gpu::shown : 0))
+						if (++gpu_drawn < gpu_count - (gpu_auto ? Gpu::shown : 0))
 							out += Theme::c("div_line") + (Symbols::v_line + Mv::l(1) + Mv::u(1))*graph_height + Mv::r(1) + Mv::d(1);
 					}
 				}
 				else
-					out += graphs[0](safeVal(Gpu::shared_gpu_percent, graph_field), (data_same or redraw));
+					out += graphs[0](safeVal(Gpu::get_shared_gpu_percent(), graph_field), (data_same or redraw));
 			else
 		#else
 			(void)graph_height;
@@ -936,7 +937,6 @@ namespace Gpu {
 	vector<int> b_x_vec = {}, b_y_vec = {};
 	vector<bool> redraw = {};
 	int shown = 0;
-	int count = 0;
 	vector<int> shown_panels = {};
 	int graph_up_height;
 	vector<Draw::Graph> graph_upper_vec = {}, graph_lower_vec = {};
@@ -2000,10 +2000,11 @@ namespace Draw {
 
 		Cpu::shown = s_contains(boxes, "cpu");
 	#ifdef GPU_SUPPORT
+		auto gpu_count = Gpu::get_count();
 		Gpu::box.clear();
 		Gpu::width = 0;
 		Gpu::shown_panels.clear();
-		if (Gpu::count > 0) {
+		if (gpu_count > 0) {
 			std::istringstream iss(boxes, std::istringstream::in);
 			string current;
 			while (iss >> current) {
@@ -2026,8 +2027,8 @@ namespace Draw {
 
 		#ifdef GPU_SUPPORT
 			int gpus_extra_height =
-				Config::getS("show_gpu_info") == "On" ? Gpu::count
-				: Config::getS("show_gpu_info") == "Auto" ? Gpu::count - Gpu::shown
+				Config::getS("show_gpu_info") == "On" ? gpu_count
+				: Config::getS("show_gpu_info") == "Auto" ? gpu_count - Gpu::shown
 				: 0;
 		#endif
             const bool show_temp = (Config::getB("check_temp") and got_sensors);
@@ -2092,6 +2093,8 @@ namespace Draw {
 		//* Calculate and draw gpu box outlines
 		if (Gpu::shown != 0) {
 			using namespace Gpu;
+			auto gpu_names = get_gpu_names();
+			auto gpu_b_height_offsets = get_gpu_b_height_offsets();
 			x_vec.resize(shown); y_vec.resize(shown);
 			b_x_vec.resize(shown); b_y_vec.resize(shown);
 			b_height_vec.resize(shown);

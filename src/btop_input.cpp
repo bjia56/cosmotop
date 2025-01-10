@@ -232,7 +232,8 @@ namespace Input {
 					auto intKey = stoi(key);
 				#ifdef GPU_SUPPORT
 					static const array<string, 10> boxes = {"gpu5", "cpu", "mem", "net", "proc", "gpu0", "gpu1", "gpu2", "gpu3", "gpu4"};
-					if ((intKey == 0 and Gpu::count < 5) or (intKey >= 5 and intKey - 4 > Gpu::count))
+					auto gpu_count = Gpu::get_count();
+					if ((intKey == 0 and gpu_count < 5) or (intKey >= 5 and intKey - 4 > gpu_count))
 						return;
 				#else
 				static const array<string, 10> boxes = {"", "cpu", "mem", "net", "proc"};

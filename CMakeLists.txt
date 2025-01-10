@@ -36,7 +36,8 @@ add_executable(btop
   src/btop_menu.cpp
   src/btop_shared.cpp
   src/btop_theme.cpp
-  src/btop_tools.cpp
+  src/btop_tools_host.cpp
+  src/btop_tools_shared.cpp
   src/btop_plugin.cpp
   ${LIBCOSMO_PLUGIN_SOURCES}
 )

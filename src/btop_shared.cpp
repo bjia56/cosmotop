@@ -27,19 +27,6 @@ tab-size = 4
 namespace rng = std::ranges;
 using namespace Tools;
 
-#ifdef GPU_SUPPORT
-namespace Gpu {
-	vector<string> gpu_names;
-	vector<int> gpu_b_height_offsets;
-	std::unordered_map<string, deque<long long>> shared_gpu_percent = {
-		{"gpu-average", {}},
-		{"gpu-vram-total", {}},
-		{"gpu-pwr-total", {}},
-	};
-	long long gpu_pwr_total_max = 0;
-}
-#endif
-
 namespace Proc {
 	void proc_sorter(vector<proc_info>& proc_vec, const string& sorting, bool reverse, bool tree) {
 		if (reverse) {
@@ -139,7 +126,12 @@ namespace Proc {
 			if (!matches_filter(cur_proc, filter)) {
 				filtering = true;
 				cur_proc.filtered = true;
+#ifdef BTOP_PLUGIN
+				filter_found++;
+#endif
+#ifdef BTOP_PLUGIN_HOST
 				increment_filter_found();
+#endif
 			}
 			else {
 				found = true;
@@ -181,7 +173,12 @@ namespace Proc {
 				cur_proc.cpu_c += p.cpu_c;
 				cur_proc.mem += p.mem;
 				cur_proc.threads += p.threads;
+#ifdef BTOP_PLUGIN
+				filter_found++;
+#endif
+#ifdef BTOP_PLUGIN_HOST
 				increment_filter_found();
+#endif
 				p.filtered = true;
 			}
 			else if (Config::getB("proc_aggregate")) {

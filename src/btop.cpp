@@ -290,7 +290,8 @@ void term_resize(bool force) {
 				else if (key.size() == 1 and isint(key)) {
 					auto intKey = stoi(key);
 				#ifdef GPU_SUPPORT
-					if ((intKey == 0 and Gpu::count >= 5) or (intKey >= 5 and intKey - 4 <= Gpu::count)) {
+					auto gpu_count = Gpu::get_count();
+					if ((intKey == 0 and gpu_count >= 5) or (intKey >= 5 and intKey - 4 <= gpu_count)) {
 				#else
 					if (intKey > 0 and intKey < 5) {
 				#endif
@@ -618,7 +619,7 @@ namespace Runner {
 			try {
 			#ifdef GPU_SUPPORT
 				//? GPU data collection
-				const bool gpu_in_cpu_panel = Gpu::gpu_names.size() > 0 and (
+				const bool gpu_in_cpu_panel = Gpu::get_gpu_names().size() > 0 and (
 					Config::getS("cpu_graph_lower").starts_with("gpu-") or Config::getS("cpu_graph_upper").starts_with("gpu-")
 					or (Gpu::shown == 0 and Config::getS("show_gpu_info") != "Off")
 				);

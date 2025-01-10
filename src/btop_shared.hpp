@@ -77,6 +77,10 @@ namespace Runner {
 	extern bool pause_output;
 	extern string debug_bg;
 
+	bool get_stopping();
+	bool get_coreNum_reset();
+	void set_coreNum_reset(bool coreNum_reset);
+
 	void run(const string& box="", bool no_update = false, bool force_redraw = false);
 	void stop();
 
@@ -119,7 +123,15 @@ namespace Gpu {
 	extern vector<int> gpu_b_height_offsets;
 	extern long long gpu_pwr_total_max;
 
+	int get_count();
+	vector<string>& get_gpu_names();
+	vector<int>& get_gpu_b_height_offsets();
+
+	int get_width();
+
 	extern std::unordered_map<string, deque<long long>> shared_gpu_percent; // averages, power/vram total
+
+	std::unordered_map<string, deque<long long>>& get_shared_gpu_percent();
 
 	const array mem_names { "used"s, "free"s };
 
@@ -209,6 +221,8 @@ namespace Cpu {
 	extern string box;
 	extern int x, y, width, height, min_width, min_height;
 
+	int get_width();
+
 	struct cpu_info {
 		std::unordered_map<string, deque<long long>> cpu_percent = {
 			{"total", {}},
@@ -256,6 +270,9 @@ namespace Mem {
 
 	bool get_has_swap();
 	int get_disk_ios();
+
+	int get_width();
+	void set_redraw(bool val);
 
 	struct disk_info {
 		std::filesystem::path dev;
@@ -311,6 +328,9 @@ namespace Net {
 	std::unordered_map<string, uint64_t>& get_graph_max();
 	void set_rescale(bool rescale);
 
+	int get_width();
+	void set_redraw(bool val);
+
 	struct net_stat {
 		uint64_t speed{};
 		uint64_t top{};
@@ -364,6 +384,11 @@ namespace Proc {
 	void set_collapse(int val);
 	void set_expand(int val);
 	void increment_filter_found();
+
+	int get_width();
+	void set_redraw(bool val);
+	int get_selected_pid();
+	int get_select_max();
 
 	//? Contains the valid sorting options for processes
 	const vector<string> sort_vector = {

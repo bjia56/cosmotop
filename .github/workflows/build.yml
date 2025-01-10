@@ -162,7 +162,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: btop-plugin-${{ matrix.os}}-${{ matrix.arch }}
-          path: ./src/linux/build/libbtop.so
+          path: ./libbtop-${{ matrix.os }}-${{ matrix.arch }}.so
 
   apelink:
     name: Apelink btop

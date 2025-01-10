@@ -33,6 +33,8 @@ find_package (Threads REQUIRED)
 set(PLUGIN_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/btop_collect.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/../btop_plugin.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../btop_shared.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../btop_tools_shared.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/intel_gpu_top/intel_gpu_top.c
   ${CMAKE_CURRENT_SOURCE_DIR}/intel_gpu_top/igt_perf.c
   ${CMAKE_CURRENT_SOURCE_DIR}/intel_gpu_top/intel_device_info.c
@@ -58,7 +60,12 @@ target_include_directories(${BINARY_NAME} PRIVATE
   include
   ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
 )
-target_compile_definitions(${BINARY_NAME} PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
+target_compile_definitions(${BINARY_NAME} PRIVATE
+  BTOP_PLUGIN
+  GPU_SUPPORT
+  FMT_HEADER_ONLY
+  _FILE_OFFSET_BITS=64
+)
 if(WIN32)
   target_link_libraries(${BINARY_NAME} PUBLIC Threads::Threads wsock32 ws2_32)
 else()

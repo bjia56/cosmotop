@@ -58,6 +58,10 @@ namespace Config {
 	extern vector<string> available_batteries;
 	extern int current_preset;
 
+	void push_back_available_batteries(const string& battery);
+	std::unordered_map<std::string, int>& get_ints();
+	void ints_set_at(const std::string_view name, const int value);
+
 	constexpr int ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
 
 	[[nodiscard]] std::optional<std::filesystem::path> get_config_dir() noexcept;
@@ -79,13 +83,13 @@ namespace Config {
 	bool _locked(const std::string_view name);
 
 	//* Return bool for config key <name>
-	inline bool getB(const std::string_view name) { return bools.at(name); }
+	bool getB(const std::string_view name);
 
 	//* Return integer for config key <name>
-	inline const int& getI(const std::string_view name) { return ints.at(name); }
+	const int& getI(const std::string_view name);
 
 	//* Return string for config key <name>
-	inline const string& getS(const std::string_view name) { return strings.at(name); }
+	const string& getS(const std::string_view name);
 
 	string getAsString(const std::string_view name);
 
