@@ -307,12 +307,12 @@ void create_plugin_host() {
 
 	// Extract btop plugin from zipos
 	auto pluginPath = tmpdir / pluginName;
-	/*
-	if (!std::filesystem::exists(pluginPath)) {
+	if (!std::filesystem::exists(ziposPluginPath.str() + pluginName)) {
+		std::cerr << "Plugin not found in zipos: " << ziposPluginPath.str() + pluginName << std::endl;
+	} else {
 		std::filesystem::copy_file(ziposPluginPath.str() + pluginName, pluginPath);
 		chmod(pluginPath.c_str(), 0700);
 	}
-	*/
 
 	pluginHost = new PluginHost(pluginPath.string());
 
