@@ -282,7 +282,6 @@ namespace Input {
 				bool keep_going = false;
 				bool no_update = true;
 				bool redraw = true;
-				auto detailed = Proc::get_detailed();
 				if (filtering) {
 					if (key == "enter" or key == "down") {
 						Config::set("proc_filter", Proc::filter.text);
@@ -410,13 +409,13 @@ namespace Input {
 				}
 				else if (is_in(key, "t", kill_key) and (Config::getB("show_detailed") or Config::getI("selected_pid") > 0)) {
 					atomic_wait(Runner::active);
-					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and detailed.status == "Dead") return;
+					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and Proc::get_detailed().status == "Dead") return;
 					Menu::show(Menu::Menus::SignalSend, (key == "t" ? SIGTERM : SIGKILL));
 					return;
 				}
 				else if (key == "s" and (Config::getB("show_detailed") or Config::getI("selected_pid") > 0)) {
 					atomic_wait(Runner::active);
-					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and detailed.status == "Dead") return;
+					if (Config::getB("show_detailed") and Config::getI("proc_selected") == 0 and Proc::get_detailed().status == "Dead") return;
 					Menu::show(Menu::Menus::SignalChoose);
 					return;
 				}
@@ -496,11 +495,11 @@ namespace Input {
 				bool keep_going = false;
 				bool no_update = true;
 				bool redraw = true;
-				auto interfaces = Net::get_interfaces();
-				auto selected_iface = Net::get_selected_iface();
 
 				if (is_in(key, "b", "n")) {
 					atomic_wait(Runner::active);
+					auto interfaces = Net::get_interfaces();
+					auto selected_iface = Net::get_selected_iface();
 					int c_index = v_index(interfaces, selected_iface);
 					if (c_index != (int)interfaces.size()) {
 						if (key == "b") {
@@ -524,6 +523,7 @@ namespace Input {
 				else if (key == "z") {
 					atomic_wait(Runner::active);
 					auto current_net = Net::get_current_net();
+					auto selected_iface = Net::get_selected_iface();
 					auto& ndev = current_net.at(selected_iface);
 					if (ndev.stat.at("download").offset + ndev.stat.at("upload").offset > 0) {
 						ndev.stat.at("download").offset = 0;
