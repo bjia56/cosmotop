@@ -16,12 +16,8 @@ on:
 
 jobs:
   build:
-    name: Build btop ${{ matrix.arch }}
+    name: Build btop
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [x86_64, aarch64]
 
     steps:
       - name: Checkout
@@ -39,33 +35,18 @@ jobs:
         with:
           version: ${{ env.cosmocc_version }}
 
-      - name: Fixup Cosmopolitan toolchain
-        run: |
-          cd $(dirname $(which cosmocc))
-
-          chmod +x cosmoranlib
-          ln -s cosmoranlib ${{ matrix.arch }}-unknown-cosmo-ranlib
-
-          ln -s ${{ matrix.arch }}-unknown-cosmo-cc ${{ matrix.arch }}-unknown-cosmo-gcc
-          ln -s ${{ matrix.arch }}-unknown-cosmo-c++ ${{ matrix.arch }}-unknown-cosmo-g++
-
-          # enable rtti, exceptions
-          which ${{ matrix.arch }}-unknown-cosmo-c++ | xargs sed -i 's/fno\-rtti//g'
-          which ${{ matrix.arch }}-unknown-cosmo-c++ | xargs sed -i 's/fno\-exceptions//g'
-
       - name: Build btop
         run: |
-          export CC=${{ matrix.arch }}-unknown-cosmo-gcc
-          export CXX=${{ matrix.arch }}-unknown-cosmo-g++
+          export CC=cosmocc
+          export CXX=cosmoc++
           cmake -B build
           cmake --build build --parallel 4
-          mv build/btop build/btop-${{ matrix.arch }}
 
       - name: Upload btop
         uses: actions/upload-artifact@v4
         with:
-          name: btop-${{ matrix.arch }}
-          path: ./build/btop-${{ matrix.arch }}
+          name: btop
+          path: ./build/btop
 
       - name: Interactive debugging
         uses: fawazahmed0/action-debug-vscode@v3
@@ -164,8 +145,9 @@ jobs:
           name: btop-plugin-${{ matrix.os}}-${{ matrix.arch }}
           path: ./libbtop-${{ matrix.os }}-${{ matrix.arch }}.so
 
-  apelink:
-    name: Apelink btop
+  bundle:
+    if: false
+    name: Bundle plugins with btop
     runs-on: ubuntu-latest
     needs: [build, build_plugin]
 
