@@ -124,21 +124,21 @@ jobs:
         shell: freebsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.com --version
+          ./btop.exe --version
 
       - name: todo
         if: ${{ matrix.os == 'NetBSD' }}
         shell: netbsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.com --version
+          ./btop.exe --version
 
       - name: todo
         if: ${{ matrix.os == 'OpenBSD' }}
         shell: openbsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.com --version
+          ./btop.exe --version
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
@@ -184,7 +184,7 @@ jobs:
         run: |
           tree /tmp/btop-plugin || true
 
-          mv btop btop.com
+          mv btop btop.exe
 
           sudo mkdir -p /zip/x86_64/linux
           sudo mkdir -p /zip/x86_64/macos
@@ -200,20 +200,20 @@ jobs:
           sudo mkdir -p /zip/aarch64/netbsd
 
           cd /zip
-          zip -qr ${{ github.workspace }}/btop.com *
+          zip -qr ${{ github.workspace }}/btop.exe *
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: btop.com
-          path: ./btop.com
+          name: btop.exe
+          path: ./btop.exe
 
       - name: Interactive debugging
         uses: fawazahmed0/action-debug-vscode@v3
         if: ${{ always() && inputs.debug_link }}
 
   check:
-    name: Check btop.com ${{ matrix.os }} ${{ matrix.arch }}
+    name: Check btop.exe ${{ matrix.os }} ${{ matrix.arch }}
     needs: bundle
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -256,13 +256,13 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: btop.com
+          name: btop.exe
           path: .
 
       - name: Mark executable
         shell: bash
         run: |
-          chmod +x btop.com
+          chmod +x btop.exe
 
       - name: Configure Windows
         if: ${{ matrix.os == 'Windows' }}
@@ -275,15 +275,15 @@ jobs:
         if: ${{ matrix.os == 'Windows' }}
         shell: cmd
         run: |
-          copy btop.com C:
+          copy btop.exe C:
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
-          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\btop.com
+          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\btop.exe
 
-      - name: Check btop.com
+      - name: Check btop.exe
         if: ${{ !contains(matrix.os, 'BSD') }}
         shell: bash
         run: |
-          ./btop.com --version
+          ./btop.exe --version
 
       - name: Start VM
         if: ${{ matrix.os == 'FreeBSD' }}
@@ -305,23 +305,23 @@ jobs:
           sync: nfs
           release: 7.3
 
-      - name: Check btop.com
+      - name: Check btop.exe
         if: ${{ matrix.os == 'FreeBSD' }}
         shell: freebsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.com --version
+          ./btop.exe --version
 
-      - name: Check btop.com
+      - name: Check btop.exe
         if: ${{ matrix.os == 'NetBSD' }}
         shell: netbsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.com --version
+          ./btop.exe --version
 
-      - name: Check btop.com
+      - name: Check btop.exe
         if: ${{ matrix.os == 'OpenBSD' }}
         shell: openbsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.com --version
+          ./btop.exe --version
