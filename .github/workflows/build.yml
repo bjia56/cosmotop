@@ -97,6 +97,7 @@ jobs:
           cd src/linux
           cmake -B build
           cmake --build build --parallel 4
+          cp build/libbtop.so ${{ github.workspace }}/libbtop-${{ matrix.os }}-${{ matrix.arch }}
 
       - name: Start VM
         if: ${{ matrix.os == 'FreeBSD' }}
@@ -143,10 +144,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: btop-plugin-${{ matrix.os}}-${{ matrix.arch }}
-          path: ./libbtop-${{ matrix.os }}-${{ matrix.arch }}.so
+          path: ./libbtop-${{ matrix.os }}-${{ matrix.arch }}
 
   bundle:
-    if: false
     name: Bundle plugins with btop
     runs-on: ubuntu-latest
     needs: [build, build_plugin]
@@ -170,9 +170,8 @@ jobs:
       - name: Download btop
         uses: actions/download-artifact@v4
         with:
-          pattern: btop-*
-          path: /tmp/btop/
-          merge-multiple: true
+          name: btop
+          path: .
 
       - name: Download btop plugins
         uses: actions/download-artifact@v4
@@ -181,18 +180,11 @@ jobs:
           path: /tmp/btop-plugin/
           merge-multiple: true
 
-      - name: Apelink
+      - name: Bundle
         run: |
-          cosmo_bin=$(dirname $(which cosmocc))
-          $(which apelink) \
-            -l ${cosmo_bin}/ape-x86_64.elf \
-            -l ${cosmo_bin}/ape-aarch64.elf \
-            -M ${cosmo_bin}/ape-m1.c \
-            -o btop.com \
-            /tmp/btop/btop-x86_64 \
-            /tmp/btop/btop-aarch64
-
           tree /tmp/btop-plugin || true
+
+          mv btop btop.com
 
           sudo mkdir -p /zip/x86_64/linux
           sudo mkdir -p /zip/x86_64/macos
