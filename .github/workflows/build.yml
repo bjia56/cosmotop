@@ -222,7 +222,7 @@ jobs:
 
   check:
     name: Check btop.com ${{ matrix.os }} ${{ matrix.arch }}
-    needs: apelink
+    needs: bundle
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
