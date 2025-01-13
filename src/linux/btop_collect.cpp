@@ -562,7 +562,7 @@ namespace Cpu {
 	void update_sensors() {
 		if (cpu_sensor.empty()) return;
 
-		const auto& cpu_sensor = (not Config::getS("cpu_sensor").empty() and found_sensors.contains(Config::getS("cpu_sensor")) ? Config::getS("cpu_sensor") : Cpu::cpu_sensor);
+		const auto cpu_sensor = (not Config::getS("cpu_sensor").empty() and found_sensors.contains(Config::getS("cpu_sensor")) ? Config::getS("cpu_sensor") : Cpu::cpu_sensor);
 
 		found_sensors.at(cpu_sensor).temp = stol(readfile(found_sensors.at(cpu_sensor).path, "0")) / 1000;
 		current_cpu.temp.at(0).push_back(found_sensors.at(cpu_sensor).temp);
@@ -689,7 +689,7 @@ namespace Cpu {
 		}
 
 		//? Apply user set custom mapping if any
-		const auto& custom_map = Config::getS("cpu_core_map");
+		const auto custom_map = Config::getS("cpu_core_map");
 		if (not custom_map.empty()) {
 			try {
 				for (const auto& split : ssplit(custom_map)) {
@@ -786,7 +786,7 @@ namespace Cpu {
 			}
 		}
 
-		auto& battery_sel = Config::getS("selected_battery");
+		auto battery_sel = Config::getS("selected_battery");
 
 		if (auto_sel.empty()) {
 			for (auto& [name, bat] : batteries) {
@@ -1910,7 +1910,7 @@ namespace Mem {
 			double uptime = system_uptime();
 			auto free_priv = Config::getB("disk_free_priv");
 			try {
-				auto& disks_filter = Config::getS("disks_filter");
+				auto disks_filter = Config::getS("disks_filter");
 				bool filter_exclude = false;
 				auto use_fstab = Config::getB("use_fstab");
 				auto only_physical = Config::getB("only_physical");
@@ -2371,7 +2371,7 @@ namespace Net {
 	auto collect(bool no_update) -> net_info& {
 		if (Runner::get_stopping()) return empty_net;
 		auto& net = current_net;
-		auto& config_iface = Config::getS("net_iface");
+		auto config_iface = Config::getS("net_iface");
 		auto net_sync = Config::getB("net_sync");
 		auto net_auto = Config::getB("net_auto");
 		auto new_timestamp = time_ms();
@@ -2681,9 +2681,9 @@ namespace Proc {
 	//* Collects and sorts process information from /proc
 	auto collect(bool no_update) -> vector<proc_info>& {
 		if (Runner::get_stopping()) return current_procs;
-		const auto& sorting = Config::getS("proc_sorting");
+		const auto sorting = Config::getS("proc_sorting");
 		auto reverse = Config::getB("proc_reversed");
-		const auto& filter = Config::getS("proc_filter");
+		const auto filter = Config::getS("proc_filter");
 		auto per_core = Config::getB("proc_per_core");
 		auto should_filter_kernel = Config::getB("proc_filter_kernel");
 		auto tree = Config::getB("proc_tree");
