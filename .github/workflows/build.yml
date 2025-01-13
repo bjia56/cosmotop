@@ -74,10 +74,9 @@ jobs:
       - name: Build plugin
         shell: bash
         run: |
-          cd src/linux
           export CC="zig cc -target ${{ matrix.arch }}-linux-gnu.2.17"
           export CXX="zig c++ -target ${{ matrix.arch }}-linux-gnu.2.17"
-          cmake -B build
+          cmake -B build -DBTOP_TARGET=plugin
           cmake --build build --parallel 4
           cp build/libbtop.so ${{ github.workspace }}/libbtop-Linux-${{ matrix.arch }}.so
 
