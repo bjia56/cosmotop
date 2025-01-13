@@ -52,37 +52,13 @@ jobs:
         uses: fawazahmed0/action-debug-vscode@v3
         if: ${{ always() && inputs.debug_build }}
 
-  build_plugin:
-    name: Build btop plugin ${{ matrix.os }} ${{ matrix.arch }}
-    runs-on: ${{ matrix.runner }}
+  build_linux_plugin:
+    name: Build plugin Linux ${{ matrix.arch }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          #- runner: macos-13
-          #  arch: x86_64
-          #  os: MacOS
-          #- runner: macos-14
-          #  arch: arm64
-          #  os: MacOS
-          - runner: ubuntu-latest
-            arch: x86_64
-            os: Linux
-          #- runner: windows-latest
-          #  arch: x86_64
-          #  os: Windows
-          #- runner: ubuntu-latest
-          #  arch: x86_64
-          #  os: FreeBSD
-          #- runner: ubuntu-latest
-          #  arch: aarch64
-          #  os: FreeBSD
-          #- runner: ubuntu-latest
-          #  arch: x86_64
-          #  os: NetBSD
-          #- runner: ubuntu-latest
-          #  arch: x86_64
-          #  os: OpenBSD
+        arch: [x86_64, aarch64]
 
     steps:
       - name: Checkout
@@ -90,66 +66,33 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Set up zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
       - name: Build plugin
-        if: ${{ !contains(matrix.os, 'BSD') }}
         shell: bash
         run: |
           cd src/linux
+          export CC="zig cc -target ${{ matrix.arch }}-linux-gnu.2.17"
+          export CXX="zig c++ -target ${{ matrix.arch }}-linux-gnu.2.17"
           cmake -B build
           cmake --build build --parallel 4
-          cp build/libbtop.so ${{ github.workspace }}/libbtop-${{ matrix.os }}-${{ matrix.arch }}
-
-      - name: Start VM
-        if: ${{ matrix.os == 'FreeBSD' }}
-        uses: vmactions/freebsd-vm@v1
-        with:
-          sync: nfs
-          arch: ${{ matrix.arch }}
-
-      - name: Start VM
-        if: ${{ matrix.os == 'NetBSD' }}
-        uses: vmactions/netbsd-vm@v1
-        with:
-          sync: nfs
-
-      - name: Start VM
-        if: ${{ matrix.os == 'OpenBSD' }}
-        uses: vmactions/openbsd-vm@v1
-        with:
-          sync: nfs
-          release: 7.3
-
-      - name: todo
-        if: ${{ matrix.os == 'FreeBSD' }}
-        shell: freebsd {0}
-        run: |
-          cd ${{ github.workspace }}
-          ./btop.exe --version
-
-      - name: todo
-        if: ${{ matrix.os == 'NetBSD' }}
-        shell: netbsd {0}
-        run: |
-          cd ${{ github.workspace }}
-          ./btop.exe --version
-
-      - name: todo
-        if: ${{ matrix.os == 'OpenBSD' }}
-        shell: openbsd {0}
-        run: |
-          cd ${{ github.workspace }}
-          ./btop.exe --version
+          cp build/libbtop.so ${{ github.workspace }}/libbtop-Linux-${{ matrix.arch }}.so
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: btop-plugin-${{ matrix.os}}-${{ matrix.arch }}
-          path: ./libbtop-${{ matrix.os }}-${{ matrix.arch }}
+          name: plugin-Linux-${{ matrix.arch }}
+          path: ./libbtop-Linux-${{ matrix.arch }}.so
 
   bundle:
     name: Bundle plugins with btop
     runs-on: ubuntu-latest
-    needs: [build, build_plugin]
+    needs:
+      - build
+      - build_linux_plugin
 
     steps:
       - name: Checkout
@@ -173,10 +116,10 @@ jobs:
           name: btop
           path: .
 
-      - name: Download btop plugins
+      - name: Download plugins
         uses: actions/download-artifact@v4
         with:
-          pattern: btop-plugin-*
+          pattern: plugin-*
           path: /tmp/btop-plugin/
           merge-multiple: true
 
@@ -187,12 +130,16 @@ jobs:
           mv btop btop.exe
 
           sudo mkdir -p /zip/x86_64/linux
+          cp /tmp/btop-plugin/libbtop-Linux-x86_64.so /zip/x86_64/linux/libbtop.so
+
           sudo mkdir -p /zip/x86_64/macos
           sudo mkdir -p /zip/x86_64/windows
           sudo mkdir -p /zip/x86_64/freebsd
           sudo mkdir -p /zip/x86_64/openbsd
           sudo mkdir -p /zip/x86_64/netbsd
           sudo mkdir -p /zip/aarch64/linux
+          cp /tmp/btop-plugin/libbtop-Linux-aarch64.so /zip/aarch64/linux/libbtop.so
+
           sudo mkdir -p /zip/aarch64/macos
           sudo mkdir -p /zip/aarch64/windows
           sudo mkdir -p /zip/aarch64/freebsd
