@@ -1,4 +1,5 @@
 /* Copyright 2021 Aristocratos (jakob@qvantnet.com)
+   Copyright 2025 Brett Jia (dev.bjia56@gmail.com)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -661,7 +662,7 @@ namespace Mem {
 
 		if (show_swap) {
 			char buf[_POSIX2_LINE_MAX];
-			Shared::KvmPtr kd {kvm_openfiles(nullptr, _PATH_DEVNULL, nullptr, O_RDONLY, buf)}; 
+			Shared::KvmPtr kd {kvm_openfiles(nullptr, _PATH_DEVNULL, nullptr, O_RDONLY, buf)};
    			struct kvm_swap swap[16];
    			int nswap = kvm_getswapinfo(kd.get(), swap, 16, 0);
 			int totalSwap = 0, usedSwap = 0;
