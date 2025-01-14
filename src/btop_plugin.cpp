@@ -266,6 +266,20 @@ namespace Runner {
 
 PluginHost* pluginHost = nullptr;
 
+static std::filesystem::path getOutputDirectory() {
+	const char *homedir;
+	if (IsWindows()) {
+		homedir = getenv("USERPROFILE");
+	} else {
+		homedir = getenv("HOME");
+	}
+	if (homedir == nullptr) {
+		return std::filesystem::temp_directory_path() / ".btop";
+	} else {
+		return std::filesystem::path(homedir) / ".btop";
+	}
+}
+
 void create_plugin_host() {
 	std::stringstream pluginName;
 	pluginName << "btop-";
@@ -302,14 +316,14 @@ void create_plugin_host() {
 		pluginName << ".exe";
 	}
 
-	// Create temp directory for btop plugin
-	auto tmpdir = std::filesystem::temp_directory_path() / "btop";
-	if (!std::filesystem::exists(tmpdir)) {
-		std::filesystem::create_directory(tmpdir);
+	// Create output directory for btop plugin
+	auto outdir = getOutputDirectory();
+	if (!std::filesystem::exists(outdir)) {
+		std::filesystem::create_directory(outdir);
 	}
 
 	// Extract btop plugin from zipos
-	auto pluginPath = tmpdir / pluginName.str();
+	auto pluginPath = outdir / pluginName.str();
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	if (!std::filesystem::exists(ziposPath)) {
 		std::cerr << "Plugin not found in zipos: " << ziposPath << std::endl;
