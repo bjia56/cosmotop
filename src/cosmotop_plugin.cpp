@@ -274,6 +274,42 @@ static std::filesystem::path getOutputDirectory() {
 	}
 }
 
+template<typename InputIterator1, typename InputIterator2>
+static bool rangeEqual(InputIterator1 first1, InputIterator1 last1,
+						InputIterator2 first2, InputIterator2 last2) {
+	while(first1 != last1 && first2 != last2)
+	{
+		if(*first1 != *first2) return false;
+		++first1;
+		++first2;
+	}
+	return (first1 == last1) && (first2 == last2);
+}
+
+static bool compareFiles(const std::string& filename1, const std::string& filename2) {
+	std::ifstream file1(filename1);
+	std::ifstream file2(filename2);
+
+	std::istreambuf_iterator<char> begin1(file1);
+	std::istreambuf_iterator<char> begin2(file2);
+
+	std::istreambuf_iterator<char> end;
+
+	return rangeEqual(begin1, end, begin2, end);
+}
+
+// might not be needed
+static std::filesystem::path findFreeFilename(const std::filesystem::path& path) {
+	static int suffix = 0;
+	std::filesystem::path newPath = path;
+	while (std::filesystem::exists(newPath)) {
+		newPath = path;
+		newPath += ".";
+		newPath += std::to_string(suffix++);
+	}
+	return newPath;
+}
+
 void create_plugin_host() {
 	std::stringstream pluginName;
 	pluginName << "cosmotop-";
@@ -320,8 +356,12 @@ void create_plugin_host() {
 	auto pluginPath = outdir / pluginName.str();
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	if (!std::filesystem::exists(ziposPath)) {
-		std::cerr << "Plugin not found in zipos: " << ziposPath << std::endl;
-	} else {
+		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
+	}
+	if (!std::filesystem::exists(pluginPath) || !compareFiles(ziposPath, pluginPath)) {
+		if (std::filesystem::exists(pluginPath)) {
+			std::filesystem::remove(pluginPath);
+		}
 		std::filesystem::copy_file(ziposPath, pluginPath);
 		chmod(pluginPath.c_str(), 0400);
 	}
