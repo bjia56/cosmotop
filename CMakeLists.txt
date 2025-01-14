@@ -71,27 +71,6 @@ if(BTOP_TARGET STREQUAL "btop")
 
   target_compile_definitions(btop PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
 
-  # Check if lowdown is installed
-  find_program(LOWDOWN_EXECUTABLE lowdown)
-
-  if(LOWDOWN_EXECUTABLE)
-    # Custom target to compile Markdown to man page using lowdown
-    add_custom_target(btop.1 ALL
-        COMMAND lowdown -s -Tman -o btop.1 manpage.md
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-    # Install the man page
-    install(FILES btop.1 DESTINATION "share/man/man1")
-  else()
-    message(WARNING "Command 'lowdown' not found: skipping generating man page btop.1")
-  endif()
-
-  install(TARGETS btop RUNTIME)
-  install(FILES "btop.desktop" DESTINATION "share/applications")
-  install(FILES "Img/icon.png" DESTINATION "share/icons/hicolor/48x48/apps" RENAME "btop.png")
-  install(FILES "Img/icon.svg" DESTINATION "share/icons/hicolor/scalable/apps" RENAME "btop.svg")
-  install(DIRECTORY "themes" DESTINATION "share/btop")
-
 elseif(BTOP_TARGET STREQUAL "plugin")
 
   if(CMAKE_SYSTEM MATCHES "Linux")
