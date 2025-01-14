@@ -23,13 +23,13 @@
   <path d="M20,20 H80 V40 H40 V100 H20 Z M20,100 H80 V120 H20 Z" fill="url(#space-stripes)" />
 
   <!-- O -->
-  <path d="M100,20 H160 V40 H100 Z M100,40 H120 V100 H100 Z M140,40 H160 V100 H140 Z M100,100 H160 V120 H100" fill="url(#gray-stripes)" />
+  <path d="M100,20 H160 V40 H100 Z M100,40 H120 V100 H100 Z M140,40 H160 V100 H140 Z M100,100 H160 V120 H100" fill="url(#space-stripes)" />
 
   <!-- S -->
   <path d="M180,20 H240 V40 H180 Z M180,40 H200 V80 H180 Z M200,60 H220 V80 H200 Z M180,100 H220 V60 H240 V120 H180" fill="url(#space-stripes)" />
 
   <!-- M -->
-  <path d="M260,20 H280 V120 H260 Z M280,40 H300 V60 H280 Z M300,60 H320 V80 H300 Z M320,40 H340 V60 H320 Z M340,20 H360 V120 H340" fill="url(#gray-stripes)" />
+  <path d="M260,20 H280 V120 H260 Z M280,40 H300 V60 H280 Z M300,60 H320 V80 H300 Z M320,40 H340 V60 H320 Z M340,20 H360 V120 H340" fill="url(#space-stripes)" />
 
   <!-- O -->
   <path d="M380,20 H440 V40 H380 Z M380,40 H400 V100 H380 Z M420,40 H440 V100 H420 Z M380,100 H440 V120 H380" fill="url(#space-stripes)" />
@@ -38,7 +38,7 @@
   <path d="M460,20 H520 V40 H500 V120 H480 V40 H460 V20 Z" fill="url(#gray-stripes)" />
 
   <!-- O -->
-  <path d="M540,20 H600 V40 H540 Z M540,40 H560 V100 H540 Z M580,40 H600 V100 H580 Z M540,100 H600 V120 H540" fill="url(#space-stripes)" />
+  <path d="M540,20 H600 V40 H540 Z M540,40 H560 V100 H540 Z M580,40 H600 V100 H580 Z M540,100 H600 V120 H540" fill="url(#gray-stripes)" />
 
   <!-- P -->
   <path d="M620,20 H680 V80 H660 V40 H620 V20 Z M620,40 H640 V120 H620 Z M640,60 H660 V80 H640" fill="url(#gray-stripes)" />
