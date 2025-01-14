@@ -94,6 +94,7 @@ elseif(${TARGET} STREQUAL "plugin")
       src/osx/smc.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
   endif()
 
   if(BUILD_EXE)
