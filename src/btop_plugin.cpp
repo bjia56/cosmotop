@@ -267,39 +267,39 @@ namespace Runner {
 PluginHost* pluginHost = nullptr;
 
 void create_plugin_host() {
-	std::stringstream ziposPluginPath("/zip/");
-	if (IsAarch64()) {
-		ziposPluginPath << "aarch64/";
-	} else {
-		ziposPluginPath << "x86_64/";
-	}
+	std::stringstream pluginName;
+	pluginName << "btop-";
 	if (IsLinux()) {
-		ziposPluginPath << "linux/";
+		pluginName << "linux";
 	} else if (IsXnu()) {
-		ziposPluginPath << "macos/";
+		pluginName << "darwin";
 	} else if (IsWindows()) {
-		ziposPluginPath << "windows/";
+		pluginName << "windows";
 	} else if (IsFreebsd()) {
-		ziposPluginPath << "freebsd/";
+		pluginName << "freebsd";
 	} else if (IsOpenbsd()) {
-		ziposPluginPath << "openbsd/";
+		pluginName << "openbsd";
 	} else if (IsNetbsd()) {
-		ziposPluginPath << "netbsd/";
+		pluginName << "netbsd";
+	}
+	if (IsAarch64()) {
+		pluginName << "-aarch64";
+	} else {
+		pluginName << "-x86_64";
 	}
 
-	std::string pluginName = "invalid_platform";
 	if (IsLinux() || IsFreebsd()) {
-		pluginName = "libbtop.so";
+		pluginName << ".so";
 	} else if (IsXnu()) {
 		if (IsXnuSilicon()) {
-			pluginName = "libbtop.dylib";
+			pluginName << ".dylib";
 		} else {
-			pluginName = "libbtop.exe";
+			pluginName << ".exe";
 		}
 	} else if (IsWindows()) {
-		pluginName = "btop.dll";
+		pluginName << ".dll";
 	} else if (IsOpenbsd() || IsNetbsd()) {
-		pluginName = "libbtop.exe";
+		pluginName << ".exe";
 	}
 
 	// Create temp directory for btop plugin
@@ -309,12 +309,13 @@ void create_plugin_host() {
 	}
 
 	// Extract btop plugin from zipos
-	auto pluginPath = tmpdir / pluginName;
-	if (!std::filesystem::exists(ziposPluginPath.str() + pluginName)) {
-		std::cerr << "Plugin not found in zipos: " << ziposPluginPath.str() + pluginName << std::endl;
+	auto pluginPath = tmpdir / pluginName.str();
+	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
+	if (!std::filesystem::exists(ziposPath)) {
+		std::cerr << "Plugin not found in zipos: " << ziposPath << std::endl;
 	} else {
-		std::filesystem::copy_file(ziposPluginPath.str() + pluginName, pluginPath);
-		chmod(pluginPath.c_str(), 0700);
+		std::filesystem::copy_file(ziposPath, pluginPath);
+		chmod(pluginPath.c_str(), 0400);
 	}
 
 	pluginHost = new PluginHost(pluginPath.string());

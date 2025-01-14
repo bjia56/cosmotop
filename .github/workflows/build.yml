@@ -78,13 +78,13 @@ jobs:
           export CXX="zig c++ -target ${{ matrix.arch }}-linux-gnu.2.17"
           cmake -B build -DBTOP_TARGET=plugin
           cmake --build build --parallel 4
-          cp build/libbtop.so ${{ github.workspace }}/libbtop-Linux-${{ matrix.arch }}.so
+          cp build/libbtop.so ${{ github.workspace }}/btop-linux-${{ matrix.arch }}.so
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-Linux-${{ matrix.arch }}
-          path: ./libbtop-Linux-${{ matrix.arch }}.so
+          name: plugin-linux-${{ matrix.arch }}
+          path: ./btop-linux-${{ matrix.arch }}.so
 
   bundle:
     name: Bundle plugins with btop
@@ -126,27 +126,17 @@ jobs:
         run: |
           tree /tmp/btop-plugin || true
 
-          mv btop btop.exe
+          mv btop btop.com
 
-          sudo mkdir -p /zip/x86_64/linux
-          sudo cp /tmp/btop-plugin/libbtop-Linux-x86_64.so /zip/x86_64/linux/libbtop.so
-
-          sudo mkdir -p /zip/x86_64/macos
-          sudo mkdir -p /zip/x86_64/windows
-          sudo mkdir -p /zip/x86_64/freebsd
-          sudo mkdir -p /zip/x86_64/openbsd
-          sudo mkdir -p /zip/x86_64/netbsd
-          sudo mkdir -p /zip/aarch64/linux
-          sudo cp /tmp/btop-plugin/libbtop-Linux-aarch64.so /zip/aarch64/linux/libbtop.so
-
-          sudo mkdir -p /zip/aarch64/macos
-          sudo mkdir -p /zip/aarch64/windows
-          sudo mkdir -p /zip/aarch64/freebsd
-          sudo mkdir -p /zip/aarch64/openbsd
-          sudo mkdir -p /zip/aarch64/netbsd
+          sudo mkdir -p /zip/
+          sudo cp /tmp/btop-plugin/btop-linux-x86_64.so /zip/
+          sudo cp /tmp/btop-plugin/btop-linux-aarch64.so /zip/
 
           cd /zip
-          zip -qr ${{ github.workspace }}/btop.exe *
+          zip ${{ github.workspace }}/btop.com *
+
+          cd ${{ github.workspace }}
+          mv btop.com btop.exe
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
