@@ -116,13 +116,9 @@ elseif(${TARGET} STREQUAL "plugin")
   )
   target_compile_definitions(${BINARY_NAME} PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
 
-  target_link_libraries(${BINARY_NAME} PUBLIC Threads::Threads)
-
-  # error on undefined symbols
-  if(NOT WIN32)
-    if(CMAKE_SYSTEM MATCHES "Linux")
-      target_link_options(${BINARY_NAME} PRIVATE -Wl,--no-undefined)
-    endif()
+  target_link_libraries(${BINARY_NAME} PRIVATE Threads::Threads)
+  if(CMAKE_SYSTEM MATCHES "Darwin")
+    target_link_libraries(${BINARY_NAME} PRIVATE $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit>)
   endif()
 
 endif() # TARGET

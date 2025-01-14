@@ -674,7 +674,7 @@ namespace Mem {
 		}
 	}
 
-	auto collect(bool no_update) -> mee_info & {
+	auto collect(bool no_update) -> mem_info & {
 		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty()))
 			return current_mem;
 
