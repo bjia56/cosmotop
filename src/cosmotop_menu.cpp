@@ -558,6 +558,16 @@ namespace Menu {
 				"Custom gpu5 model name in gpu stats box.",
 				"",
 				"Empty string to disable."},
+			{"intel_gpu_exporter",
+				"HTTP endpoint to get Intel GPU metrics from.",
+				"Useful when Intel PMU is not available, such",
+				"as running cosmotop in a less privileged",
+				"environment.",
+				"",
+				"Use with:",
+				"https://github.com/bjia56/intel-gpu-exporter",
+				"",
+				"Empty string to disable."},
 		},
 	#endif
 		{
