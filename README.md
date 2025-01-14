@@ -1,4 +1,4 @@
 # ![cosmotop](img/logo.svg)
 
 `cosmotop` is a system management tool distributed as a single binary for multiple platforms.
-A fork of [`btop`](https://github.com/aristocratos/btop).
+A fork of [`btop++`](https://github.com/aristocratos/btop).

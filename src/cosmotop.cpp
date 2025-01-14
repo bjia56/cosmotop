@@ -46,14 +46,14 @@ tab-size = 4
 	#include <semaphore>
 #endif
 
-#include "btop_shared.hpp"
-#include "btop_tools.hpp"
-#include "btop_config.hpp"
-#include "btop_input.hpp"
-#include "btop_theme.hpp"
-#include "btop_draw.hpp"
-#include "btop_menu.hpp"
-#include "btop_plugin.hpp"
+#include "cosmotop_shared.hpp"
+#include "cosmotop_tools.hpp"
+#include "cosmotop_config.hpp"
+#include "cosmotop_input.hpp"
+#include "cosmotop_theme.hpp"
+#include "cosmotop_draw.hpp"
+#include "cosmotop_menu.hpp"
+#include "cosmotop_plugin.hpp"
 #include "config.h"
 #include "fmt/core.h"
 #include "fmt/ostream.h"
@@ -122,9 +122,9 @@ namespace Global {
 
 static void print_version() {
 	if constexpr (GIT_COMMIT.empty()) {
-		fmt::println("btop version: {}", Global::Version);
+		fmt::println("cosmotop version: {}", Global::Version);
 	} else {
-		fmt::println("btop version: {}+{}", Global::Version, GIT_COMMIT);
+		fmt::println("cosmotop version: {}+{}", Global::Version, GIT_COMMIT);
 	}
 }
 
@@ -134,7 +134,7 @@ static void print_version_with_build_info() {
 }
 
 static void print_usage() {
-	fmt::println("\033[1;4mUsage:\033[0;1m btop\033[0m [OPTIONS]\n");
+	fmt::println("\033[1;4mUsage:\033[0;1m cosmotop\033[0m [OPTIONS]\n");
 }
 
 static void print_help() {
@@ -916,7 +916,7 @@ int main(int argc, char **argv) {
 	if (Global::real_uid != Global::set_uid) {
 		if (seteuid(Global::real_uid) != 0) {
 			Global::real_uid = Global::set_uid;
-			Global::exit_error_msg = "Failed to change effective user ID. Unset btop SUID bit to ensure security on this system. Quitting!";
+			Global::exit_error_msg = "Failed to change effective user ID. Unset cosmotop SUID bit to ensure security on this system. Quitting!";
 			clean_quit(1);
 		}
 	}
@@ -928,8 +928,8 @@ int main(int argc, char **argv) {
 		const auto config_dir = Config::get_config_dir();
 		if (config_dir.has_value()) {
 			Config::conf_dir = config_dir.value();
-			Config::conf_file = Config::conf_dir / "btop.conf";
-			Logger::logfile = Config::conf_dir / "btop.log";
+			Config::conf_file = Config::conf_dir / "cosmotop.conf";
+			Logger::logfile = Config::conf_dir / "cosmotop.log";
 			Theme::user_theme_dir = Config::conf_dir / "themes";
 
 			// If necessary create the user theme directory
@@ -941,7 +941,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	//? Try to find global btop theme path relative to binary path
+	//? Try to find global cosmotop theme path relative to binary path
 #ifdef __linux__
 	{ 	std::error_code ec;
 		Global::self_path = fs::read_symlink("/proc/self/exe", ec).remove_filename();
@@ -955,12 +955,12 @@ int main(int argc, char **argv) {
 	}
 #endif
 	if (std::error_code ec; not Global::self_path.empty()) {
-		Theme::theme_dir = fs::canonical(Global::self_path / "../share/btop/themes", ec);
+		Theme::theme_dir = fs::canonical(Global::self_path / "../share/cosmotop/themes", ec);
 		if (ec or not fs::is_directory(Theme::theme_dir) or access(Theme::theme_dir.c_str(), R_OK) == -1) Theme::theme_dir.clear();
 	}
 	//? If relative path failed, check two most common absolute paths
 	if (Theme::theme_dir.empty()) {
-		for (auto theme_path : {"/usr/local/share/btop/themes", "/usr/share/btop/themes"}) {
+		for (auto theme_path : {"/usr/local/share/cosmotop/themes", "/usr/share/cosmotop/themes"}) {
 			if (fs::is_directory(fs::path(theme_path)) and access(theme_path, R_OK) != -1) {
 				Theme::theme_dir = fs::path(theme_path);
 				break;
@@ -1043,7 +1043,7 @@ int main(int argc, char **argv) {
 
 	//? Initialize terminal and set options
 	if (not Term::init()) {
-		Global::exit_error_msg = "No tty detected!\nbtop++ needs an interactive shell to run.";
+		Global::exit_error_msg = "No tty detected!\ncosmotop needs an interactive shell to run.";
 		clean_quit(1);
 	}
 

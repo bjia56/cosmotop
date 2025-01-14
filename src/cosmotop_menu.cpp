@@ -25,12 +25,12 @@ tab-size = 4
 #include <cmath>
 #include <filesystem>
 
-#include "btop_menu.hpp"
-#include "btop_tools.hpp"
-#include "btop_config.hpp"
-#include "btop_theme.hpp"
-#include "btop_draw.hpp"
-#include "btop_shared.hpp"
+#include "cosmotop_menu.hpp"
+#include "cosmotop_tools.hpp"
+#include "cosmotop_config.hpp"
+#include "cosmotop_theme.hpp"
+#include "cosmotop_draw.hpp"
+#include "cosmotop_shared.hpp"
 
 using std::array;
 using std::ceil;
@@ -204,7 +204,7 @@ namespace Menu {
 		{"Selected s", "Select or enter signal to send to process."},
 		{"", " "},
 		{"", "For bug reporting and project updates, visit:"},
-		{"", "https://github.com/aristocratos/btop"},
+		{"", "https://github.com/aristocratos/cosmotop"},
 	};
 
 	const vector<vector<vector<string>>> categories = {
@@ -213,14 +213,14 @@ namespace Menu {
 				"Set color theme.",
 				"",
 				"Choose from all theme files in (usually)",
-				"\"/usr/[local/]share/btop/themes\" and",
-				"\"~/.config/btop/themes\".",
+				"\"/usr/[local/]share/cosmotop/themes\" and",
+				"\"~/.config/cosmotop/themes\".",
 				"",
 				"\"Default\" for builtin default theme.",
 				"\"TTY\" for builtin 16-color theme.",
 				"",
 				"For theme updates see:",
-				"https://github.com/aristocratos/btop"},
+				"https://github.com/bjia56/cosmotop"},
 			{"theme_background",
 				"If the theme set background should be shown.",
 				"",

@@ -21,9 +21,9 @@ tab-size = 4
 #include <fstream>
 #include <unistd.h>
 
-#include "btop_tools.hpp"
-#include "btop_config.hpp"
-#include "btop_theme.hpp"
+#include "cosmotop_tools.hpp"
+#include "cosmotop_config.hpp"
+#include "cosmotop_theme.hpp"
 
 using std::round;
 using std::stoi;

@@ -29,7 +29,7 @@ tab-size = 4
 using std::string;
 using std::vector;
 
-//* Functions and variables for reading and writing the btop config file
+//* Functions and variables for reading and writing the cosmotop config file
 namespace Config {
 
 	extern std::filesystem::path conf_dir;

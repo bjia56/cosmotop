@@ -18,17 +18,13 @@ tab-size = 4
 
 #include <cosmo_plugin.hpp>
 
-#include "btop_shared.hpp"
-#include "btop_tools.hpp"
-#include "btop_config.hpp"
+#include "cosmotop_shared.hpp"
+#include "cosmotop_tools.hpp"
+#include "cosmotop_config.hpp"
 
 using std::unordered_map;
 
-//#define BTOP_PLUGIN
-//#define BTOP_PLUGIN_HOST
-//#define GPU_SUPPORT
-
-#ifdef BTOP_PLUGIN
+#ifndef __COSMOPOLITAN__
 
 Plugin* plugin = nullptr;
 
@@ -255,9 +251,7 @@ namespace Runner {
 	}
 }
 
-#endif // BTOP_PLUGIN
-
-#ifdef BTOP_PLUGIN_HOST
+#else // __COSMOPOLITAN__
 
 #include <cosmo.h>
 #include <filesystem>
@@ -274,15 +268,15 @@ static std::filesystem::path getOutputDirectory() {
 		homedir = getenv("HOME");
 	}
 	if (homedir == nullptr) {
-		return std::filesystem::temp_directory_path() / ".btop";
+		return std::filesystem::temp_directory_path() / ".cosmotop";
 	} else {
-		return std::filesystem::path(homedir) / ".btop";
+		return std::filesystem::path(homedir) / ".cosmotop";
 	}
 }
 
 void create_plugin_host() {
 	std::stringstream pluginName;
-	pluginName << "btop-";
+	pluginName << "cosmotop-";
 	if (IsLinux()) {
 		pluginName << "linux";
 	} else if (IsXnu()) {
@@ -316,13 +310,13 @@ void create_plugin_host() {
 		pluginName << ".exe";
 	}
 
-	// Create output directory for btop plugin
+	// Create output directory for cosmotop plugin
 	auto outdir = getOutputDirectory();
 	if (!std::filesystem::exists(outdir)) {
 		std::filesystem::create_directory(outdir);
 	}
 
-	// Extract btop plugin from zipos
+	// Extract cosmotop plugin from zipos
 	auto pluginPath = outdir / pluginName.str();
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	if (!std::filesystem::exists(ziposPath)) {
@@ -581,4 +575,4 @@ namespace Tools {
 	}
 }
 
-#endif // BTOP_PLUGIN_HOST
+#endif // __COSMOPOLITAN__

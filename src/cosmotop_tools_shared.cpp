@@ -34,9 +34,9 @@ tab-size = 4
 
 #include "unordered_map"
 #include "widechar_width.hpp"
-#include "btop_shared.hpp"
-#include "btop_tools.hpp"
-#include "btop_config.hpp"
+#include "cosmotop_shared.hpp"
+#include "cosmotop_tools.hpp"
+#include "cosmotop_config.hpp"
 
 using std::cout;
 using std::floor;

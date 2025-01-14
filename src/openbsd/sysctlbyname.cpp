@@ -22,7 +22,7 @@
 #include <string.h>
 
 #include "internal.h"
-#include "../btop_tools.hpp"
+#include "../cosmotop_tools.hpp"
 
 int
 sysctlbyname(const char *name, void *oldp, size_t *oldlenp,

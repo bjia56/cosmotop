@@ -1,4 +1,4 @@
-name: Build btop
+name: Build cosmotop
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
 
 jobs:
   build:
-    name: Build btop
+    name: Build cosmotop
     runs-on: ubuntu-latest
 
     steps:
@@ -35,18 +35,18 @@ jobs:
         with:
           version: ${{ env.cosmocc_version }}
 
-      - name: Build btop
+      - name: Build cosmotop
         run: |
           export CC=cosmocc
           export CXX=cosmoc++
           cmake -B build
           cmake --build build --parallel 4
 
-      - name: Upload btop
+      - name: Upload cosmotop
         uses: actions/upload-artifact@v4
         with:
-          name: btop
-          path: ./build/btop
+          name: cosmotop
+          path: ./build/cosmotop
 
       - name: Interactive debugging
         uses: fawazahmed0/action-debug-vscode@v3
@@ -76,18 +76,18 @@ jobs:
         run: |
           export CC="zig cc -target ${{ matrix.arch }}-linux-gnu.2.17"
           export CXX="zig c++ -target ${{ matrix.arch }}-linux-gnu.2.17"
-          cmake -B build -DBTOP_TARGET=plugin
+          cmake -B build -DTARGET=plugin
           cmake --build build --parallel 4
-          cp build/libbtop.so ${{ github.workspace }}/btop-linux-${{ matrix.arch }}.so
+          cp build/libcosmotop.so ${{ github.workspace }}/cosmotop-linux-${{ matrix.arch }}.so
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-linux-${{ matrix.arch }}
-          path: ./btop-linux-${{ matrix.arch }}.so
+          path: ./cosmotop-linux-${{ matrix.arch }}.so
 
   bundle:
-    name: Bundle plugins with btop
+    name: Bundle plugins with cosmotop
     runs-on: ubuntu-latest
     needs:
       - build
@@ -109,47 +109,48 @@ jobs:
         with:
           version: ${{ env.cosmocc_version }}
 
-      - name: Download btop
+      - name: Download cosmotop
         uses: actions/download-artifact@v4
         with:
-          name: btop
+          name: cosmotop
           path: .
 
       - name: Download plugins
         uses: actions/download-artifact@v4
         with:
           pattern: plugin-*
-          path: /tmp/btop-plugin/
+          path: /tmp/cosmotop-plugin/
           merge-multiple: true
 
       - name: Bundle
         run: |
-          tree /tmp/btop-plugin || true
+          tree /tmp/cosmotop-plugin || true
 
-          mv btop btop.com
+          # rename so zip properly adds files to the APE binary
+          mv cosmotop cosmotop.com
 
           sudo mkdir -p /zip/
-          sudo cp /tmp/btop-plugin/btop-linux-x86_64.so /zip/
-          sudo cp /tmp/btop-plugin/btop-linux-aarch64.so /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.so /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.so /zip/
 
           cd /zip
-          zip ${{ github.workspace }}/btop.com *
+          zip ${{ github.workspace }}/cosmotop.com *
 
           cd ${{ github.workspace }}
-          mv btop.com btop.exe
+          mv cosmotop.com cosmotop.exe
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: btop.exe
-          path: ./btop.exe
+          name: cosmotop.exe
+          path: ./cosmotop.exe
 
       - name: Interactive debugging
         uses: fawazahmed0/action-debug-vscode@v3
         if: ${{ always() && inputs.debug_link }}
 
   check:
-    name: Check btop.exe ${{ matrix.os }} ${{ matrix.arch }}
+    name: Check cosmotop.exe ${{ matrix.os }} ${{ matrix.arch }}
     needs: bundle
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -192,13 +193,13 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: btop.exe
+          name: cosmotop.exe
           path: .
 
       - name: Mark executable
         shell: bash
         run: |
-          chmod +x btop.exe
+          chmod +x cosmotop.exe
 
       - name: Configure Windows
         if: ${{ matrix.os == 'Windows' }}
@@ -211,15 +212,15 @@ jobs:
         if: ${{ matrix.os == 'Windows' }}
         shell: cmd
         run: |
-          copy btop.exe C:
+          copy cosmotop.exe C:
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
-          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\btop.exe
+          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.exe
 
-      - name: Check btop.exe
+      - name: Check cosmotop.exe
         if: ${{ !contains(matrix.os, 'BSD') }}
         shell: bash
         run: |
-          ./btop.exe --version
+          ./cosmotop.exe --version
 
       - name: Start VM
         if: ${{ matrix.os == 'FreeBSD' }}
@@ -241,23 +242,23 @@ jobs:
           sync: nfs
           release: 7.3
 
-      - name: Check btop.exe
+      - name: Check cosmotop.exe
         if: ${{ matrix.os == 'FreeBSD' }}
         shell: freebsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.exe --version
+          ./cosmotop.exe --version
 
-      - name: Check btop.exe
+      - name: Check cosmotop.exe
         if: ${{ matrix.os == 'NetBSD' }}
         shell: netbsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.exe --version
+          ./cosmotop.exe --version
 
-      - name: Check btop.exe
+      - name: Check cosmotop.exe
         if: ${{ matrix.os == 'OpenBSD' }}
         shell: openbsd {0}
         run: |
           cd ${{ github.workspace }}
-          ./btop.exe --version
+          ./cosmotop.exe --version

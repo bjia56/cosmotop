@@ -25,13 +25,13 @@ tab-size = 4
 #include <string>
 #include <utility>
 
-#include "btop_draw.hpp"
-#include "btop_config.hpp"
-#include "btop_theme.hpp"
-#include "btop_shared.hpp"
-#include "btop_tools.hpp"
-#include "btop_input.hpp"
-#include "btop_menu.hpp"
+#include "cosmotop_draw.hpp"
+#include "cosmotop_config.hpp"
+#include "cosmotop_theme.hpp"
+#include "cosmotop_shared.hpp"
+#include "cosmotop_tools.hpp"
+#include "cosmotop_input.hpp"
+#include "cosmotop_menu.hpp"
 
 
 using std::array;

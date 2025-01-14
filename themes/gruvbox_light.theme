@@ -1,4 +1,4 @@
-# Btop gruvbox_light theme
+# cosmotop gruvbox_light theme
 # by kk9uk
 
 # Main background, empty for terminal default, need to be empty if you want transparent background
@@ -20,7 +20,7 @@ theme[selected_bg]="#f2e5bc"
 theme[selected_fg]="#8f3f71"
 
 # Color of inactive/disabled text
-theme[inactive_fg]="#ebdbb2"  
+theme[inactive_fg]="#ebdbb2"
 
 # Color of text appearing on top of graphs, i.e uptime and current network graph scaling
 theme[graph_text]="#a89984"

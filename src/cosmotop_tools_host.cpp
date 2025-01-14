@@ -33,9 +33,9 @@ tab-size = 4
 #include <unistd.h>
 
 #include "unordered_map"
-#include "btop_shared.hpp"
-#include "btop_tools.hpp"
-#include "btop_config.hpp"
+#include "cosmotop_shared.hpp"
+#include "cosmotop_tools.hpp"
+#include "cosmotop_config.hpp"
 
 using std::cout;
 using std::floor;
@@ -230,7 +230,7 @@ namespace Logger {
 				std::ofstream lwrite(logfile, std::ios::app);
 				if (first) {
 					first = false;
-					lwrite << "\n" << strf_time(tdf) << "===> btop++ v." << Global::Version << "\n";
+					lwrite << "\n" << strf_time(tdf) << "===> cosmotop v." << Global::Version << "\n";
 				}
 				lwrite << strf_time(tdf) << log_levels.at(level) << ": " << msg << "\n";
 			}

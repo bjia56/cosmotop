@@ -64,9 +64,9 @@ tab-size = 4
 #include <string>
 #include <memory>
 
-#include "../btop_config.hpp"
-#include "../btop_shared.hpp"
-#include "../btop_tools.hpp"
+#include "../cosmotop_config.hpp"
+#include "../cosmotop_shared.hpp"
+#include "../cosmotop_tools.hpp"
 
 #include "./sysctlbyname.h"
 
@@ -590,7 +590,7 @@ namespace Mem {
 		auto show_disks = Config::getB("show_disks");
 		auto swap_disk = Config::getB("swap_disk");
 		auto &mem = current_mem;
-		static bool snapped = (getenv("BTOP_SNAPPED") != nullptr);
+		static bool snapped = (getenv("COSMOTOP_SNAPPED") != nullptr);
 
 		u_int memActive, memWire, cachedMem;
 		// u_int freeMem;

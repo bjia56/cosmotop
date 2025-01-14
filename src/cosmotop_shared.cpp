@@ -21,9 +21,9 @@ tab-size = 4
 #include <regex>
 #include <string>
 
-#include "btop_config.hpp"
-#include "btop_shared.hpp"
-#include "btop_tools.hpp"
+#include "cosmotop_config.hpp"
+#include "cosmotop_shared.hpp"
+#include "cosmotop_tools.hpp"
 
 namespace rng = std::ranges;
 using namespace Tools;
@@ -127,10 +127,9 @@ namespace Proc {
 			if (!matches_filter(cur_proc, filter)) {
 				filtering = true;
 				cur_proc.filtered = true;
-#ifdef BTOP_PLUGIN
+#ifndef __COSMOPOLITAN__
 				filter_found++;
-#endif
-#ifdef BTOP_PLUGIN_HOST
+#else
 				increment_filter_found();
 #endif
 			}
@@ -174,10 +173,9 @@ namespace Proc {
 				cur_proc.cpu_c += p.cpu_c;
 				cur_proc.mem += p.mem;
 				cur_proc.threads += p.threads;
-#ifdef BTOP_PLUGIN
+#ifndef __COSMOPOLITAN__
 				filter_found++;
-#endif
-#ifdef BTOP_PLUGIN_HOST
+#else
 				increment_filter_found();
 #endif
 				p.filtered = true;

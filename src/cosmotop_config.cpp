@@ -27,9 +27,9 @@ tab-size = 4
 #include <fmt/core.h>
 #include <sys/statvfs.h>
 
-#include "btop_config.hpp"
-#include "btop_shared.hpp"
-#include "btop_tools.hpp"
+#include "cosmotop_config.hpp"
+#include "cosmotop_shared.hpp"
+#include "cosmotop_tools.hpp"
 
 using std::array;
 using std::atomic;
@@ -41,7 +41,7 @@ namespace rng = std::ranges;
 using namespace std::literals;
 using namespace Tools;
 
-//* Functions and variables for reading and writing the btop config file
+//* Functions and variables for reading and writing the cosmotop config file
 namespace Config {
 
 	atomic<bool> locked (false);
@@ -49,8 +49,8 @@ namespace Config {
 	bool write_new;
 
 	const vector<array<string, 2>> descriptions = {
-		{"color_theme", 		"#* Name of a btop++/bpytop/bashtop formatted \".theme\" file, \"Default\" and \"TTY\" for builtin themes.\n"
-								"#* Themes should be placed in \"../share/btop/themes\" relative to binary or \"$HOME/.config/btop/themes\""},
+		{"color_theme", 		"#* Name of a cosmotop formatted \".theme\" file, \"Default\" and \"TTY\" for builtin themes.\n"
+								"#* Themes should be placed in \"../share/cosmotop/themes\" relative to binary or \"$HOME/.config/cosmotop/themes\""},
 
 		{"theme_background", 	"#* If the theme set background should be shown, set to False if you want terminal background transparency."},
 
@@ -202,7 +202,7 @@ namespace Config {
 
 		{"show_battery_watts",	"#* Show power stats of battery next to charge indicator."},
 
-		{"log_level", 			"#* Set loglevel for \"~/.config/btop/btop.log\" levels are: \"ERROR\" \"WARNING\" \"INFO\" \"DEBUG\".\n"
+		{"log_level", 			"#* Set loglevel for \"~/.config/cosmotop/cosmotop.log\" levels are: \"ERROR\" \"WARNING\" \"INFO\" \"DEBUG\".\n"
 								"#* The level set includes all lower levels, i.e. \"DEBUG\" will show all logging info."},
 	#ifdef GPU_SUPPORT
 
@@ -334,12 +334,12 @@ namespace Config {
 			std::error_code error;
 			if (const auto xdg_config_home = std::getenv("XDG_CONFIG_HOME"); xdg_config_home != nullptr) {
 				if (fs::exists(xdg_config_home, error)) {
-					config_dir = fs::path(xdg_config_home) / "btop";
+					config_dir = fs::path(xdg_config_home) / "cosmotop";
 				}
 			} else if (const auto home = std::getenv("HOME"); home != nullptr) {
 				error.clear();
 				if (fs::exists(home, error)) {
-					config_dir = fs::path(home) / ".config" / "btop";
+					config_dir = fs::path(home) / ".config" / "cosmotop";
 				}
 				if (error) {
 					fmt::print(stderr, "\033[0;31mWarning: \033[0m{} could not be accessed: {}\n", config_dir.string(), error.message());
@@ -764,7 +764,7 @@ namespace Config {
 		if (geteuid() != Global::real_uid and seteuid(Global::real_uid) != 0) return;
 		std::ofstream cwrite(conf_file, std::ios::trunc);
 		if (cwrite.good()) {
-			cwrite << "#? Config file for btop v. " << Global::Version << "\n";
+			cwrite << "#? Config file for cosmotop v. " << Global::Version << "\n";
 			for (auto [name, description] : descriptions) {
 				cwrite << "\n" << (description.empty() ? "" : description + "\n")
 						<< name << " = ";

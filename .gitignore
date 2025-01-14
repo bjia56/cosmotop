@@ -48,11 +48,11 @@ stage/
 *.com
 
 # Compiled man page
-btop.1
+cosmotop.1
 
 build*/
 bin
-btop
+cosmotop
 /obj/
 config.h
 .*/

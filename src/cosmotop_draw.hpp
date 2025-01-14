@@ -61,7 +61,7 @@ namespace Symbols {
 
 namespace Draw {
 
-	//* Generate if needed and return the btop++ banner
+	//* Generate if needed and return the cosmotop banner
 	string banner_gen(int y=0, int x=0, bool centered=false, bool redraw=false);
 
 	//* An editable text field

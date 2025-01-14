@@ -20,7 +20,7 @@ tab-size = 4
 #pragma once
 
 #if !defined(NDEBUG)
-# define BTOP_DEBUG
+# define COSMOTOP_DEBUG
 #endif
 
 #include <algorithm>        // for std::ranges::count_if
@@ -37,7 +37,7 @@ tab-size = 4
 #include <pthread.h>
 #include <limits.h>
 #include <unordered_map>
-#ifdef BTOP_DEBUG
+#ifdef COSMOTOP_DEBUG
 #include <source_location>
 #endif
 #ifndef HOST_NAME_MAX
@@ -341,7 +341,7 @@ namespace Tools {
 	std::string operator*(const string& str, int64_t n);
 
 	template <typename K, typename T>
-#ifdef BTOP_DEBUG
+#ifdef COSMOTOP_DEBUG
 	const T& safeVal(const std::unordered_map<K, T>& map, const K& key, const T& fallback = T{}, std::source_location loc = std::source_location::current()) {
 		if (map.contains(key)) {
 			return map.at(key);
@@ -355,14 +355,14 @@ namespace Tools {
 		if (map.contains(key)) {
 			return map.at(key);
 		} else {
-			Logger::error(fmt::format("safeVal() called with invalid key: [{}] (Compile btop with DEBUG=true for more extensive logging!)", key));
+			Logger::error(fmt::format("safeVal() called with invalid key: [{}] (Compile cosmotop with DEBUG=true for more extensive logging!)", key));
 			return fallback;
 		}
 	};
 #endif
 
 	template <typename T>
-#ifdef BTOP_DEBUG
+#ifdef COSMOTOP_DEBUG
 	const T& safeVal(const std::vector<T>& vec, const size_t& index, const T& fallback = T{}, std::source_location loc = std::source_location::current()) {
 		if (index < vec.size()) {
 			return vec.at(index);
@@ -376,7 +376,7 @@ namespace Tools {
 		if (index < vec.size()) {
 			return vec.at(index);
 		} else {
-			Logger::error(fmt::format("safeVal() called with invalid index: [{}] (Compile btop with DEBUG=true for more extensive logging!)", index));
+			Logger::error(fmt::format("safeVal() called with invalid index: [{}] (Compile cosmotop with DEBUG=true for more extensive logging!)", index));
 			return fallback;
 		}
 	};
