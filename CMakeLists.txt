@@ -84,6 +84,16 @@ elseif(${TARGET} STREQUAL "plugin")
       src/linux/intel_gpu_top/intel_name_lookup_shim.c
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
+  elseif(CMAKE_SYSTEM MATCHES "Darwin")
+    set(PLUGIN_SOURCES
+      src/cosmotop_plugin.cpp
+      src/cosmotop_shared.cpp
+      src/cosmotop_tools_shared.cpp
+      src/osx/cosmotop_collect.cpp
+      src/osx/sensors.cpp
+      src/osx/smc.cpp
+      ${LIBCOSMO_PLUGIN_SOURCES}
+    )
   endif()
 
   if(BUILD_EXE)
@@ -110,7 +120,9 @@ elseif(${TARGET} STREQUAL "plugin")
 
   # error on undefined symbols
   if(NOT WIN32)
-    target_link_options(${BINARY_NAME} PRIVATE -Wl,--no-undefined)
+    if(CMAKE_SYSTEM MATCHES "Linux")
+      target_link_options(${BINARY_NAME} PRIVATE -Wl,--no-undefined)
+    endif()
   endif()
 
 endif() # TARGET

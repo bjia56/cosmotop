@@ -33,25 +33,53 @@ void plugin_initializer(Plugin* plugin) {
 
 #ifdef GPU_SUPPORT
 	plugin->registerHandler<bool>("Gpu::Nvml::shutdown", std::function([]() {
+#ifdef __linux__
 		return Gpu::Nvml::shutdown();
+#else
+		return true;
+#endif
 	}));
 	plugin->registerHandler<bool>("Gpu::Rsmi::shutdown", std::function([]() {
+#ifdef __linux__
 		return Gpu::Rsmi::shutdown();
+#else
+		return true;
+#endif
 	}));
 	plugin->registerHandler<vector<Gpu::gpu_info>, bool>("Gpu::collect", std::function([](bool no_update) {
+#ifdef __linux__
 		return Gpu::collect(no_update);
+#else
+		return vector<Gpu::gpu_info>();
+#endif
 	}));
 	plugin->registerHandler<int>("Gpu::get_count", std::function([]() {
+#ifdef __linux__
 		return Gpu::count;
+#else
+		return 0;
+#endif
 	}));
 	plugin->registerHandler<vector<string>>("Gpu::get_gpu_names", std::function([]() {
+#ifdef __linux__
 		return Gpu::gpu_names;
+#else
+		return vector<string>();
+#endif
 	}));
 	plugin->registerHandler<vector<int>>("Gpu::get_gpu_b_height_offsets", std::function([]() {
+#ifdef __linux__
 		return Gpu::gpu_b_height_offsets;
+#else
+		return vector<int>();
+#endif
 	}));
 	plugin->registerHandler<unordered_map<string, deque<long long>>>("Gpu::get_shared_gpu_percent", std::function([]() {
+#ifdef __linux__
 		return Gpu::shared_gpu_percent;
+#else
+		return unordered_map<string, deque<long long>>();
+#endif
 	}));
 #endif
 
@@ -316,7 +344,7 @@ void create_plugin_host() {
 	if (IsLinux()) {
 		pluginName << "linux";
 	} else if (IsXnu()) {
-		pluginName << "darwin";
+		pluginName << "macos";
 	} else if (IsWindows()) {
 		pluginName << "windows";
 	} else if (IsFreebsd()) {

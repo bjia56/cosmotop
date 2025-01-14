@@ -86,12 +86,50 @@ jobs:
           name: plugin-linux-${{ matrix.arch }}
           path: ./cosmotop-linux-${{ matrix.arch }}.so
 
+  build_macos_plugin:
+    name: Build plugin MacOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            arch: x86_64
+          - runner: macos-14
+            arch: aarch64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build plugin
+        shell: bash
+        run: |
+          if [[ ${{ matrix.arch }} == "x86_64" ]]; then
+            cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
+            cmake --build build --parallel 4
+            cp build/libcosmotop.exe ${{ github.workspace }}/cosmotop-macos-${{ matrix.arch }}.exe
+          else
+            cmake -B build -DTARGET=plugin
+            cmake --build build --parallel 4
+            cp build/libcosmotop.dylib ${{ github.workspace }}/cosmotop-macos-${{ matrix.arch }}.dylib
+          fi
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-macos-${{ matrix.arch }}
+          path: ./cosmotop-macos-${{ matrix.arch }}.*
+
   bundle:
     name: Bundle plugins with cosmotop
     runs-on: ubuntu-latest
     needs:
       - build
       - build_linux_plugin
+      - build_macos_plugin
 
     steps:
       - name: Checkout
@@ -132,6 +170,8 @@ jobs:
           sudo mkdir -p /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.so /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.so /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.dylib /zip/
 
           cd /zip
           zip ${{ github.workspace }}/cosmotop.com *
