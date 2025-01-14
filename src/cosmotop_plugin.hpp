@@ -19,3 +19,4 @@ tab-size = 4
 #pragma once
 
 void create_plugin_host();
+void shutdown_plugin();

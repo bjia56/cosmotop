@@ -391,7 +391,7 @@ void create_plugin_host() {
 			std::filesystem::remove(pluginPath);
 		}
 		std::filesystem::copy_file(ziposPath, pluginPath);
-		chmod(pluginPath.c_str(), 0400);
+		chmod(pluginPath.c_str(), 0500);
 	}
 
 	pluginHost = new PluginHost(pluginPath.string());
@@ -479,6 +479,13 @@ void create_plugin_host() {
 	}));
 
 	pluginHost->initialize();
+}
+
+void shutdown_plugin() {
+	if (pluginHost) {
+		delete pluginHost;
+		pluginHost = nullptr;
+	}
 }
 
 #ifdef GPU_SUPPORT
