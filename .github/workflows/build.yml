@@ -161,7 +161,7 @@ jobs:
           path: ./cosmotop-freebsd-${{ matrix.arch }}.so
 
   build_netbsd_plugin:
-    name: Build plugin NetBSD x86_64
+    name: Build plugin NetBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -187,7 +187,7 @@ jobs:
         shell: netbsd {0}
         run: |
           cd ${{ github.workspace }}
-          cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
+          CC=clang CXX=clang++ cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
           cmake --build build --parallel 4
           cp build/libcosmotop.exe ${{ github.workspace }}/cosmotop-netbsd-${{ matrix.arch }}.exe
 
