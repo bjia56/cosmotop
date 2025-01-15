@@ -16,6 +16,8 @@ project("cosmotop"
   LANGUAGES CXX C
 )
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/")
+
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/libcosmo_plugin)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -28,13 +30,13 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-find_package(Threads REQUIRED)
-
 if(NOT TARGET)
   set(TARGET "cosmotop")
 endif()
 
 if(${TARGET} STREQUAL "cosmotop")
+
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
   add_executable(cosmotop
     src/cosmotop.cpp
@@ -66,6 +68,7 @@ if(${TARGET} STREQUAL "cosmotop")
 
   # Enable pthreads
   set(THREADS_PREFER_PTHREAD_FLAG ON)
+  find_package(Threads REQUIRED)
   target_link_libraries(cosmotop Threads::Threads)
 
   target_compile_definitions(cosmotop PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
@@ -84,6 +87,7 @@ elseif(${TARGET} STREQUAL "plugin")
       src/linux/intel_gpu_top/intel_name_lookup_shim.c
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
   elseif(CMAKE_SYSTEM MATCHES "Darwin")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -103,6 +107,10 @@ elseif(${TARGET} STREQUAL "plugin")
       src/freebsd/cosmotop_collect.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    find_package(devstat REQUIRED)
+    find_package(kvm REQUIRED)
+    find_package(elf REQUIRED)
   endif()
 
   if(BUILD_EXE)
@@ -125,9 +133,14 @@ elseif(${TARGET} STREQUAL "plugin")
   )
   target_compile_definitions(${BINARY_NAME} PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
 
+  set(THREADS_PREFER_PTHREAD_FLAG ON)
+  find_package(Threads REQUIRED)
+
   target_link_libraries(${BINARY_NAME} PRIVATE Threads::Threads)
   if(CMAKE_SYSTEM MATCHES "Darwin")
     target_link_libraries(${BINARY_NAME} PRIVATE $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit>)
+  elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
+    target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm elf::elf)
   endif()
 
 endif() # TARGET
