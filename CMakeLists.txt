@@ -126,6 +126,15 @@ elseif(${TARGET} STREQUAL "plugin")
     )
     find_package(kvm REQUIRED)
     find_package(proplib REQUIRED)
+  elseif(CMAKE_SYSTEM MATCHES "OpenBSD")
+    set(PLUGIN_SOURCES
+      src/cosmotop_plugin.cpp
+      src/cosmotop_shared.cpp
+      src/cosmotop_tools_shared.cpp
+      src/openbsd/cosmotop_collect.cpp
+      src/openbsd/sysctlbyname.cpp
+      ${LIBCOSMO_PLUGIN_SOURCES}
+    )
   else()
     message(FATAL_ERROR "Unsupported platform")
   endif()
