@@ -28,7 +28,7 @@ tab-size = 4
 #include <vector>
 #include <unordered_map>
 
-#ifdef __unix__
+#ifndef _WIN32
 #include <unistd.h>
 
 // From `man 3 getifaddrs`: <net/if.h> must be included before <ifaddrs.h>
@@ -40,7 +40,7 @@ tab-size = 4
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <kvm.h>
 #endif
-#endif // __unix__
+#endif // !_WIN32
 
 using std::array;
 using std::atomic;
@@ -67,7 +67,7 @@ namespace Global {
 	extern string overlay;
 	extern string clock;
 
-#ifdef __unix__
+#ifndef _WIN32
 	extern uid_t real_uid, set_uid;
 #endif
 
@@ -84,7 +84,7 @@ namespace Runner {
 	extern atomic<bool> redraw;
 	extern atomic<bool> coreNum_reset;
 
-#ifdef __unix__
+#ifndef _WIN32
 	extern pthread_t runner_id;
 #endif
 
@@ -380,7 +380,7 @@ namespace Net {
 		bool connected{};
 	};
 
-#ifdef __unix__
+#ifndef _WIN32
 	class IfAddrsPtr {
 		struct ifaddrs* ifaddr;
 		int status;
@@ -391,7 +391,7 @@ namespace Net {
 		[[nodiscard]] constexpr auto get() -> struct ifaddrs* { return ifaddr; }
 		[[nodiscard]] constexpr auto get_status() const noexcept -> int { return status; };
 	};
-#endif // __unix__
+#endif // !_WIN32
 
 	extern std::unordered_map<string, net_info> current_net;
 	std::unordered_map<string, net_info>& get_current_net();

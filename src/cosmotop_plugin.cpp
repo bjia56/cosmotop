@@ -90,7 +90,7 @@ void plugin_initializer(Plugin* plugin) {
 		return Cpu::cpuHz;
 	}));
 	plugin->registerHandler<bool>("Cpu::update_core_mapping", std::function([]() {
-#ifdef __unix__
+#ifndef _WIN32
 		Cpu::core_mapping = Cpu::get_core_mapping();
 #endif
 		return true;

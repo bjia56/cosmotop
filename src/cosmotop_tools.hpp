@@ -47,9 +47,9 @@ tab-size = 4
 	#endif
 #endif
 
-#ifdef __unix__
+#ifndef _WIN32
 #include <pthread.h>
-#endif // __unix__
+#endif
 
 #ifdef _WIN32
 #define NOMINMAX
