@@ -30,6 +30,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+include(CheckIncludeFileCXX)
 check_include_file_cxx(ranges CXX_HAVE_RANGES)
 if(NOT CXX_HAVE_RANGES)
   message(FATAL_ERROR "The compiler doesn't support <ranges>")
