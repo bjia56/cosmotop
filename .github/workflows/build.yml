@@ -142,7 +142,7 @@ jobs:
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
-          release: 13.3
+          release: "13.3"
           prepare: |
             pkg install -y cmake
 
@@ -179,7 +179,7 @@ jobs:
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
-          release: 10.0
+          release: "10.0"
           prepare: |
             /usr/sbin/pkg_add cmake clang
 
