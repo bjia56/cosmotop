@@ -90,7 +90,9 @@ void plugin_initializer(Plugin* plugin) {
 		return Cpu::cpuHz;
 	}));
 	plugin->registerHandler<bool>("Cpu::update_core_mapping", std::function([]() {
+#ifdef __unix__
 		Cpu::core_mapping = Cpu::get_core_mapping();
+#endif
 		return true;
 	}));
 	plugin->registerHandler<bool>("Cpu::get_has_battery", std::function([]() {

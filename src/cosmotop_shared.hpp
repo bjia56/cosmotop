@@ -81,7 +81,11 @@ namespace Runner {
 	extern atomic<bool> stopping;
 	extern atomic<bool> redraw;
 	extern atomic<bool> coreNum_reset;
+
+#ifdef __unix__
 	extern pthread_t runner_id;
+#endif
+
 	extern bool pause_output;
 	extern string debug_bg;
 
@@ -466,6 +470,11 @@ namespace Proc {
 		size_t tree_index{};
 		bool collapsed{};
 		bool filtered{};
+#ifdef _WIN32
+		bool WMI = false;
+#else
+		std::optional<bool> WMI;
+#endif
 	};
 
 	//* Container for process info box
@@ -474,9 +483,23 @@ namespace Proc {
 		bool skip_smaps{};
 		proc_info entry;
 		string elapsed, parent, status, io_read, io_write, memory;
+#ifdef _WIN32
+		string owner, start, description, last_name, service_type;
+#else
+		std::optional<string> owner, start, description, last_name, service_type;
+#endif
 		long long first_mem = -1;
 		deque<long long> cpu_percent;
 		deque<long long> mem_bytes;
+#ifdef _WIN32
+		double mem_percent = 0.0;
+		bool can_pause = false;
+		bool can_stop = false;
+#else
+		std::optional<double> mem_percent;
+		std::optional<bool> can_pause;
+		std::optional<bool> can_stop;
+#endif
 	};
 
 	//? Contains all info for proc detailed box

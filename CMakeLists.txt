@@ -157,6 +157,9 @@ elseif(${TARGET} STREQUAL "plugin")
     ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
   )
   target_compile_definitions(${BINARY_NAME} PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
+  if(CMAKE_SYSTEM MATCHES "Windows")
+    target_compile_definitions(${BINARY_NAME} PRIVATE UNICODE _UNICODE)
+  endif()
 
   set(THREADS_PREFER_PTHREAD_FLAG ON)
   find_package(Threads REQUIRED)

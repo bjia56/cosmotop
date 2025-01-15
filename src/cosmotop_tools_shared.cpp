@@ -503,3 +503,122 @@ namespace Tools {
 		return running;
 	}
 }
+
+#ifdef _WIN32
+
+namespace Tools {
+
+	HandleWrapper::HandleWrapper() : wHandle(nullptr) { ; }
+	HandleWrapper::HandleWrapper(HANDLE nHandle) : wHandle(nHandle) { valid = (wHandle != INVALID_HANDLE_VALUE); }
+	HANDLE HandleWrapper::operator()() { return wHandle; }
+	HandleWrapper::~HandleWrapper() { if (wHandle != nullptr) CloseHandle(wHandle); }
+
+	ServiceHandleWrapper::ServiceHandleWrapper() : wHandle(nullptr) { ; }
+	ServiceHandleWrapper::ServiceHandleWrapper(SC_HANDLE nHandle) : wHandle(nHandle) { valid = (wHandle != INVALID_HANDLE_VALUE); }
+	SC_HANDLE ServiceHandleWrapper::operator()() { return wHandle; }
+	ServiceHandleWrapper::~ServiceHandleWrapper() { if (wHandle != nullptr) CloseServiceHandle(wHandle); }
+
+	ServiceConfigWrapper::ServiceConfigWrapper() : conf(nullptr) { ; }
+	ServiceConfigWrapper::ServiceConfigWrapper(DWORD bufSize) {
+		conf = reinterpret_cast<LPQUERY_SERVICE_CONFIG>(LocalAlloc(LMEM_FIXED, bufSize));
+		valid = (conf != nullptr);
+	}
+	LPQUERY_SERVICE_CONFIG ServiceConfigWrapper::operator()() { return conf; }
+	ServiceConfigWrapper::~ServiceConfigWrapper() { if (conf != nullptr) LocalFree(conf); }
+
+	DWORD ServiceCommand(string name, ServiceCommands command) {
+		//? Open handle to service manager
+		ServiceHandleWrapper SCmanager(OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS));
+		if (not SCmanager.valid) {
+			Logger::error("Tools::ServiceCommand(): OpenSCManager() failed with error code: " + to_string(GetLastError()));
+			return ERROR_INVALID_FUNCTION;
+		}
+
+		//? Open handle to service
+		ServiceHandleWrapper SCitem(OpenService(SCmanager(), _bstr_t(name.c_str()), SERVICE_ALL_ACCESS));
+		if (not SCitem.valid) {
+			Logger::error("Tools::ServiceCommand(): OpenService() failed with error code: " + to_string(GetLastError()));
+			return ERROR_INVALID_FUNCTION;
+		}
+
+		SERVICE_STATUS_PROCESS itemStat;
+		DWORD BytesNeeded;
+
+		//? Get service status
+		if (not QueryServiceStatusEx(SCitem(), SC_STATUS_PROCESS_INFO, (LPBYTE)&itemStat, sizeof(SERVICE_STATUS_PROCESS), &BytesNeeded)) {
+			Logger::error("Tools::ServiceCommand(): QueryServiceStatusEx() failed with error code: " + to_string(GetLastError()));
+			return ERROR_INVALID_FUNCTION;
+		}
+
+		DWORD DesiredState = NULL;
+		DWORD ControlCommand;
+
+		if (command == SCstart) {
+			DesiredState = SERVICE_RUNNING;
+		}
+		else if (command == SCstop) {
+			DesiredState = SERVICE_STOPPED;
+			ControlCommand = SERVICE_CONTROL_STOP;
+		}
+		else if (command == SCcontinue) {
+			DesiredState = SERVICE_RUNNING;
+			ControlCommand = SERVICE_CONTROL_CONTINUE;
+		}
+		else if (command == SCpause) {
+			DesiredState = SERVICE_PAUSED;
+			ControlCommand = SERVICE_CONTROL_PAUSE;
+		}
+		else if (command == SCchange) {
+			ControlCommand = SERVICE_CONTROL_PARAMCHANGE;
+		}
+		else {
+			return ERROR_INVALID_FUNCTION;
+		}
+
+		//? Check if service is already in the desired state
+		if (DesiredState != NULL and itemStat.dwCurrentState == DesiredState) {
+			return ERROR_ALREADY_EXISTS;
+		}
+
+		//? Send command to service
+		if (command == SCstart) {
+			if (not StartService(SCitem(), 0, NULL)) {
+				return GetLastError();
+			}
+		}
+		else {
+			SERVICE_STATUS scStat;
+			if (not ControlService(SCitem(), ControlCommand, &scStat)) {
+				return GetLastError();
+			}
+		}
+
+		return ERROR_SUCCESS;
+	}
+
+	DWORD ServiceSetStart(string name, DWORD start_type) {
+		//? Open handle to service manager
+		ServiceHandleWrapper SCmanager(OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS));
+		if (not SCmanager.valid) {
+			Logger::error("Tools::ServiceCommand(): OpenSCManager() failed with error code: " + to_string(GetLastError()));
+			return ERROR_INVALID_FUNCTION;
+		}
+
+		//? Open handle to service
+		ServiceHandleWrapper SCitem(OpenService(SCmanager(), _bstr_t(name.c_str()), SERVICE_ALL_ACCESS));
+		if (not SCitem.valid) {
+			Logger::error("Tools::ServiceCommand(): OpenService() failed with error code: " + to_string(GetLastError()));
+			return ERROR_INVALID_FUNCTION;
+		}
+
+		//? Change service start type
+		if (not ChangeServiceConfig(SCitem(), SERVICE_NO_CHANGE, start_type, SERVICE_NO_CHANGE, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
+			return GetLastError();
+		}
+
+		return ERROR_SUCCESS;
+	}
+
+}
+
+#endif // _WIN32

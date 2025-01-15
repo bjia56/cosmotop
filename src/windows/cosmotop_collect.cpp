@@ -1075,10 +1075,10 @@ namespace Cpu {
 		string name;
 		HKEY hKey;
 
-		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
 			wchar_t cpuName[255];
 			DWORD BufSize = sizeof(cpuName);
-			if (RegQueryValueEx(hKey, "ProcessorNameString", NULL, NULL, (LPBYTE)cpuName, &BufSize) == ERROR_SUCCESS) {
+			if (RegQueryValueEx(hKey, L"ProcessorNameString", NULL, NULL, (LPBYTE)cpuName, &BufSize) == ERROR_SUCCESS) {
 				name = string(CW2A(cpuName));
 			}
 		}
@@ -1166,8 +1166,9 @@ namespace Cpu {
 	}
 
 	auto collect(const bool no_update) -> cpu_info& {
-		if (Runner::stopping or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
+		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
 		auto& cpu = current_cpu;
+		auto width = get_width();
 
 		if (has_OHMR) {
 			std::lock_guard lck(Cpu::OHMRmutex);
@@ -1194,6 +1195,7 @@ namespace Cpu {
 				}
 			}
 
+			/*
 			if (has_gpu) {
 				if (current_gpu != Config::getS("selected_gpu")) {
 					current_gpu = Config::getS("selected_gpu");
@@ -1224,6 +1226,7 @@ namespace Cpu {
 				cpu.cpu_percent.at("gpu").push_back(gpu.usage);
 				while (cmp_greater(cpu.cpu_percent.at("gpu").size(), width * 2)) cpu.cpu_percent.at("gpu").pop_front();
 			}
+			*/
 		}
 		else {
 			cpuHz = get_cpuHz();
@@ -1328,12 +1331,14 @@ namespace Mem {
 	}
 
 	auto collect(const bool no_update) -> mem_info& {
-		if (Runner::stopping or (no_update and not current_mem.percent.at("used").empty())) return current_mem;
+		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty())) return current_mem;
 
-		auto& show_swap = Config::getB("show_page");
-		auto& show_disks = Config::getB("show_disks");
+		const auto show_swap = Config::getB("show_swap");
+		const auto show_disks = Config::getB("show_disks");
 		auto& mem = current_mem;
+		auto width = get_width();
 
+		/*
 		if (Cpu::has_OHMR and Cpu::has_gpu and Config::getB("show_gpu")) {
 			std::lock_guard lck(Cpu::OHMRmutex);
 			if (not Cpu::shown) {
@@ -1366,6 +1371,7 @@ namespace Mem {
 				while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
 			}
 		}
+		*/
 
 		MEMORYSTATUSEX memstat;
 		memstat.dwLength = sizeof(MEMORYSTATUSEX);
@@ -1385,13 +1391,12 @@ namespace Mem {
 		mem.stats.at("cached") = perfinfo.SystemCache * perfinfo.PageSize;
 		mem.stats.at("commit") = perfinfo.CommitTotal * perfinfo.PageSize;
 
-		mem.stats.at("page_total") = static_cast<int64_t>(memstat.ullTotalPageFile) - totalMem;
-		mem.stats.at("page_free") = static_cast<int64_t>(memstat.ullAvailPageFile);
-		if (mem.pagevirt or mem.stats.at("page_total") < mem.stats.at("page_free")) {
-			mem.stats.at("page_total") += mem.stats.at("page_free");
-			mem.pagevirt = true;
+		mem.stats.at("swap_total") = static_cast<uint64_t>(memstat.ullTotalPageFile) - totalMem;
+		mem.stats.at("swap_free") = static_cast<uint64_t>(memstat.ullAvailPageFile);
+		if (mem.stats.at("swap_total") < mem.stats.at("swap_free")) {
+			mem.stats.at("swap_total") += mem.stats.at("swap_free");
 		}
-		mem.stats.at("page_used") = mem.stats.at("page_total") - mem.stats.at("page_free");
+		mem.stats.at("swap_used") = mem.stats.at("swap_total") - mem.stats.at("swap_free");
 
 		//? Calculate percentages
 		for (const string name : { "used", "available", "cached", "commit"}) {
@@ -1413,10 +1418,10 @@ namespace Mem {
 		//? Get disks stats
 		if (show_disks) {
 			uint64_t systime = GetTickCount64();
-			auto free_priv = Config::getB("disk_free_priv");
-			auto& disks_filter = Config::getS("disks_filter");
+			const auto free_priv = Config::getB("disk_free_priv");
+			const auto disks_filter = Config::getS("disks_filter");
 			bool filter_exclude = false;
-			auto& only_physical = Config::getB("only_physical");
+			const auto only_physical = Config::getB("only_physical");
 			auto& disks = mem.disks;
 			disk_ios = 0;
 
@@ -1565,9 +1570,9 @@ namespace Net {
 	auto collect(const bool no_update) -> net_info& {
 		auto& net = current_net;
 
-		auto& config_iface = Config::getS("net_iface");
-		auto& net_sync = Config::getB("net_sync");
-		auto& net_auto = Config::getB("net_auto");
+		const auto config_iface = Config::getS("net_iface");
+		const auto net_sync = Config::getB("net_sync");
+		const auto net_auto = Config::getB("net_auto");
 		auto new_timestamp = time_ms();
 
 		//! Much of the following code is based on the implementation used in psutil
@@ -1677,7 +1682,6 @@ namespace Net {
 					else
 						it++;
 				}
-				net.compact();
 			}
 		}
 
@@ -1763,11 +1767,6 @@ namespace Proc {
 
 	detail_container detailed;
 
-	struct tree_proc {
-		std::reference_wrapper<proc_info> entry;
-		vector<tree_proc> children;
-	};
-
 	void proc_sorter(vector<proc_info>& proc_vec, string sorting, const bool reverse, const bool tree = false, const bool services = false) {
 		if (services) {
 			if (sorting == "service") sorting = "program";
@@ -1817,126 +1816,13 @@ namespace Proc {
 		}
 	}
 
-	void tree_sort(vector<tree_proc>& proc_vec, const string& sorting, const bool reverse, int& c_index, const int index_max, const bool collapsed = false) {
-		if (proc_vec.size() > 1) {
-			if (reverse) {
-				switch (v_index(sort_vector, sorting)) {
-				case 3: rng::stable_sort(proc_vec, [](const auto& a, const auto& b) { return a.entry.get().threads < b.entry.get().threads; });	break;
-				case 5: rng::stable_sort(proc_vec, [](const auto& a, const auto& b) { return a.entry.get().mem < b.entry.get().mem; });	break;
-				case 6: rng::stable_sort(proc_vec, [](const auto& a, const auto& b) { return a.entry.get().cpu_p < b.entry.get().cpu_p; });	break;
-				case 7: rng::stable_sort(proc_vec, [](const auto& a, const auto& b) { return a.entry.get().cpu_c < b.entry.get().cpu_c; });	break;
-				}
-			}
-			else {
-				switch (v_index(sort_vector, sorting)) {
-				case 3: rng::stable_sort(proc_vec, [](const auto& a, const auto& b) { return a.entry.get().threads > b.entry.get().threads; });	break;
-				case 5: rng::stable_sort(proc_vec, [](const auto& a, const auto& b) { return a.entry.get().mem > b.entry.get().mem; });	break;
-				case 6: rng::stable_sort(proc_vec, [](const auto& a, const auto& b) { return a.entry.get().cpu_p > b.entry.get().cpu_p; });	break;
-				case 7: rng::stable_sort(proc_vec, [](const auto& a, const auto& b) { return a.entry.get().cpu_c > b.entry.get().cpu_c; });	break;
-				}
-			}
-		}
-
-		for (auto& r : proc_vec) {
-			r.entry.get().tree_index = (collapsed or r.entry.get().filtered ? index_max : c_index++);
-			if (not r.children.empty()) {
-				tree_sort(r.children, sorting, reverse, c_index, (collapsed or r.entry.get().collapsed or r.entry.get().tree_index == index_max));
-			}
-		}
-	}
-
-	//* Generate process tree list
-	void _tree_gen(proc_info& cur_proc, vector<proc_info>& in_procs, vector<tree_proc>& out_procs, int cur_depth, const bool collapsed, const string& filter, bool found=false, const bool no_update=false, const bool should_filter=false) {
-		auto cur_pos = out_procs.size();
-		bool filtering = false;
-
-		//? If filtering, include children of matching processes
-		if (not found and (should_filter or not filter.empty())) {
-			if (not s_contains(std::to_string(cur_proc.pid), filter)
-			and not s_contains_ic(cur_proc.name, filter)
-			and not s_contains_ic(cur_proc.cmd, filter)
-			and not s_contains_ic(cur_proc.user, filter)) {
-				filtering = true;
-				cur_proc.filtered = true;
-				filter_found++;
-			}
-			else {
-				found = true;
-				cur_depth = 0;
-			}
-		}
-		else if (cur_proc.filtered) cur_proc.filtered = false;
-
-		cur_proc.depth = cur_depth;
-
-		//? Set tree index position for process if not filtered out or currently in a collapsed sub-tree
-		out_procs.push_back({ cur_proc });
-		if (not collapsed and not filtering) {
-			cur_proc.tree_index = out_procs.size() - 1;
-
-			//? Try to find name of the binary file and append to program name if not the same
-			if (cur_proc.short_cmd.empty() and WMIList.contains(cur_proc.pid)) {
-				string pname = bstr2str(WMIList.at(cur_proc.pid).Name);
-				if (pname.size() < cur_proc.cmd.size()) {
-					std::string_view cmd = cur_proc.cmd;
-					auto ssfind = cmd.find(pname);
-					if (ssfind + pname.size() < cmd.size()) {
-						cmd.remove_prefix(ssfind + pname.size());
-						if (cmd.starts_with(pname)) cmd.remove_prefix(pname.size());
-						if (cmd.starts_with("\"")) cmd.remove_prefix(1);
-						if (cmd.starts_with(" ")) cmd.remove_prefix(1);
-						cur_proc.short_cmd = string(cmd);
-					}
-				}
-
-				if (cur_proc.short_cmd.empty())
-					cur_proc.short_cmd = pname;
-			}
-		}
-		else {
-			cur_proc.tree_index = in_procs.size();
-		}
-
-		//? Recursive iteration over all children
-		int children = 0;
-		for (auto& p : rng::equal_range(in_procs, cur_proc.pid, rng::less{}, &proc_info::ppid)) {
-			if (collapsed and not filtering) {
-				cur_proc.filtered = true;
-			}
-			children++;
-
-			_tree_gen(p, in_procs, out_procs.back().children, cur_depth + 1, (collapsed or cur_proc.collapsed), filter, found, no_update, should_filter);
-
-			if (not no_update and not filtering and (collapsed or cur_proc.collapsed)) {
-				//auto& parent = cur_proc;
-				cur_proc.cpu_p += p.cpu_p;
-				cur_proc.cpu_c += p.cpu_c;
-				cur_proc.mem += p.mem;
-				cur_proc.threads += p.threads;
-				filter_found++;
-				p.filtered = true;
-			}
-		}
-		if (collapsed or filtering) {
-			return;
-		}
-
-		//? Add tree terminator symbol if it's the last child in a sub-tree
-		if (children > 0 and not out_procs.back().children.back().entry.get().prefix.ends_with("]─"))
-			out_procs.back().children.back().entry.get().prefix.replace(out_procs.back().children.back().entry.get().prefix.size() - 8, 8, " └─ ");
-
-		//? Add collapse/expand symbols if process have any children
-		out_procs.at(cur_pos).entry.get().prefix = " │ "s * cur_depth + (children > 0 ? (cur_proc.collapsed ? "[+]─" : "[-]─") : " ├─ ");
-	}
-
 	//* Get detailed info for selected process
 	void _collect_details(const size_t pid, const string name, const uint64_t uptime, vector<proc_info>& procs, uint64_t totalMem) {
 		const auto& services = Config::getB("proc_services");
 		static string last_status;
-		if (pid != detailed.last_pid or name != detailed.last_name) {
+		if (pid != detailed.last_pid) {
 			detailed = {};
 			detailed.last_pid = pid;
-			detailed.last_name = name;
 			detailed.status = "Running";
 			last_status = detailed.status;
 		}
@@ -2078,7 +1964,7 @@ namespace Proc {
 			}
 
 			do {
-				if (Runner::stopping) {
+				if (Runner::get_stopping()) {
 					if (not Proc::WMI_requests.empty()) Proc::WMI_trigger();
 					return current_procs;
 				}
