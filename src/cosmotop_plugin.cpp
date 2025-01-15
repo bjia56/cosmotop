@@ -37,7 +37,7 @@ void plugin_initializer(Plugin* plugin) {
 
 	plugin->registerHandler<string>("build_info", std::function([]() {
 		std::stringstream ss;
-		ss << "Host-native plugin compiled with: " << COMPILER << " (" << COMPILER_VERSION << ")\nConfigured with: " << CONFIGURE_COMMAND;
+		ss << "Host-native plugin compiled with: " << COMPILER << " (" << COMPILER_VERSION << ")";
 		return ss.str();
 	}));
 
