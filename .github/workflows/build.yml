@@ -123,6 +123,33 @@ jobs:
           name: plugin-macos-${{ matrix.arch }}
           path: ./cosmotop-macos-${{ matrix.arch }}.*
 
+  build_windows_plugin:
+    name: Build plugin Windows ${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build plugin
+        shell: bash
+        run: |
+          cmake -B build -DTARGET=plugin
+          cmake --build build --parallel 4 --config Release
+          cp build/Release/cosmotop.dll ${{ github.workspace }}/cosmotop-windows-${{ matrix.arch }}.dll
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-windows-${{ matrix.arch }}
+          path: ./cosmotop-windows-${{ matrix.arch }}.dll
+
   build_freebsd_plugin:
     name: Build plugin FreeBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
@@ -241,6 +268,7 @@ jobs:
       - build
       - build_linux_plugin
       - build_macos_plugin
+      - build_windows_plugin
       - build_freebsd_plugin
       - build_netbsd_plugin
       - build_openbsd_plugin
@@ -286,6 +314,7 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.so /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.dylib /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-windows-x86_64.dll /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-x86_64.so /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-x86_64.exe /zip/
