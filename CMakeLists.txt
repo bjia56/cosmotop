@@ -110,7 +110,6 @@ elseif(${TARGET} STREQUAL "plugin")
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     find_package(devstat REQUIRED)
     find_package(kvm REQUIRED)
-    find_package(elf REQUIRED)
   endif()
 
   if(BUILD_EXE)
@@ -140,7 +139,7 @@ elseif(${TARGET} STREQUAL "plugin")
   if(CMAKE_SYSTEM MATCHES "Darwin")
     target_link_libraries(${BINARY_NAME} PRIVATE $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit>)
   elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
-    target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm elf::elf)
+    target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm)
   endif()
 
 endif() # TARGET
