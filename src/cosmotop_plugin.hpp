@@ -18,5 +18,9 @@ tab-size = 4
 
 #pragma once
 
+#include <string>
+
 void create_plugin_host();
+bool is_plugin_loaded();
 void shutdown_plugin();
+std::string plugin_build_info();

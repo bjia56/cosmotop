@@ -131,6 +131,16 @@ static void print_version() {
 static void print_version_with_build_info() {
 	print_version();
 	fmt::println("Compiled with: {} ({})\nConfigured with: {}", COMPILER, COMPILER_VERSION, CONFIGURE_COMMAND);
+
+	if(!is_plugin_loaded()) {
+		try {
+			create_plugin_host();
+			string plugin_info = plugin_build_info();
+			fmt::println("{}", plugin_info);
+		} catch (const std::exception& e) {
+			fmt::println("Unable to load platform-specific plugin: {}", e.what());
+		}
+	}
 }
 
 static void print_usage() {

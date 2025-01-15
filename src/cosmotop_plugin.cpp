@@ -16,6 +16,8 @@ indent = tab
 tab-size = 4
 */
 
+#include <sstream>
+
 #include <cosmo_plugin.hpp>
 
 #include "cosmotop_shared.hpp"
@@ -26,10 +28,18 @@ using std::unordered_map;
 
 #ifndef __COSMOPOLITAN__
 
+#include "config.h"
+
 Plugin* plugin = nullptr;
 
 void plugin_initializer(Plugin* plugin) {
 	::plugin = plugin;
+
+	plugin->registerHandler<string>("build_info", std::function([]() {
+		std::stringstream ss;
+		ss << "Host-native plugin compiled with: " << COMPILER << " (" << COMPILER_VERSION << ")\nConfigured with: " << CONFIGURE_COMMAND;
+		return ss.str();
+	}));
 
 #ifdef GPU_SUPPORT
 	plugin->registerHandler<bool>("Gpu::Nvml::shutdown", std::function([]() {
@@ -294,7 +304,6 @@ namespace Global {
 
 #include <cosmo.h>
 #include <filesystem>
-#include <sstream>
 #include <sys/stat.h>
 
 PluginHost* pluginHost = nullptr;
@@ -500,11 +509,19 @@ void create_plugin_host() {
 	pluginHost->initialize();
 }
 
+bool is_plugin_loaded() {
+	return pluginHost != nullptr;
+}
+
 void shutdown_plugin() {
 	if (pluginHost) {
 		delete pluginHost;
 		pluginHost = nullptr;
 	}
+}
+
+string plugin_build_info() {
+	return pluginHost->call<string>("build_info");
 }
 
 #ifdef GPU_SUPPORT
