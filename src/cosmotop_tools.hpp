@@ -34,7 +34,6 @@ tab-size = 4
 #include <thread>
 #include <tuple>
 #include <vector>
-#include <pthread.h>
 #include <limits.h>
 #include <unordered_map>
 #ifdef COSMOTOP_DEBUG
@@ -47,6 +46,25 @@ tab-size = 4
 		#define HOST_NAME_MAX 64
 	#endif
 #endif
+
+#ifdef __unix__
+#include <pthread.h>
+#endif // __unix__
+
+#ifdef _WIN32
+#define NOMINMAX
+
+#include <windows.h>
+#include <winnt.h>
+
+// we use these as enums
+#ifdef ERROR
+#undef ERROR
+#endif
+#ifdef DEBUG
+#undef DEBUG
+#endif
+#endif // _WIN32
 
 #include "fmt/core.h"
 #include "fmt/format.h"
@@ -391,7 +409,9 @@ namespace Tools {
 	string username();
 
 	static inline void busy_wait (void) {
-	#if defined __i386__ || defined __x86_64__
+	#if defined _WIN32
+		YieldProcessor();
+	#elif defined __i386__ || defined __x86_64__
 		__builtin_ia32_pause();
 	#elif defined __ia64__
 		__asm volatile("hint @pause" : : : "memory");
@@ -455,5 +475,53 @@ namespace Tools {
 
 }
 
+#ifdef _WIN32
 
+namespace Tools {
+	class HandleWrapper {
+	public:
+		HANDLE wHandle;
+		bool valid = false;
+		HandleWrapper();
+		HandleWrapper(HANDLE nHandle);
+		HANDLE operator()();
+		~HandleWrapper();
+	};
 
+	class ServiceHandleWrapper {
+	public:
+		SC_HANDLE wHandle;
+		bool valid = false;
+		ServiceHandleWrapper();
+		ServiceHandleWrapper(SC_HANDLE nHandle);
+		SC_HANDLE operator()();
+		~ServiceHandleWrapper();
+	};
+
+	class ServiceConfigWrapper {
+	public:
+		LPQUERY_SERVICE_CONFIG conf;
+		bool valid = false;
+		ServiceConfigWrapper();
+		ServiceConfigWrapper(DWORD bufSize);
+		LPQUERY_SERVICE_CONFIG operator()();
+		~ServiceConfigWrapper();
+	};
+
+	enum ServiceCommands { SCstart, SCstop, SCcontinue, SCpause, SCchange};
+	const std::unordered_map<string, DWORD> ServiceStartTypes = {
+		{"Auto", SERVICE_AUTO_START},
+		{"Boot", SERVICE_BOOT_START},
+		{"Manual", SERVICE_DEMAND_START},
+		{"Disabled", SERVICE_DISABLED},
+		{"System", SERVICE_SYSTEM_START},
+	};
+
+	//? Send command from enum ServiceCommands to service
+	DWORD ServiceCommand(string name, ServiceCommands command);
+
+	//? Set start type for service
+	DWORD ServiceSetStart(string name, DWORD start_type);
+}
+
+#endif // _WIN32

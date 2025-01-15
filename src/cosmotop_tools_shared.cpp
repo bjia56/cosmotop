@@ -27,11 +27,6 @@ tab-size = 4
 #include <utility>
 #include <ranges>
 
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <unistd.h>
-
 #include "unordered_map"
 #include "widechar_width.hpp"
 #include "cosmotop_shared.hpp"
@@ -373,6 +368,7 @@ namespace Tools {
 		return new_str;
 	}
 
+#ifdef __unix__
 	string strf_time(const string& strf) {
 		auto in_time_t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 		std::tm bt {};
@@ -380,6 +376,7 @@ namespace Tools {
 		ss << std::put_time(localtime_r(&in_time_t, &bt), strf.c_str());
 		return ss.str();
 	}
+#endif // __unix__
 
 	void atomic_wait(const atomic<bool>& atom, bool old) noexcept {
 		while (atom.load(std::memory_order_relaxed) == old ) busy_wait();
@@ -407,7 +404,7 @@ namespace Tools {
 			for (string readstr; getline(file, readstr); out += readstr);
 		}
 		catch (const std::exception& e) {
-			Logger::error("readfile() : Exception when reading " + string{path} + " : " + e.what());
+			Logger::error("readfile() : Exception when reading " + path.string() + " : " + e.what());
 			return fallback;
 		}
 		return (out.empty() ? fallback : out);

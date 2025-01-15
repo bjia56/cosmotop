@@ -175,7 +175,7 @@ namespace Shared {
 namespace Mem {
 	uint64_t old_systime;
 
-	int64_t get_totalMem();
+	uint64_t get_totalMem();
 }
 
 namespace Cpu {
@@ -207,9 +207,9 @@ namespace Cpu {
 	OHMRraw OHMRrawStats{};
 	vector<string> gpu_order;
 
-	unordered_flat_map<string, Sensor> found_sensors;
+	std::unordered_map<string, Sensor> found_sensors;
 	string cpu_sensor;
-	unordered_flat_map<int, int> core_mapping;
+	std::unordered_map<int, int> core_mapping;
 
 	//! Code for load average based on psutils calculation
 	//! see https://github.com/giampaolo/psutil/blob/master/psutil/arch/windows/wmi.c
@@ -530,7 +530,7 @@ namespace Cpu {
 		int found_sensors = OHMRrawStats.CPU.size() - 1;
 
 		//? Get Cpu core mapping
-		unordered_flat_map<int, int> core_map;
+		std::unordered_map<int, int> core_map;
 		try {
 			int cpuid = 0, coreid = 0, n = 0;
 			auto lines = ssplit(output.substr(output.find("CPUID")), '\n');
@@ -703,8 +703,8 @@ namespace Proc {
 	atomic<bool> WMI_running = false;
 	atomic<uint64_t> WMItimer = 0;
 	vector<size_t> WMI_requests;
-	robin_hood::unordered_flat_map<size_t, WMIEntry> WMIList;
-	robin_hood::unordered_flat_map<string, WMISvcEntry> WMISvcList;
+	std::unordered_map<size_t, WMIEntry> WMIList;
+	std::unordered_map<string, WMISvcEntry> WMISvcList;
 	std::mutex WMImutex;
 
 	//? WMI thread, collects process/service information once every second to augment missing information from the standard WIN32 API methods
@@ -724,7 +724,7 @@ namespace Proc {
 			//* Processes
 			{
 				Shared::WbemEnumerator WMI;
-				robin_hood::unordered_flat_map<size_t, WMIEntry> newWMIList = WMIList;
+				std::unordered_map<size_t, WMIEntry> newWMIList = WMIList;
 				auto& Q = QProc;
 				vector<size_t> found;
 
@@ -819,7 +819,7 @@ namespace Proc {
 			//* Services
 			if (Config::getB("proc_services") or WMISvcList.empty()) {
 				Shared::WbemEnumerator WMI;
-				robin_hood::unordered_flat_map<string, WMISvcEntry> newWMISvcList = WMISvcList;
+				std::unordered_map<string, WMISvcEntry> newWMISvcList = WMISvcList;
 				auto& Q = QSvc;
 				vector<string> found;
 
@@ -918,24 +918,7 @@ namespace Shared {
 		static bool enabled = false;
 	#endif
 		if (not enabled) return;
-		static int current = 0;
-		static const int x = Term::width / 2 - 15;
-		static const int y = Term::height / 2 - 10;
-		static string old_status;
-
-		if (current == 0) {
-			std::cout	<< Fx::bg_black << Term::clear
-						<< Draw::banner_gen(y, 0, true)
-						<< Mv::to(y + 6, x) << Fx::fg_green << "--> " << Fx::b << Fx::fg_white << status << Fx::ub;
-		}
-		else {
-			std::cout	<< Mv::to(y + 6 + current - 1, x) << Fx::fg_dark_grey << "--> " << Fx::fg_grey << old_status
-						<< Mv::to(y + 6 + current, x) << Fx::fg_green << "--> " << Fx::b << Fx::fg_white << status << Fx::ub;
-		}
-
-		old_status = status;
-		current++;
-		sleep_ms(100);
+		Logger::debug(status);
 	}
 
 	void init() {
@@ -1030,12 +1013,12 @@ namespace Cpu {
 	string cpuHz;
 	string gpu_clock;
 	bool has_battery = true;
-	tuple<int, long, string> current_bat;
+	tuple<int, float, long, string> current_bat;
 	string current_gpu = "";
 
 	const array<string, 6> time_names = { "kernel", "user", "dpc", "interrupt", "idle" };
 
-	unordered_flat_map<string, long long> cpu_old = {
+	std::unordered_map<string, long long> cpu_old = {
 			{"total", 0},
 			{"kernel", 0},
 			{"user", 0},
@@ -1092,10 +1075,10 @@ namespace Cpu {
 		string name;
 		HKEY hKey;
 
-		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
 			wchar_t cpuName[255];
 			DWORD BufSize = sizeof(cpuName);
-			if (RegQueryValueEx(hKey, L"ProcessorNameString", NULL, NULL, (LPBYTE)cpuName, &BufSize) == ERROR_SUCCESS) {
+			if (RegQueryValueEx(hKey, "ProcessorNameString", NULL, NULL, (LPBYTE)cpuName, &BufSize) == ERROR_SUCCESS) {
 				name = string(CW2A(cpuName));
 			}
 		}
@@ -1149,7 +1132,7 @@ namespace Cpu {
 		bool use_energy = true;
 	};
 
-	auto get_battery() -> tuple<int, long long, string> {
+	auto get_battery() -> tuple<int, float, long, string> {
 
 		int percent = -1;
 		long long seconds = 0;
@@ -1176,10 +1159,10 @@ namespace Cpu {
 
 		if (percent == -1) {
 			has_battery = false;
-			return { 0, 0, "" };
+			return { 0, 0, 0, "" };
 		}
 
-		return {percent, seconds, status};
+		return {percent, 0, seconds, status};
 	}
 
 	auto collect(const bool no_update) -> cpu_info& {
@@ -1335,13 +1318,13 @@ namespace Mem {
 
 	mem_info current_mem {};
 
-	int64_t get_totalMem() {
+	uint64_t get_totalMem() {
 		MEMORYSTATUSEX memstat;
 		memstat.dwLength = sizeof(MEMORYSTATUSEX);
 		if (not GlobalMemoryStatusEx(&memstat)) {
 			throw std::runtime_error("Failed to run Mem::collect() -> GlobalMemoryStatusEx()");
 		}
-		return static_cast<int64_t>(memstat.ullTotalPhys);
+		return static_cast<uint64_t>(memstat.ullTotalPhys);
 	}
 
 	auto collect(const bool no_update) -> mem_info& {
@@ -1568,14 +1551,14 @@ namespace Mem {
 }
 
 namespace Net {
-	unordered_flat_map<string, net_info> current_net;
+	std::unordered_map<string, net_info> current_net;
 	net_info empty_net = {};
 	vector<string> interfaces;
 	vector<string> failed;
 	string selected_iface;
 	int errors = 0;
-	unordered_flat_map<string, uint64_t> graph_max = { {"download", {}}, {"upload", {}} };
-	unordered_flat_map<string, array<int, 2>> max_count = { {"download", {}}, {"upload", {}} };
+	std::unordered_map<string, uint64_t> graph_max = { {"download", {}}, {"upload", {}} };
+	std::unordered_map<string, array<int, 2>> max_count = { {"download", {}}, {"upload", {}} };
 	bool rescale = true;
 	uint64_t timestamp = 0;
 
@@ -1765,7 +1748,7 @@ namespace Proc {
 	vector<proc_info> current_procs;
 	vector<proc_info> current_svcs;
 	bool services_swap = false;
-	unordered_flat_map<string, string> uid_user;
+	std::unordered_map<string, string> uid_user;
 	string current_sort;
 	string current_filter;
 	bool current_rev = false;
@@ -2044,7 +2027,7 @@ namespace Proc {
 			current_sort = sorting;
 			current_rev = reverse;
 		}
-		int64_t totalMem = 0;
+		uint64_t totalMem = 0;
 
 		FILETIME st;
 		::GetSystemTimeAsFileTime(&st);

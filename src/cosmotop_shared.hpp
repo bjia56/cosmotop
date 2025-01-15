@@ -27,6 +27,8 @@ tab-size = 4
 #include <tuple>
 #include <vector>
 #include <unordered_map>
+
+#ifdef __unix__
 #include <unistd.h>
 
 // From `man 3 getifaddrs`: <net/if.h> must be included before <ifaddrs.h>
@@ -38,6 +40,7 @@ tab-size = 4
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 # include <kvm.h>
 #endif
+#endif // __unix__
 
 using std::array;
 using std::atomic;
@@ -63,7 +66,11 @@ namespace Global {
 	extern atomic<bool> resized;
 	extern string overlay;
 	extern string clock;
+
+#ifdef __unix__
 	extern uid_t real_uid, set_uid;
+#endif
+
 	extern atomic<bool> init_conf;
 }
 
@@ -259,6 +266,23 @@ namespace Cpu {
 
 	//* Get battery info from /sys
 	auto get_battery() -> tuple<int, float, long, string>;
+
+#ifdef _WIN32
+	struct GpuRaw {
+		uint64_t usage = 0;
+		uint64_t mem_total = 0;
+		uint64_t mem_used = 0;
+		uint64_t temp = 0;
+		bool cpu_gpu = false;
+		string clock_mhz;
+	};
+
+	struct OHMRraw {
+		std::unordered_map<string, GpuRaw> GPUS;
+		vector<int> CPU;
+		int CpuClock = 0;
+	};
+#endif
 }
 
 namespace Mem {
@@ -349,6 +373,7 @@ namespace Net {
 		bool connected{};
 	};
 
+#ifdef __unix__
 	class IfAddrsPtr {
 		struct ifaddrs* ifaddr;
 		int status;
@@ -359,6 +384,7 @@ namespace Net {
 		[[nodiscard]] constexpr auto get() -> struct ifaddrs* { return ifaddr; }
 		[[nodiscard]] constexpr auto get_status() const noexcept -> int { return status; };
 	};
+#endif // __unix__
 
 	extern std::unordered_map<string, net_info> current_net;
 	std::unordered_map<string, net_info>& get_current_net();
