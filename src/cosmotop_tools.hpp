@@ -56,6 +56,7 @@ tab-size = 4
 
 #include <windows.h>
 #include <winnt.h>
+#include <comdef.h>
 
 // we use these as enums
 #ifdef ERROR

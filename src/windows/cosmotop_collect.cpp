@@ -301,7 +301,7 @@ namespace Cpu {
 	void OHMR_collect() {
 	#ifdef LHM_Enabled
 		static bool ohmr_init = true;
-		while (not Global::quitting and has_OHMR) {
+		while (not Global::get_quitting() and has_OHMR) {
 			if (not OHMR_wait()) continue;
 			if (OHMRTimer > 0) sleep_ms(Config::getI("update_ms") - (OHMRTimer / 750));
 			auto timeStart = time_micros();
@@ -444,7 +444,7 @@ namespace Cpu {
 			}
 
 			if (has_gpu == gpus.empty()) {
-				atomic_wait(Runner::active);
+				Runner::active_atomic_wait();
 				Config::available_gpus = { "Auto" };
 				for (auto& gpu : gpu_order) {
 					Config::available_gpus.push_back(gpu);
@@ -460,7 +460,7 @@ namespace Cpu {
 				if (not ohmr_init) Global::resized = true;
 			}
 			if (got_sensors == cpu_temps.empty()) {
-				atomic_wait(Runner::active);
+				Runner::active_atomic_wait();
 				got_sensors = not got_sensors;
 				if (OHMRrawStats.CPU.size() == 1) cpu_temp_only = true;
 				if (not ohmr_init) Global::resized = true;
@@ -588,7 +588,7 @@ namespace Cpu {
 
 	////* Background thread for Nvidia SMI
 	//void NvSMI_runner() {
-	//	while (not Global::quitting and has_gpu) {
+	//	while (not Global::get_quitting() and has_gpu) {
 	//		if (not SMI_wait()) continue;
 	//		if (smiTimer > 0) sleep_ms(Config::getI("update_ms") - (smiTimer / 750));
 	//		auto timeStart = time_micros();
@@ -712,11 +712,11 @@ namespace Proc {
 		WMIProcQuerys QProc{};
 		WMISvcQuerys QSvc{};
 		int counter = 0;
-		while (not Global::quitting) {
+		while (not Global::get_quitting()) {
 			if (not WMI_wait() and not (Config::getB("proc_services") and counter++ >= 50)) continue;
 			counter = 0;
 			vector<size_t> requests;
-			atomic_wait(Runner::active);
+			Runner::active_atomic_wait();
 			atomic_lock lck(WMI_running);
 			requests.swap(WMI_requests);
 			auto timeStart = time_micros();
@@ -1217,7 +1217,7 @@ namespace Cpu {
 					}
 					gpu_name = trim(gpu_name);
 
-					Cpu::redraw = true;
+					Cpu::set_redraw(true);
 				}
 				const auto& gpu = OHMRrawStats.GPUS.contains(current_gpu) ? OHMRrawStats.GPUS.at(current_gpu) : OHMRrawStats.GPUS.at(Config::available_gpus.at(1));
 				gpu_clock = gpu.clock_mhz;
@@ -1349,7 +1349,7 @@ namespace Mem {
 						Cpu::current_gpu = "Auto";
 						Config::set("selected_gpu", Cpu::current_gpu);
 					}
-					redraw = true;
+					set_redraw(true);
 				}
 			}
 			const auto& gpu = Cpu::OHMRrawStats.GPUS.contains(Cpu::current_gpu) ? Cpu::OHMRrawStats.GPUS.at(Cpu::current_gpu) : Cpu::OHMRrawStats.GPUS.at(Config::available_gpus.at(1));
@@ -1539,14 +1539,14 @@ namespace Mem {
 			for (auto it = disks.begin(); it != disks.end();) {
 				if (not v_contains(found, it->first)) {
 					it = disks.erase(it);
-					redraw = true;
+					set_redraw(true);
 				}
 				else {
 					it++;
 				}
 			}
 
-			if (found.size() != last_found.size()) redraw = true;
+			if (found.size() != last_found.size()) set_redraw(true);
 			mem.disks_order.swap(found);
 		}
 
@@ -1692,7 +1692,7 @@ namespace Net {
 		//? Find an interface to display if selected isn't set or valid
 		if (selected_iface.empty() or not v_contains(interfaces, selected_iface)) {
 			max_count["download"][0] = max_count["download"][1] = max_count["upload"][0] = max_count["upload"][1] = 0;
-			redraw = true;
+			set_redraw(true);
 			if (net_auto) rescale = true;
 			if (not config_iface.empty() and v_contains(interfaces, config_iface)) selected_iface = config_iface;
 			else {
@@ -1727,7 +1727,7 @@ namespace Net {
 							: net[selected_iface].stat[dir].speed);
 						graph_max[dir] = max(uint64_t(avg_speed * (sel == 0 ? 1.3 : 3.0)), (uint64_t)10 << 10);
 						max_count[dir][0] = max_count[dir][1] = 0;
-						redraw = true;
+						set_redraw(true);
 						if (net_sync) sync = true;
 						break;
 					}
@@ -1818,7 +1818,7 @@ namespace Proc {
 
 	//* Get detailed info for selected process
 	void _collect_details(const size_t pid, const string name, const uint64_t uptime, vector<proc_info>& procs, uint64_t totalMem) {
-		const auto& services = Config::getB("proc_services");
+		const auto services = Config::getB("proc_services");
 		static string last_status;
 		if (pid != detailed.last_pid) {
 			detailed = {};
@@ -1832,7 +1832,7 @@ namespace Proc {
 			detailed.status = bstr2str(svc.State);
 			if (detailed.status != last_status) {
 				last_status = detailed.status;
-				redraw = true;
+				set_redraw(true);
 			}
 			detailed.owner = bstr2str(svc.Owner);
 			detailed.start = bstr2str(svc.StartMode);
@@ -1868,7 +1868,7 @@ namespace Proc {
 
 			if (detailed.first_mem == -1 or detailed.first_mem < detailed.mem_bytes.back() / 2 or detailed.first_mem > detailed.mem_bytes.back() * 4) {
 				detailed.first_mem = min(detailed.mem_bytes.back() * 2, (long long)totalMem);
-				redraw = true;
+				set_redraw(true);
 			}
 
 			while (cmp_greater(detailed.mem_bytes.size(), width)) detailed.mem_bytes.pop_front();
@@ -1897,15 +1897,15 @@ namespace Proc {
 
 	//* Collects process information
 	auto collect(const bool no_update) -> vector<proc_info>& {
-		const auto& services = Config::getB("proc_services");
-		const auto& sorting = (services ? Config::getS("services_sorting") : Config::getS("proc_sorting"));
-		const auto& reverse = Config::getB("proc_reversed");
-		const auto& filter = Config::getS("proc_filter");
-		const auto& per_core = Config::getB("proc_per_core");
+		const auto services = Config::getB("proc_services");
+		const auto sorting = (services ? Config::getS("services_sorting") : Config::getS("proc_sorting"));
+		const auto reverse = Config::getB("proc_reversed");
+		const auto filter = Config::getS("proc_filter");
+		const auto per_core = Config::getB("proc_per_core");
 		const bool tree = (not services and Config::getB("proc_tree"));
-		const auto& show_detailed = Config::getB("show_detailed");
-		const auto& detailed_pid = Config::getI("detailed_pid");
-		const auto& detailed_name = Config::getS("detailed_name");
+		const auto show_detailed = Config::getB("show_detailed");
+		const auto detailed_pid = Config::getI("detailed_pid");
+		const auto detailed_name = Config::getS("detailed_name");
 		bool should_filter = current_filter != filter;
 		if (should_filter) current_filter = filter;
 		const bool sorted_change = (sorting != current_sort or reverse != current_rev or should_filter);
@@ -2122,7 +2122,7 @@ namespace Proc {
 			}
 			else if (show_detailed and not got_detailed and detailed.status != "Stopped") {
 				detailed.status = "Stopped";
-				redraw = true;
+				set_redraw(true);
 			}
 
 			old_cputimes = cputimes;
@@ -2176,7 +2176,7 @@ namespace Proc {
 			}
 			else if (show_detailed and not got_detailed and detailed.status != "Stopped") {
 				detailed.status = "Stopped";
-				redraw = true;
+				set_redraw(true);
 			}
 
 			//? Clear missing services from current_svcs
@@ -2217,6 +2217,7 @@ namespace Proc {
 
 		//* Generate tree view if enabled
 		if (tree and not services and (not no_update or should_filter or sorted_change)) {
+			const auto config_ints = Config::get_ints();
 			bool locate_selection = false;
 			if (auto find_pid = (collapse != -1 ? collapse : expand); find_pid != -1) {
 				auto collapser = rng::find(out_vec, find_pid, &proc_info::pid);
@@ -2230,7 +2231,7 @@ namespace Proc {
 					else if (expand > -1) {
 						collapser->collapsed = false;
 					}
-					if (Config::ints.at("proc_selected") > 0) locate_selection = true;
+					if (config_ints.at("proc_selected") > 0) locate_selection = true;
 				}
 				collapse = expand = -1;
 			}
@@ -2268,10 +2269,10 @@ namespace Proc {
 
 			//? Move current selection/view to the selected process when collapsing/expanding in the tree
 			if (locate_selection) {
-				int loc = rng::find(out_vec, Proc::selected_pid, &proc_info::pid)->tree_index;
-				if (Config::ints.at("proc_start") >= loc or Config::ints.at("proc_start") <= loc - Proc::select_max)
-					Config::ints.at("proc_start") = max(0, loc - 1);
-				Config::ints.at("proc_selected") = loc - Config::ints.at("proc_start") + 1;
+				int loc = rng::find(out_vec, Proc::get_selected_pid(), &proc_info::pid)->tree_index;
+				if (config_ints.at("proc_start") >= loc or config_ints.at("proc_start") <= loc - Proc::get_select_max())
+					Config::ints_set_at("proc_start", max(0, loc - 1));
+				Config::ints_set_at("proc_selected", loc - config_ints.at("proc_start") + 1);
 			}
 		}
 

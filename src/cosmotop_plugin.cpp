@@ -279,6 +279,15 @@ namespace Runner {
 	void set_coreNum_reset(bool val) {
 		plugin->call<bool>("Runner::set_coreNum_reset", std::move(val));
 	}
+	void active_atomic_wait() {
+		plugin->call<bool>("Runner::active_atomic_wait");
+	}
+}
+
+namespace Global {
+	bool get_quitting() {
+		return plugin->call<bool>("Global::get_quitting");
+	}
 }
 
 #else // __COSMOPOLITAN__
@@ -478,6 +487,14 @@ void create_plugin_host() {
 	pluginHost->registerHandler<bool>("Runner::set_coreNum_reset", std::function([](bool val) {
 		Runner::coreNum_reset = val;
 		return true;
+	}));
+	pluginHost->registerHandler<bool>("Runner::active_atomic_wait", std::function([]() {
+		atomic_wait(Runner::active);
+		return true;
+	}));
+
+	pluginHost->registerHandler<bool>("Global::get_quitting", std::function([]() {
+		return Global::quitting.load();
 	}));
 
 	pluginHost->initialize();

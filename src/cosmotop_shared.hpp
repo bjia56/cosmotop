@@ -72,6 +72,8 @@ namespace Global {
 #endif
 
 	extern atomic<bool> init_conf;
+
+	bool get_quitting();
 }
 
 namespace Runner {
@@ -92,6 +94,7 @@ namespace Runner {
 	bool get_stopping();
 	bool get_coreNum_reset();
 	void set_coreNum_reset(bool coreNum_reset);
+	void active_atomic_wait();
 
 	void run(const string& box="", bool no_update = false, bool force_redraw = false);
 	void stop();
