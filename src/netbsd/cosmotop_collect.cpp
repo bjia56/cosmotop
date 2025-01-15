@@ -1404,7 +1404,7 @@ namespace Proc {
 				int loc = rng::find(current_procs, Proc::get_selected_pid(), &proc_info::pid)->tree_index;
 				if (config_ints.at("proc_start") >= loc or config_ints.at("proc_start") <= loc - Proc::get_select_max())
 					Config::ints_set_at("proc_start", max(0, loc - 1));
-				Config::ints_set_at("proc_selected", loc - Config::ints.at("proc_start") + 1);
+				Config::ints_set_at("proc_selected", loc - config_ints.at("proc_start") + 1);
 			}
 		}
 
