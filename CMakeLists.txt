@@ -105,6 +105,14 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
+  elseif(CMAKE_SYSTEM MATCHES "Windows")
+    set(PLUGIN_SOURCES
+      src/cosmotop_plugin.cpp
+      src/cosmotop_shared.cpp
+      src/cosmotop_tools_shared.cpp
+      src/windows/cosmotop_collect.cpp
+      ${LIBCOSMO_PLUGIN_SOURCES}
+    )
   elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
