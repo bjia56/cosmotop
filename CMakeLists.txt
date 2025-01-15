@@ -185,4 +185,8 @@ elseif(${TARGET} STREQUAL "plugin")
     target_link_libraries(${BINARY_NAME} PRIVATE kvm::kvm)
   endif()
 
+  if(NOT CMAKE_SYSTEM MATCHES "Windows" AND NOT CMAKE_SYSTEM MATCHES "Darwin")
+    target_compile_options(${BINARY_NAME} PRIVATE -static-libstdc++)
+  endif()
+
 endif() # TARGET
