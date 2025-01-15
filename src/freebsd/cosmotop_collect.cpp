@@ -344,7 +344,7 @@ namespace Cpu {
 		}
 
 		//? Apply user set custom mapping if any
-		const auto &custom_map = Config::getS("cpu_core_map");
+		const auto custom_map = Config::getS("cpu_core_map");
 		if (not custom_map.empty()) {
 			try {
 				for (const auto &split : ssplit(custom_map)) {
@@ -400,9 +400,10 @@ namespace Cpu {
 	}
 
 	auto collect(bool no_update) -> cpu_info & {
-		if (Runner::stopping or (no_update and not current_cpu.cpu_percent.at("total").empty()))
+		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty()))
 			return current_cpu;
 		auto &cpu = current_cpu;
+		auto width = get_width();
 
 		if (getloadavg(cpu.load_avg.data(), cpu.load_avg.size()) < 0) {
 			Logger::error("failed to get load averages");
@@ -508,6 +509,7 @@ namespace Mem {
 	}
 
 	void assign_values(struct disk_info& disk, int64_t readBytes, int64_t writeBytes) {
+		auto width = get_width();
 		disk_ios++;
 		if (disk.io_read.empty()) {
 			disk.io_read.push_back(0);
@@ -622,7 +624,7 @@ namespace Mem {
 	}
 
 	auto collect(bool no_update) -> mem_info & {
-		if (Runner::stopping or (no_update and not current_mem.percent.at("used").empty()))
+		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty()))
 			return current_mem;
 
 		auto show_swap = Config::getB("show_swap");
@@ -630,6 +632,7 @@ namespace Mem {
 		auto swap_disk = Config::getB("swap_disk");
 		auto &mem = current_mem;
 		static bool snapped = (getenv("COSMOTOP_SNAPPED") != nullptr);
+		auto width = get_width();
 
 		int mib[4];
 		u_int memActive, memWire, cachedMem, freeMem;
@@ -693,7 +696,7 @@ namespace Mem {
 		if (show_disks) {
 			std::unordered_map<string, string> mapping;  // keep mapping from device -> mountpoint, since IOKit doesn't give us the mountpoint
 			double uptime = system_uptime();
-			auto &disks_filter = Config::getS("disks_filter");
+			auto disks_filter = Config::getS("disks_filter");
 			bool filter_exclude = false;
 			// auto only_physical = Config::getB("only_physical");
 			auto &disks = mem.disks;
@@ -743,7 +746,7 @@ namespace Mem {
 
 
 				if (not v_contains(last_found, mountpoint))
-					redraw = true;
+					set_redraw(true);
 
 				disks.at(mountpoint).free = stfs[i].f_bfree;
 				disks.at(mountpoint).total = stfs[i].f_iosize;
@@ -757,7 +760,7 @@ namespace Mem {
 				else
 					it++;
 			}
-			if (found.size() != last_found.size()) redraw = true;
+			if (found.size() != last_found.size()) set_redraw(true);
 			last_found = std::move(found);
 
 			//? Get disk/partition stats
@@ -824,10 +827,11 @@ namespace Net {
 
 	auto collect(bool no_update) -> net_info & {
 		auto &net = current_net;
-		auto &config_iface = Config::getS("net_iface");
+		auto config_iface = Config::getS("net_iface");
 		auto net_sync = Config::getB("net_sync");
 		auto net_auto = Config::getB("net_auto");
 		auto new_timestamp = time_ms();
+		auto width = get_width();
 
 		if (not no_update and errors < 3) {
 			//? Get interface list using getifaddrs() wrapper
@@ -835,7 +839,7 @@ namespace Net {
 			if (if_addrs.get_status() != 0) {
 				errors++;
 				Logger::error("Net::collect() -> getifaddrs() failed with id " + to_string(if_addrs.get_status()));
-				redraw = true;
+				set_redraw(true);
 				return empty_net;
 			}
 			int family = 0;
@@ -971,7 +975,7 @@ namespace Net {
 		//? Find an interface to display if selected isn't set or valid
 		if (selected_iface.empty() or not v_contains(interfaces, selected_iface)) {
 			max_count["download"][0] = max_count["download"][1] = max_count["upload"][0] = max_count["upload"][1] = 0;
-			redraw = true;
+			set_redraw(true);
 			if (net_auto) rescale = true;
 			if (not config_iface.empty() and v_contains(interfaces, config_iface))
 				selected_iface = config_iface;
@@ -1007,7 +1011,7 @@ namespace Net {
 														: net[selected_iface].stat[dir].speed);
 						graph_max[dir] = max(uint64_t(avg_speed * (sel == 0 ? 1.3 : 3.0)), (uint64_t)10 << 10);
 						max_count[dir][0] = max_count[dir][1] = 0;
-						redraw = true;
+						set_redraw(true);
 						if (net_sync) sync = true;
 						break;
 					}
@@ -1061,6 +1065,7 @@ namespace Proc {
 			detailed.last_pid = pid;
 			detailed.skip_smaps = not Config::getB("proc_info_smaps");
 		}
+		auto width = get_width();
 
 		//? Copy proc_info for process from proc vector
 		auto p_info = rng::find(procs, pid, &proc_info::pid);
@@ -1091,7 +1096,7 @@ namespace Proc {
 
 		if (detailed.first_mem == -1 or detailed.first_mem < detailed.mem_bytes.back() / 2 or detailed.first_mem > detailed.mem_bytes.back() * 4) {
 			detailed.first_mem = min((uint64_t)detailed.mem_bytes.back() * 2, Mem::get_totalMem());
-			redraw = true;
+			set_redraw(true);
 		}
 
 		while (cmp_greater(detailed.mem_bytes.size(), width)) detailed.mem_bytes.pop_front();
@@ -1106,9 +1111,9 @@ namespace Proc {
 
 	//* Collects and sorts process information from /proc
 	auto collect(bool no_update) -> vector<proc_info> & {
-		const auto &sorting = Config::getS("proc_sorting");
+		const auto sorting = Config::getS("proc_sorting");
 		auto reverse = Config::getB("proc_reversed");
-		const auto &filter = Config::getS("proc_filter");
+		const auto filter = Config::getS("proc_filter");
 		auto per_core = Config::getB("proc_per_core");
 		auto tree = Config::getB("proc_tree");
 		auto show_detailed = Config::getB("show_detailed");
@@ -1231,7 +1236,7 @@ namespace Proc {
 				_collect_details(detailed_pid, current_procs);
 			} else if (show_detailed and not got_detailed and detailed.status != "Dead") {
 				detailed.status = "Dead";
-				redraw = true;
+				set_redraw(true);
 			}
 
 			old_cputimes = cputimes;
@@ -1263,6 +1268,7 @@ namespace Proc {
 		}
 
 		//* Generate tree view if enabled
+		auto config_ints = Config::get_ints();
 		if (tree and (not no_update or should_filter or sorted_change)) {
 			bool locate_selection = false;
 			if (auto find_pid = (collapse != -1 ? collapse : expand); find_pid != -1) {
@@ -1277,7 +1283,7 @@ namespace Proc {
 					else if (expand > -1) {
 						collapser->collapsed = false;
 					}
-					if (Config::ints.at("proc_selected") > 0) locate_selection = true;
+					if (config_ints.at("proc_selected") > 0) locate_selection = true;
 				}
 				collapse = expand = -1;
 			}
@@ -1315,10 +1321,10 @@ namespace Proc {
 
 			//? Move current selection/view to the selected process when collapsing/expanding in the tree
 			if (locate_selection) {
-				int loc = rng::find(current_procs, Proc::selected_pid, &proc_info::pid)->tree_index;
-				if (Config::ints.at("proc_start") >= loc or Config::ints.at("proc_start") <= loc - Proc::select_max)
-					Config::ints.at("proc_start") = max(0, loc - 1);
-				Config::ints.at("proc_selected") = loc - Config::ints.at("proc_start") + 1;
+				int loc = rng::find(current_procs, Proc::get_selected_pid(), &proc_info::pid)->tree_index;
+				if (config_ints.at("proc_start") >= loc or config_ints.at("proc_start") <= loc - Proc::get_select_max())
+					Config::ints_set_at("proc_start", max(0, loc - 1));
+				Config::ints_set_at("proc_selected", loc - config_ints.at("proc_start") + 1);
 			}
 		}
 
