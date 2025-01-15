@@ -135,6 +135,7 @@ elseif(${TARGET} STREQUAL "plugin")
       src/openbsd/sysctlbyname.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
+    find_package(kvm REQUIRED)
   else()
     message(FATAL_ERROR "Unsupported platform")
   endif()
@@ -169,6 +170,8 @@ elseif(${TARGET} STREQUAL "plugin")
     target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm elf::elf)
   elseif(CMAKE_SYSTEM MATCHES "NetBSD")
     target_link_libraries(${BINARY_NAME} PRIVATE kvm::kvm proplib::proplib)
+  elseif(CMAKE_SYSTEM MATCHES "OpenBSD")
+    target_link_libraries(${BINARY_NAME} PRIVATE kvm::kvm)
   endif()
 
 endif() # TARGET

@@ -218,13 +218,13 @@ jobs:
           arch: ${{ matrix.arch }}
           release: "7.3"
           prepare: |
-            pkg_add cmake
+            pkg_add cmake gcc-11.2.0p6 g++-11.2.0p6
 
       - name: Build plugin
         shell: openbsd {0}
         run: |
           cd ${{ github.workspace }}
-          CC=clang CXX=clang++ cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
+          CC=egcc CXX=eg++ cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
           cmake --build build --parallel 4
           cp build/libcosmotop.exe ${{ github.workspace }}/cosmotop-openbsd-${{ matrix.arch }}.exe
 
