@@ -123,6 +123,43 @@ jobs:
           name: plugin-macos-${{ matrix.arch }}
           path: ./cosmotop-macos-${{ matrix.arch }}.*
 
+  build_freebsd_plugin:
+    name: Build plugin FreeBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/freebsd-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+          release: 13.3
+          prepare: |
+            pkg install -y cmake
+
+      - name: Build plugin
+        shell: freebsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          cmake -B build -DTARGET=plugin
+          cmake --build build --parallel 4
+          cp build/libcosmotop.so ${{ github.workspace }}/cosmotop-freebsd-${{ matrix.arch }}.so
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-freebsd-${{ matrix.arch }}
+          path: ./cosmotop-freebsd-${{ matrix.arch }}.so
+
   bundle:
     name: Bundle plugins with cosmotop
     runs-on: ubuntu-latest
@@ -130,6 +167,7 @@ jobs:
       - build
       - build_linux_plugin
       - build_macos_plugin
+      - build_freebsd_plugin
 
     steps:
       - name: Checkout
@@ -172,6 +210,8 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.so /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.dylib /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-x86_64.so /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
 
           cd /zip
           zip ${{ github.workspace }}/cosmotop.com *
