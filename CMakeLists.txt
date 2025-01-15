@@ -110,6 +110,18 @@ elseif(${TARGET} STREQUAL "plugin")
     find_package(devstat REQUIRED)
     find_package(kvm REQUIRED)
     find_package(elf REQUIRED)
+  elseif(CMAKE_SYSTEM MATCHES "NetBSD")
+    set(PLUGIN_SOURCES
+      src/cosmotop_plugin.cpp
+      src/cosmotop_shared.cpp
+      src/cosmotop_tools_shared.cpp
+      src/netbsd/cosmotop_collect.cpp
+      ${LIBCOSMO_PLUGIN_SOURCES}
+    )
+    find_package(kvm REQUIRED)
+    find_package(proplib REQUIRED)
+  else()
+    message(FATAL_ERROR "Unsupported platform")
   endif()
 
   if(BUILD_EXE)
@@ -140,6 +152,8 @@ elseif(${TARGET} STREQUAL "plugin")
     target_link_libraries(${BINARY_NAME} PRIVATE $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit>)
   elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
     target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm elf::elf)
+  elseif(CMAKE_SYSTEM MATCHES "NetBSD")
+    target_link_libraries(${BINARY_NAME} PRIVATE kvm::kvm proplib::proplib)
   endif()
 
 endif() # TARGET

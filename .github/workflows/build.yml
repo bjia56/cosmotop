@@ -160,6 +160,43 @@ jobs:
           name: plugin-freebsd-${{ matrix.arch }}
           path: ./cosmotop-freebsd-${{ matrix.arch }}.so
 
+  build_netbsd_plugin:
+    name: Build plugin NetBSD x86_64
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/netbsd-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+          release: 9.2
+          prepare: |
+            /usr/sbin/pkg_add cmake clang
+
+      - name: Build plugin
+        shell: netbsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
+          cmake --build build --parallel 4
+          cp build/libcosmotop.exe ${{ github.workspace }}/cosmotop-netbsd-${{ matrix.arch }}.exe
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-netbsd-${{ matrix.arch }}
+          path: ./cosmotop-netbsd-${{ matrix.arch }}.exe
+
   bundle:
     name: Bundle plugins with cosmotop
     runs-on: ubuntu-latest
@@ -212,6 +249,7 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.dylib /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-x86_64.so /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-x86_64.exe /zip/
 
           cd /zip
           zip ${{ github.workspace }}/cosmotop.com *
