@@ -1574,6 +1574,7 @@ namespace Net {
 		const auto net_sync = Config::getB("net_sync");
 		const auto net_auto = Config::getB("net_auto");
 		auto new_timestamp = time_ms();
+		auto width = get_width();
 
 		//! Much of the following code is based on the implementation used in psutil
 		//! See: https://github.com/giampaolo/psutil/blob/master/psutil/arch/windows/net.c
@@ -1826,6 +1827,7 @@ namespace Proc {
 			detailed.status = "Running";
 			last_status = detailed.status;
 		}
+		auto width = get_width();
 
 		if (services and WMISvcList.contains(name)) {
 			const auto& svc = WMISvcList.at(name);
