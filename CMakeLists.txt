@@ -109,7 +109,6 @@ elseif(${TARGET} STREQUAL "plugin")
     )
     find_package(devstat REQUIRED)
     find_package(kvm REQUIRED)
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     find_package(elf REQUIRED)
   endif()
 
