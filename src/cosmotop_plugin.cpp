@@ -489,7 +489,7 @@ void create_plugin_host() {
 		return true;
 	}));
 	pluginHost->registerHandler<bool>("Runner::active_atomic_wait", std::function([]() {
-		atomic_wait(Runner::active);
+		Tools::atomic_wait(Runner::active);
 		return true;
 	}));
 
