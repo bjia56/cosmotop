@@ -107,9 +107,10 @@ elseif(${TARGET} STREQUAL "plugin")
       src/freebsd/cosmotop_collect.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     find_package(devstat REQUIRED)
     find_package(kvm REQUIRED)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    find_package(elf REQUIRED)
   endif()
 
   if(BUILD_EXE)
@@ -139,7 +140,7 @@ elseif(${TARGET} STREQUAL "plugin")
   if(CMAKE_SYSTEM MATCHES "Darwin")
     target_link_libraries(${BINARY_NAME} PRIVATE $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit>)
   elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
-    target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm)
+    target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm elf::elf)
   endif()
 
 endif() # TARGET
