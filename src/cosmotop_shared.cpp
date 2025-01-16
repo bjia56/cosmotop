@@ -20,13 +20,10 @@ tab-size = 4
 #include <regex>
 #include <string>
 
-#include <range/v3/all.hpp>
-
 #include "cosmotop_config.hpp"
 #include "cosmotop_shared.hpp"
 #include "cosmotop_tools.hpp"
 
-namespace rng = ranges;
 using namespace Tools;
 
 namespace Proc {
