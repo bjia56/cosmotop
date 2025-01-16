@@ -26,8 +26,7 @@ tab-size = 4
 #include <codecvt>
 #include <semaphore>
 #include <iostream>
-
-#include <range/v3/all.hpp>
+#include <ranges>
 
 #define _WIN32_DCOM
 #define _WIN32_WINNT 0x0600
@@ -73,7 +72,7 @@ tab-size = 4
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
 namespace fs = std::filesystem;
-namespace rng = ranges;
+namespace rng = std::ranges;
 using namespace Tools;
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
@@ -2116,7 +2115,8 @@ namespace Proc {
 			} while (Process32Next(pSnap(), &pe));
 
 			//? Clear dead processes from current_procs
-			current_procs |= rng::actions::remove_if([&](const auto& element) { return not v_contains(found, element.pid); });
+			auto eraser = rng::remove_if(current_procs, [&](const auto& element){ return not v_contains(found, element.pid); });
+			current_procs.erase(eraser.begin(), eraser.end());
 
 			//? Update the details info box for process if active
 			if (not services and show_detailed and got_detailed) {
@@ -2182,7 +2182,8 @@ namespace Proc {
 			}
 
 			//? Clear missing services from current_svcs
-			current_svcs |= rng::actions::remove_if([&](const auto& element) { return not WMISvcList.contains(element.name); });
+			auto eraser = rng::remove_if(current_svcs, [&](const auto& element) { return not WMISvcList.contains(element.name); });
+			current_svcs.erase(eraser.begin(), eraser.end());
 		}
 
 		//* ---------------------------------------------Collection done-----------------------------------------------
