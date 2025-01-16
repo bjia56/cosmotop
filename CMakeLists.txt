@@ -77,7 +77,7 @@ if(${TARGET} STREQUAL "cosmotop")
     ${LIBCOSMO_PLUGIN_SOURCES}
   )
 
-  target_include_directories(cosmotop SYSTEM PRIVATE include ${THIRD_PARTY_INCLUDES})
+  target_include_directories(cosmotop SYSTEM PRIVATE ${THIRD_PARTY_INCLUDES})
 
   # Enable pthreads
   set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -169,10 +169,7 @@ elseif(${TARGET} STREQUAL "plugin")
     add_library(${BINARY_NAME} SHARED ${PLUGIN_SOURCES})
   endif()
 
-  target_include_directories(${BINARY_NAME} PRIVATE
-    include
-    ${THIRD_PARTY_INCLUDES}
-  )
+  target_include_directories(${BINARY_NAME} PRIVATE ${THIRD_PARTY_INCLUDES})
   target_compile_definitions(${BINARY_NAME} PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
   if(CMAKE_SYSTEM MATCHES "Windows")
     target_compile_definitions(${BINARY_NAME} PRIVATE UNICODE _UNICODE)
