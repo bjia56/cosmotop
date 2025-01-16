@@ -1016,14 +1016,14 @@ namespace Cpu {
 	tuple<int, float, long, string> current_bat;
 	string current_gpu = "";
 
-	const array<string, 6> time_names = { "kernel", "user", "dpc", "interrupt", "idle" };
+	const array<string, 6> time_names = { "system", "user", "dpc", "irq", "idle" };
 
 	std::unordered_map<string, long long> cpu_old = {
 			{"total", 0},
-			{"kernel", 0},
+			{"system", 0},
 			{"user", 0},
 			{"dpc", 0},
-			{"interrupt", 0},
+			{"irq", 0},
 			{"idle", 0},
 			{"totals", 0},
 			{"idles", 0}
@@ -1080,6 +1080,7 @@ namespace Cpu {
 			DWORD BufSize = sizeof(cpuName);
 			if (RegQueryValueEx(hKey, L"ProcessorNameString", NULL, NULL, (LPBYTE)cpuName, &BufSize) == ERROR_SUCCESS) {
 				name = string(CW2A(cpuName));
+				name = trim(name);
 			}
 		}
 
@@ -1405,9 +1406,9 @@ namespace Mem {
 		}
 
 
-		if (show_swap and mem.stats.at("page_total") > 0) {
-			for (const auto name : {"page_used", "page_free"}) {
-				mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / mem.stats.at("page_total")));
+		if (show_swap and mem.stats.at("swap_total") > 0) {
+			for (const auto name : {"swap_used", "swap_free"}) {
+				mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / mem.stats.at("swap_total")));
 				while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
 			}
 			has_swap = true;
