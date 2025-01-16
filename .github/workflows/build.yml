@@ -6,6 +6,10 @@ on:
     branches: ["main"]
   pull_request:
   workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
 
 jobs:
   build:
@@ -32,7 +36,7 @@ jobs:
         run: |
           export CC=cosmocc
           export CXX=cosmoc++
-          cmake -B build
+          cmake -B build ${{ inputs.version && "-DRELEASE=1" || "" }}
           cmake --build build --parallel 4
 
       - name: Upload cosmotop.com
@@ -65,7 +69,7 @@ jobs:
         run: |
           export CC="zig cc -target ${{ matrix.arch }}-linux-gnu.2.17"
           export CXX="zig c++ -target ${{ matrix.arch }}-linux-gnu.2.17"
-          cmake -B build -DTARGET=plugin
+          cmake -B build -DTARGET=plugin ${{ inputs.version && "-DRELEASE=1" || "" }}
           cmake --build build --parallel 4
           cp build/libcosmotop.so ./cosmotop-linux-${{ matrix.arch }}.so
 
@@ -97,11 +101,11 @@ jobs:
         shell: bash
         run: |
           if [[ ${{ matrix.arch }} == "x86_64" ]]; then
-            cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
+            cmake -B build -DTARGET=plugin -DBUILD_EXE=ON ${{ inputs.version && "-DRELEASE=1" || "" }}
             cmake --build build --parallel 4
             cp build/libcosmotop.exe ./cosmotop-macos-${{ matrix.arch }}.exe
           else
-            cmake -B build -DTARGET=plugin
+            cmake -B build -DTARGET=plugin ${{ inputs.version && "-DRELEASE=1" || "" }}
             cmake --build build --parallel 4
             cp build/libcosmotop.dylib ./cosmotop-macos-${{ matrix.arch }}.dylib
           fi
@@ -129,7 +133,7 @@ jobs:
       - name: Build plugin
         shell: bash
         run: |
-          cmake -B build -DTARGET=plugin
+          cmake -B build -DTARGET=plugin ${{ inputs.version && "-DRELEASE=1" || "" }}
           cmake --build build --parallel 4 --config Release
           cp build/Release/cosmotop.dll ./cosmotop-windows-${{ matrix.arch }}.dll
 
@@ -166,7 +170,7 @@ jobs:
         shell: freebsd {0}
         run: |
           cd ${{ github.workspace }}
-          cmake -B build -DTARGET=plugin
+          cmake -B build -DTARGET=plugin ${{ inputs.version && "-DRELEASE=1" || "" }}
           cmake --build build --parallel 4
           cp build/libcosmotop.so ./cosmotop-freebsd-${{ matrix.arch }}.so
 
@@ -203,7 +207,7 @@ jobs:
         shell: netbsd {0}
         run: |
           cd ${{ github.workspace }}
-          CC=clang CXX=clang++ cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
+          CC=clang CXX=clang++ cmake -B build -DTARGET=plugin -DBUILD_EXE=ON ${{ inputs.version && "-DRELEASE=1" || "" }}
           cmake --build build --parallel 4
           cp build/libcosmotop.exe ./cosmotop-netbsd-${{ matrix.arch }}.exe
 
@@ -240,7 +244,7 @@ jobs:
         shell: openbsd {0}
         run: |
           cd ${{ github.workspace }}
-          cmake -B build -DTARGET=plugin -DBUILD_EXE=ON
+          cmake -B build -DTARGET=plugin -DBUILD_EXE=ON ${{ inputs.version && "-DRELEASE=1" || "" }}
           cmake --build build --parallel 4
           cp build/libcosmotop.exe ./cosmotop-openbsd-${{ matrix.arch }}.exe
 

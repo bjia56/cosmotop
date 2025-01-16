@@ -1,0 +1,37 @@
+name: Build and publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ inputs.version }}
+
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cosmotop.exe
+          path: .
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: cosmotop.exe
+          tag_name: ${{ inputs.version }}
+          generate_release_notes: true
