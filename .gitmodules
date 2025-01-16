@@ -10,3 +10,6 @@
 [submodule "third_party/widecharwidth"]
 	path = third_party/widecharwidth
 	url = https://github.com/ridiculousfish/widecharwidth.git
+[submodule "third_party/range-v3"]
+	path = third_party/range-v3
+	url = https://github.com/ericniebler/range-v3.git
