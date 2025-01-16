@@ -26,9 +26,10 @@ tab-size = 4
 #include <iomanip>
 #include <utility>
 #include <ranges>
+#include <unordered_map>
 
-#include "unordered_map"
-#include "widechar_width.h"
+#include <widechar_width.h>
+
 #include "cosmotop_shared.hpp"
 #include "cosmotop_tools.hpp"
 #include "cosmotop_config.hpp"

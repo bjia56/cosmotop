@@ -46,6 +46,9 @@ tab-size = 4
 	#include <semaphore>
 #endif
 
+#include <fmt/core.h>
+#include <fmt/ostream.h>
+
 #include "cosmotop_shared.hpp"
 #include "cosmotop_tools.hpp"
 #include "cosmotop_config.hpp"
@@ -55,8 +58,6 @@ tab-size = 4
 #include "cosmotop_menu.hpp"
 #include "cosmotop_plugin.hpp"
 #include "config.h"
-#include "fmt/core.h"
-#include "fmt/ostream.h"
 
 using std::atomic;
 using std::cout;
