@@ -83,7 +83,7 @@ namespace Tools {
 			auto w_str = conv.from_bytes((str.size() > 10000 ? str.substr(0, 10000).c_str() : str.c_str()));
 
 			for (auto c : w_str) {
-				chars += utf8::wcwidth(c);
+				chars += widechar_wcwidth(c);
 			}
 		}
 		catch (...) {
@@ -97,7 +97,7 @@ namespace Tools {
 		unsigned int chars = 0;
 
 		for (auto c : w_str) {
-			chars += utf8::wcwidth(c);
+			chars += widechar_wcwidth(c);
 		}
 
 		return chars;
