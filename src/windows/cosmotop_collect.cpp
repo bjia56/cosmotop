@@ -1396,6 +1396,7 @@ namespace Mem {
 		totalMem = static_cast<int64_t>(memstat.ullTotalPhys);
 		const int64_t totalCommit = perfinfo.CommitLimit * perfinfo.PageSize;
 		mem.stats.at("available") = static_cast<int64_t>(memstat.ullAvailPhys);
+		mem.stats.at("free") = static_cast<int64_t>(memstat.ullAvailPhys);
 		mem.stats.at("used") = totalMem * memstat.dwMemoryLoad / 100;
 		mem.stats.at("cached") = perfinfo.SystemCache * perfinfo.PageSize;
 		mem.stats.at("commit") = perfinfo.CommitTotal * perfinfo.PageSize;
@@ -1408,7 +1409,7 @@ namespace Mem {
 		mem.stats.at("swap_used") = mem.stats.at("swap_total") - mem.stats.at("swap_free");
 
 		//? Calculate percentages
-		for (const string name : { "used", "available", "cached", "commit"}) {
+		for (const string name : { "used", "available", "free", "cached", "commit"}) {
 			mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / (name == "commit" ? totalCommit : totalMem)));
 			while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
 		}

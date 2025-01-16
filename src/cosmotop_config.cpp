@@ -255,6 +255,7 @@ namespace Config {
 		{"proc_filter", ""},
 		{"proc_command", ""},
 		{"selected_name", ""},
+		{"detailed_name", ""},
 	#ifdef GPU_SUPPORT
 		{"custom_gpu_name0", ""},
 		{"custom_gpu_name1", ""},
