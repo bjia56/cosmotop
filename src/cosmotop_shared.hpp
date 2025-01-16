@@ -330,7 +330,7 @@ namespace Mem {
 			{{"used", 0}, {"available", 0}, {"commit", 0}, {"commit_total", 0}, {"cached", 0}, {"free", 0},
 			{"swap_total", 0}, {"swap_used", 0}, {"swap_free", 0}};
 		std::unordered_map<string, deque<long long>> percent =
-			{{"used", {}}, {"available", {}}, {"commit", {}} {"cached", {}}, {"free", {}},
+			{{"used", {}}, {"available", {}}, {"commit", {}}, {"cached", {}}, {"free", {}},
 			{"swap_total", {}}, {"swap_used", {}}, {"swap_free", {}}};
 		std::unordered_map<string, disk_info> disks;
 		vector<string> disks_order;
