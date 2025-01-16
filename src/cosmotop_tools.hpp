@@ -71,10 +71,10 @@ tab-size = 4
 
 #if _WIN32
 #include <ranges>
-using rng = rng;
+namespace rng = std::ranges;
 #else
 #include <range/v3/all.hpp>
-using rng = ranges;
+namespace rng = ranges;
 #endif
 
 using std::array;
