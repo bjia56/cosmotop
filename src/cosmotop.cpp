@@ -45,6 +45,8 @@ tab-size = 4
 	#include <semaphore>
 #endif
 
+#include <libc/calls/struct/utsname.h>
+
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
@@ -131,6 +133,19 @@ static void print_version() {
 static void print_version_with_build_info() {
 	print_version();
 	fmt::println("Compiled with: {} ({})", COMPILER, COMPILER_VERSION);
+
+	struct utsname un;
+	if (uname(&un) == 0) {
+		auto tokens = ssplit(un.version, ';');
+		if (tokens.size() >= 1) {
+			fmt::println("{}", trim(tokens[0]));
+		}
+		if (tokens.size() >= 2) {
+			fmt::println("Host platform: {} {} {} {}", un.sysname, un.release, trim(tokens[1]), un.machine);
+		} else {
+			fmt::println("Host platform: {} {} {}", un.sysname, un.release, un.machine);
+		}
+	}
 
 	if(!is_plugin_loaded()) {
 		try {

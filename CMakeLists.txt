@@ -73,6 +73,7 @@ if(${TARGET} STREQUAL "host")
     ${LIBCOSMO_PLUGIN_SOURCES}
   )
 
+  target_compile_options(cosmotop.com PRIVATE -mcosmo)
   target_include_directories(cosmotop.com SYSTEM PRIVATE ${THIRD_PARTY_INCLUDES})
 
   # Enable pthreads
