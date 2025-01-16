@@ -51,14 +51,14 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in ${CMAKE_CURRENT_BINAR
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if(NOT TARGET)
-  set(TARGET "cosmotop")
+  set(TARGET "host")
 endif()
 
-if(${TARGET} STREQUAL "cosmotop")
+if(${TARGET} STREQUAL "host")
 
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
-  add_executable(cosmotop
+  add_executable(cosmotop.com
     src/cosmotop.cpp
     src/cosmotop_config.cpp
     src/cosmotop_draw.cpp
@@ -72,14 +72,14 @@ if(${TARGET} STREQUAL "cosmotop")
     ${LIBCOSMO_PLUGIN_SOURCES}
   )
 
-  target_include_directories(cosmotop SYSTEM PRIVATE ${THIRD_PARTY_INCLUDES})
+  target_include_directories(cosmotop.com SYSTEM PRIVATE ${THIRD_PARTY_INCLUDES})
 
   # Enable pthreads
   set(THREADS_PREFER_PTHREAD_FLAG ON)
   find_package(Threads REQUIRED)
-  target_link_libraries(cosmotop Threads::Threads)
+  target_link_libraries(cosmotop.com Threads::Threads)
 
-  target_compile_definitions(cosmotop PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
+  target_compile_definitions(cosmotop.com PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
 
 elseif(${TARGET} STREQUAL "plugin")
 

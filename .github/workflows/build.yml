@@ -2,13 +2,6 @@ name: Build cosmotop
 
 on:
   workflow_dispatch:
-    inputs:
-      debug_build:
-        required: false
-        type: boolean
-      debug_link:
-        required: false
-        type: boolean
   push:
     branches: ["main"]
   pull_request:
@@ -16,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build cosmotop
+    name: Build cosmotop.com
     runs-on: ubuntu-latest
 
     steps:
@@ -35,22 +28,18 @@ jobs:
         with:
           version: ${{ env.cosmocc_version }}
 
-      - name: Build cosmotop
+      - name: Build cosmotop.com
         run: |
           export CC=cosmocc
           export CXX=cosmoc++
           cmake -B build
           cmake --build build --parallel 4
 
-      - name: Upload cosmotop
+      - name: Upload cosmotop.com
         uses: actions/upload-artifact@v4
         with:
-          name: cosmotop
-          path: ./build/cosmotop
-
-      - name: Interactive debugging
-        uses: fawazahmed0/action-debug-vscode@v3
-        if: ${{ always() && inputs.debug_build }}
+          name: cosmotop.com
+          path: ./build/cosmotop.com
 
   build_linux_plugin:
     name: Build plugin Linux ${{ matrix.arch }}
@@ -262,7 +251,7 @@ jobs:
           path: ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
   bundle:
-    name: Bundle plugins with cosmotop
+    name: Bundle plugins into cosmotop.exe
     runs-on: ubuntu-latest
     needs:
       - build
@@ -289,10 +278,10 @@ jobs:
         with:
           version: ${{ env.cosmocc_version }}
 
-      - name: Download cosmotop
+      - name: Download cosmotop.com
         uses: actions/download-artifact@v4
         with:
-          name: cosmotop
+          name: cosmotop.com
           path: .
 
       - name: Download plugins
@@ -305,9 +294,6 @@ jobs:
       - name: Bundle
         run: |
           tree /tmp/cosmotop-plugin || true
-
-          # rename so zip properly adds files to the APE binary
-          mv cosmotop cosmotop.com
 
           sudo mkdir -p /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.so /zip/
