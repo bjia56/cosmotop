@@ -204,7 +204,7 @@ namespace Menu {
 		{"Selected s", "Select or enter signal to send to process."},
 		{"", " "},
 		{"", "For bug reporting and project updates, visit:"},
-		{"", "https://github.com/aristocratos/cosmotop"},
+		{"", "https://github.com/bjia56/cosmotop"},
 	};
 
 	const vector<vector<vector<string>>> categories = {
