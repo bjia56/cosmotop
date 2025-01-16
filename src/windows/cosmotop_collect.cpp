@@ -133,18 +133,26 @@ namespace Shared {
 	IWbemServices* WbemServices;
 
 	void WMI_init() {
-		if (auto hr = CoInitializeEx(0, COINIT_MULTITHREADED); FAILED(hr))
-			throw std::runtime_error("Shared::WMI_init() -> CoInitializeEx() failed with code: " + to_string(hr));
-		if (auto hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL); FAILED(hr) and hr != RPC_E_TOO_LATE)
-			Logger::warning("Shared::WMI_init() -> CoInitializeSecurity() failed with code: " + to_string(hr));
-		IWbemLocator* WbemLocator;
-		if (auto hr = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&WbemLocator); FAILED(hr))
-			throw std::runtime_error("Shared::WMI_init() -> CoCreateInstance() failed with code: " + to_string(hr));
-		if (auto hr = WbemLocator->ConnectServer(_bstr_t(L"ROOT\\CIMV2"), NULL, NULL, NULL, 0, NULL, NULL, &WbemServices); FAILED(hr))
-			throw std::runtime_error("Shared::WMI_init() -> ConnectServer() failed with code: " + to_string(hr));
-		WbemLocator->Release();
-		if (auto hr = CoSetProxyBlanket(WbemServices, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE); FAILED(hr))
-			Logger::warning("Shared::WMI_init() -> CoSetProxyBlanket() failed with code: " + to_string(hr));
+		volatile bool done = false;
+		std::thread([&] {
+			// Perform initialization in a separate thread to ensure loaded dlls
+			// do not get unloaded on thread exit
+			if (auto hr = CoInitializeEx(0, COINIT_MULTITHREADED); FAILED(hr))
+				throw std::runtime_error("Shared::WMI_init() -> CoInitializeEx() failed with code: " + to_string(hr));
+			if (auto hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL); FAILED(hr) and hr != RPC_E_TOO_LATE)
+				Logger::warning("Shared::WMI_init() -> CoInitializeSecurity() failed with code: " + to_string(hr));
+			IWbemLocator* WbemLocator;
+			if (auto hr = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&WbemLocator); FAILED(hr))
+				throw std::runtime_error("Shared::WMI_init() -> CoCreateInstance() failed with code: " + to_string(hr));
+			if (auto hr = WbemLocator->ConnectServer(_bstr_t(L"ROOT\\CIMV2"), NULL, NULL, NULL, 0, NULL, NULL, &WbemServices); FAILED(hr))
+				throw std::runtime_error("Shared::WMI_init() -> ConnectServer() failed with code: " + to_string(hr));
+			WbemLocator->Release();
+			if (auto hr = CoSetProxyBlanket(WbemServices, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE); FAILED(hr))
+				Logger::warning("Shared::WMI_init() -> CoSetProxyBlanket() failed with code: " + to_string(hr));
+			done = true;
+			while (not Global::get_quitting()) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}).detach();
+		while (!done) busy_wait();
 	}
 
 	class WbemEnumerator {
@@ -1016,14 +1024,14 @@ namespace Cpu {
 	tuple<int, float, long, string> current_bat;
 	string current_gpu = "";
 
-	const array<string, 6> time_names = { "kernel", "user", "dpc", "interrupt", "idle" };
+	const array<string, 6> time_names = { "system", "user", "dpc", "irq", "idle" };
 
 	std::unordered_map<string, long long> cpu_old = {
 			{"total", 0},
-			{"kernel", 0},
+			{"system", 0},
 			{"user", 0},
 			{"dpc", 0},
-			{"interrupt", 0},
+			{"irq", 0},
 			{"idle", 0},
 			{"totals", 0},
 			{"idles", 0}
@@ -1080,6 +1088,7 @@ namespace Cpu {
 			DWORD BufSize = sizeof(cpuName);
 			if (RegQueryValueEx(hKey, L"ProcessorNameString", NULL, NULL, (LPBYTE)cpuName, &BufSize) == ERROR_SUCCESS) {
 				name = string(CW2A(cpuName));
+				name = trim(name);
 			}
 		}
 
@@ -1387,6 +1396,7 @@ namespace Mem {
 		totalMem = static_cast<int64_t>(memstat.ullTotalPhys);
 		const int64_t totalCommit = perfinfo.CommitLimit * perfinfo.PageSize;
 		mem.stats.at("available") = static_cast<int64_t>(memstat.ullAvailPhys);
+		mem.stats.at("free") = static_cast<int64_t>(memstat.ullAvailPhys);
 		mem.stats.at("used") = totalMem * memstat.dwMemoryLoad / 100;
 		mem.stats.at("cached") = perfinfo.SystemCache * perfinfo.PageSize;
 		mem.stats.at("commit") = perfinfo.CommitTotal * perfinfo.PageSize;
@@ -1399,15 +1409,15 @@ namespace Mem {
 		mem.stats.at("swap_used") = mem.stats.at("swap_total") - mem.stats.at("swap_free");
 
 		//? Calculate percentages
-		for (const string name : { "used", "available", "cached", "commit"}) {
+		for (const string name : { "used", "available", "free", "cached", "commit"}) {
 			mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / (name == "commit" ? totalCommit : totalMem)));
 			while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
 		}
 
 
-		if (show_swap and mem.stats.at("page_total") > 0) {
-			for (const auto name : {"page_used", "page_free"}) {
-				mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / mem.stats.at("page_total")));
+		if (show_swap and mem.stats.at("swap_total") > 0) {
+			for (const auto name : {"swap_used", "swap_free"}) {
+				mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / mem.stats.at("swap_total")));
 				while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
 			}
 			has_swap = true;
