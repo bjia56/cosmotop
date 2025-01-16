@@ -36,6 +36,11 @@ if(NOT CXX_HAVE_RANGES)
   message(FATAL_ERROR "The compiler doesn't support <ranges>")
 endif()
 
+set(THIRD_PARTY_INCLUDES
+  ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}/third_party/cpp-httplib
+)
+
 # Generate build info
 execute_process(
   COMMAND "git" "rev-parse" "--short" "HEAD"
@@ -70,7 +75,7 @@ if(${TARGET} STREQUAL "cosmotop")
     ${LIBCOSMO_PLUGIN_SOURCES}
   )
 
-  target_include_directories(cosmotop SYSTEM PRIVATE include ${LIBCOSMO_PLUGIN_INCLUDE_DIRS})
+  target_include_directories(cosmotop SYSTEM PRIVATE include ${THIRD_PARTY_INCLUDES})
 
   # Enable pthreads
   set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -164,7 +169,7 @@ elseif(${TARGET} STREQUAL "plugin")
 
   target_include_directories(${BINARY_NAME} PRIVATE
     include
-    ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
+    ${THIRD_PARTY_INCLUDES}
   )
   target_compile_definitions(${BINARY_NAME} PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
   if(CMAKE_SYSTEM MATCHES "Windows")
