@@ -92,6 +92,11 @@ namespace Config {
 		{"proc_sorting",		"#* Processes sorting, \"pid\" \"program\" \"arguments\" \"threads\" \"user\" \"memory\" \"cpu lazy\" \"cpu direct\",\n"
 								"#* \"cpu lazy\" sorts top process over time (easier to follow), \"cpu direct\" updates top process directly."},
 
+		{"proc_services",		"#* Show services in the process box instead of processes."},
+
+		{"services_sorting",	"#* Services sorting, \"service\" \"caption\" \"status\" \"memory\" \"cpu lazy\" \"cpu direct\",\n"
+								"#* \"cpu lazy\" sorts top service over time (easier to follow), \"cpu direct\" updates top service directly."},
+
 		{"proc_reversed",		"#* Reverse sorting order, True or False."},
 
 		{"proc_tree",			"#* Show processes as a tree."},
@@ -234,6 +239,7 @@ namespace Config {
 		{"graph_symbol_net", "default"},
 		{"graph_symbol_proc", "default"},
 		{"proc_sorting", "cpu lazy"},
+		{"services_sorting", "cpu lazy"},
 		{"cpu_graph_upper", "Auto"},
 		{"cpu_graph_lower", "Auto"},
 		{"cpu_sensor", "Auto"},
@@ -266,6 +272,7 @@ namespace Config {
 		{"theme_background", true},
 		{"truecolor", true},
 		{"rounded_corners", true},
+		{"proc_services", false},
 		{"proc_reversed", false},
 		{"proc_tree", false},
 		{"proc_colors", true},

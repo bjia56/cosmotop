@@ -133,18 +133,26 @@ namespace Shared {
 	IWbemServices* WbemServices;
 
 	void WMI_init() {
-		if (auto hr = CoInitializeEx(0, COINIT_MULTITHREADED); FAILED(hr))
-			throw std::runtime_error("Shared::WMI_init() -> CoInitializeEx() failed with code: " + to_string(hr));
-		if (auto hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL); FAILED(hr) and hr != RPC_E_TOO_LATE)
-			Logger::warning("Shared::WMI_init() -> CoInitializeSecurity() failed with code: " + to_string(hr));
-		IWbemLocator* WbemLocator;
-		if (auto hr = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&WbemLocator); FAILED(hr))
-			throw std::runtime_error("Shared::WMI_init() -> CoCreateInstance() failed with code: " + to_string(hr));
-		if (auto hr = WbemLocator->ConnectServer(_bstr_t(L"ROOT\\CIMV2"), NULL, NULL, NULL, 0, NULL, NULL, &WbemServices); FAILED(hr))
-			throw std::runtime_error("Shared::WMI_init() -> ConnectServer() failed with code: " + to_string(hr));
-		WbemLocator->Release();
-		if (auto hr = CoSetProxyBlanket(WbemServices, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE); FAILED(hr))
-			Logger::warning("Shared::WMI_init() -> CoSetProxyBlanket() failed with code: " + to_string(hr));
+		volatile bool done = false;
+		std::thread([&] {
+			// Perform initialization in a separate thread to ensure loaded dlls
+			// do not get unloaded on thread exit
+			if (auto hr = CoInitializeEx(0, COINIT_MULTITHREADED); FAILED(hr))
+				throw std::runtime_error("Shared::WMI_init() -> CoInitializeEx() failed with code: " + to_string(hr));
+			if (auto hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL); FAILED(hr) and hr != RPC_E_TOO_LATE)
+				Logger::warning("Shared::WMI_init() -> CoInitializeSecurity() failed with code: " + to_string(hr));
+			IWbemLocator* WbemLocator;
+			if (auto hr = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&WbemLocator); FAILED(hr))
+				throw std::runtime_error("Shared::WMI_init() -> CoCreateInstance() failed with code: " + to_string(hr));
+			if (auto hr = WbemLocator->ConnectServer(_bstr_t(L"ROOT\\CIMV2"), NULL, NULL, NULL, 0, NULL, NULL, &WbemServices); FAILED(hr))
+				throw std::runtime_error("Shared::WMI_init() -> ConnectServer() failed with code: " + to_string(hr));
+			WbemLocator->Release();
+			if (auto hr = CoSetProxyBlanket(WbemServices, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE); FAILED(hr))
+				Logger::warning("Shared::WMI_init() -> CoSetProxyBlanket() failed with code: " + to_string(hr));
+			done = true;
+			while (not Global::get_quitting()) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}).detach();
+		while (!done) busy_wait();
 	}
 
 	class WbemEnumerator {
