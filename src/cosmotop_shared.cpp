@@ -17,15 +17,16 @@ indent = tab
 tab-size = 4
 */
 
-#include <ranges>
 #include <regex>
 #include <string>
+
+#include <range/v3/all.hpp>
 
 #include "cosmotop_config.hpp"
 #include "cosmotop_shared.hpp"
 #include "cosmotop_tools.hpp"
 
-namespace rng = std::ranges;
+namespace rng = ranges;
 using namespace Tools;
 
 namespace Proc {

@@ -21,7 +21,6 @@ tab-size = 4
 #include <unordered_map>
 #include <unordered_set>
 #include <fstream>
-#include <ranges>
 #include <cmath>
 #include <unistd.h>
 #include <numeric>
@@ -35,6 +34,8 @@ tab-size = 4
 #include <dlfcn.h>
 #include <unordered_map>
 #include <utility>
+
+#include <range/v3/all.hpp>
 
 #if defined(RSMI_STATIC)
 	#include <rocm_smi/rocm_smi.h>
@@ -74,7 +75,7 @@ using std::pair;
 
 
 namespace fs = std::filesystem;
-namespace rng = std::ranges;
+namespace rng = ranges;
 
 using namespace Tools;
 using namespace std::literals; // for operator""s
@@ -3030,8 +3031,7 @@ namespace Proc {
 			}
 
 			//? Clear dead processes from current_procs and remove kernel processes if enabled
-			auto eraser = rng::remove_if(current_procs, [&](const auto& element){ return not v_contains(found, element.pid); });
-			current_procs.erase(eraser.begin(), eraser.end());
+			current_procs |= rng::actions::remove_if([&](const auto& element){ return not v_contains(found, element.pid); });
 
 			//? Update the details info box for process if active
 			if (show_detailed and got_detailed) {

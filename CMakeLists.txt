@@ -30,17 +30,12 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-include(CheckIncludeFileCXX)
-check_include_file_cxx(ranges CXX_HAVE_RANGES)
-if(NOT CXX_HAVE_RANGES)
-  message(FATAL_ERROR "The compiler doesn't support <ranges>")
-endif()
-
 set(THIRD_PARTY_INCLUDES
   ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/third_party/cpp-httplib
   ${PROJECT_SOURCE_DIR}/third_party/fmt/include
   ${PROJECT_SOURCE_DIR}/third_party/widecharwidth
+  ${PROJECT_SOURCE_DIR}/third_party/range-v3/include
 )
 
 # Generate build info

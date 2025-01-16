@@ -25,14 +25,15 @@ tab-size = 4
 #include <sstream>
 #include <iomanip>
 #include <utility>
-#include <ranges>
+#include <unordered_map>
 
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
-#include "unordered_map"
+#include <range/v3/all.hpp>
+
 #include "cosmotop_shared.hpp"
 #include "cosmotop_tools.hpp"
 #include "cosmotop_config.hpp"
@@ -47,7 +48,7 @@ using std::to_string;
 using namespace std::literals; // to use operator""s
 
 namespace fs = std::filesystem;
-namespace rng = std::ranges;
+namespace rng = ranges;
 
 //? ------------------------------------------------- NAMESPACES ------------------------------------------------------
 

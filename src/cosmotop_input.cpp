@@ -18,13 +18,14 @@ tab-size = 4
 */
 
 #include <limits>
-#include <ranges>
 #include <vector>
 #include <thread>
 #include <mutex>
 #include <signal.h>
 #include <sys/select.h>
 #include <utility>
+
+#include <range/v3/all.hpp>
 
 #include "cosmotop_input.hpp"
 #include "cosmotop_tools.hpp"
@@ -35,7 +36,7 @@ tab-size = 4
 
 using namespace Tools;
 using namespace std::literals; // for operator""s
-namespace rng = std::ranges;
+namespace rng = ranges;
 
 namespace Input {
 

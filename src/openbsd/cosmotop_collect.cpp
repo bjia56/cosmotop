@@ -58,11 +58,12 @@ tab-size = 4
 #include <cmath>
 #include <fstream>
 #include <numeric>
-#include <ranges>
 #include <algorithm>
 #include <regex>
 #include <string>
 #include <memory>
+
+#include <range/v3/all.hpp>
 
 #include "../cosmotop_config.hpp"
 #include "../cosmotop_shared.hpp"
@@ -73,7 +74,7 @@ tab-size = 4
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
 namespace fs = std::filesystem;
-namespace rng = std::ranges;
+namespace rng = ranges;
 using namespace Tools;
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
@@ -1161,8 +1162,7 @@ namespace Proc {
 			}
 
 			//? Clear dead processes from current_procs
-			auto eraser = rng::remove_if(current_procs, [&](const auto &element) { return not v_contains(found, element.pid); });
-			current_procs.erase(eraser.begin(), eraser.end());
+			current_procs |= rng::actions::remove_if([&](const auto &element) { return not v_contains(found, element.pid); });
 
 			//? Update the details info box for process if active
 			if (show_detailed and got_detailed) {

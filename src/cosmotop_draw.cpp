@@ -20,10 +20,11 @@ tab-size = 4
 #include <array>
 #include <algorithm>
 #include <cmath>
-#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <utility>
+
+#include <range/v3/all.hpp>
 
 #include "cosmotop_draw.hpp"
 #include "cosmotop_config.hpp"
@@ -45,11 +46,11 @@ using std::max;
 using std::min;
 using std::round;
 using std::to_string;
-using std::views::iota;
+using ranges::views::iota;
 
 using namespace Tools;
 using namespace std::literals; // for operator""s
-namespace rng = std::ranges;
+namespace rng = ranges;
 
 namespace Symbols {
 	const string meter = "■";

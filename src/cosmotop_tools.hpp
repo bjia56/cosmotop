@@ -23,12 +23,11 @@ tab-size = 4
 # define COSMOTOP_DEBUG
 #endif
 
-#include <algorithm>        // for std::ranges::count_if
+#include <algorithm>        // for ranges::count_if
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
-#include <ranges>
 #include <regex>
 #include <string>
 #include <thread>
@@ -67,8 +66,9 @@ tab-size = 4
 #endif
 #endif // _WIN32
 
-#include "fmt/core.h"
-#include "fmt/format.h"
+#include <fmt/core.h>
+#include <fmt/format.h>
+#include <range/v3/all.hpp>
 
 using std::array;
 using std::atomic;
@@ -217,7 +217,7 @@ namespace Tools {
 
 	//* Return number of UTF8 characters in a string (wide=true for column size needed on terminal)
 	inline size_t ulen(const string& str, bool wide = false) {
-		return (wide ? wide_ulen(str) : std::ranges::count_if(str, [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; }));
+		return (wide ? wide_ulen(str) : ranges::count_if(str, [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; }));
 	}
 
 	//* Resize a string consisting of UTF8 characters (only reduces size)
@@ -237,20 +237,20 @@ namespace Tools {
 
 	//* Return <str> with only uppercase characters
 	inline string str_to_upper(string str) {
-		std::ranges::for_each(str, [](auto& c) { c = ::toupper(c); } );
+		ranges::for_each(str, [](auto& c) { c = ::toupper(c); } );
 		return str;
 	}
 
 	//* Return <str> with only lowercase characters
 	inline string str_to_lower(string str) {
-		std::ranges::for_each(str, [](char& c) { c = ::tolower(c); } );
+		ranges::for_each(str, [](char& c) { c = ::tolower(c); } );
 		return str;
 	}
 
 	//* Check if vector <vec> contains value <find_val>
 	template <typename T, typename T2>
 	inline bool v_contains(const vector<T>& vec, const T2& find_val) {
-		return std::ranges::find(vec, find_val) != vec.end();
+		return ranges::find(vec, find_val) != vec.end();
 	}
 
 	//* Check if string <str> contains value <find_val>
@@ -272,7 +272,7 @@ namespace Tools {
 	//* Return index of <find_val> from vector <vec>, returns size of <vec> if <find_val> is not present
 	template <typename T>
 	inline size_t v_index(const vector<T>& vec, const T& find_val) {
-		return std::ranges::distance(vec.begin(), std::ranges::find(vec, find_val));
+		return ranges::distance(vec.begin(), ranges::find(vec, find_val));
 	}
 
 	//* Compare <first> with all following values

@@ -23,6 +23,7 @@ tab-size = 4
 #include <atomic>
 #include <deque>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <vector>

@@ -26,7 +26,6 @@ tab-size = 4
 #endif
 #include <thread>
 #include <numeric>
-#include <ranges>
 #include <unistd.h>
 #include <cmath>
 #include <iostream>

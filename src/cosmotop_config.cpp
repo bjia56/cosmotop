@@ -20,11 +20,11 @@ tab-size = 4
 #include <array>
 #include <atomic>
 #include <fstream>
-#include <ranges>
 #include <string_view>
 #include <utility>
 
 #include <fmt/core.h>
+#include <range/v3/all.hpp>
 #include <sys/statvfs.h>
 
 #include "cosmotop_config.hpp"
@@ -36,7 +36,7 @@ using std::atomic;
 using std::string_view;
 
 namespace fs = std::filesystem;
-namespace rng = std::ranges;
+namespace rng = ranges;
 
 using namespace std::literals;
 using namespace Tools;
