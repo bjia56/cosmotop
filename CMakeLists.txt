@@ -39,6 +39,7 @@ endif()
 set(THIRD_PARTY_INCLUDES
   ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/third_party/cpp-httplib
+  ${PROJECT_SOURCE_DIR}/third_party/fmt/include
 )
 
 # Generate build info
