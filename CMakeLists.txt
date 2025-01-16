@@ -17,6 +17,7 @@ project("cosmotop"
 )
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/")
+include(CheckIncludeFileCXX)
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/libcosmo_plugin)
 
@@ -115,6 +116,12 @@ elseif(${TARGET} STREQUAL "plugin")
       src/windows/cosmotop_collect.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
+
+    # range/v3 doesn't compile properly with MSVC, so prefer stdlib ranges on Windows
+    check_include_file_cxx(ranges CXX_HAVE_RANGES)
+    if(NOT CXX_HAVE_RANGES)
+      message(FATAL_ERROR "The compiler doesn't support <ranges>")
+    endif()
   elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
