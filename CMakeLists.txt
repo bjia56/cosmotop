@@ -167,7 +167,7 @@ elseif(${TARGET} STREQUAL "plugin")
   target_include_directories(${BINARY_NAME} PRIVATE ${THIRD_PARTY_INCLUDES})
   target_compile_definitions(${BINARY_NAME} PRIVATE GPU_SUPPORT FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
   if(CMAKE_SYSTEM MATCHES "Windows")
-    target_compile_options(${BINARY_NAME} PRIVATE /utf-8 /permissive-)
+    target_compile_options(${BINARY_NAME} PRIVATE /utf-8)
     target_compile_definitions(${BINARY_NAME} PRIVATE UNICODE _UNICODE)
   endif()
 
