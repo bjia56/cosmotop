@@ -7,3 +7,6 @@
 [submodule "third_party/fmt"]
 	path = third_party/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "third_party/widecharwidth"]
+	path = third_party/widecharwidth
+	url = https://github.com/ridiculousfish/widecharwidth.git
