@@ -100,6 +100,7 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    set(BUILD_EXE ON)
   elseif(CMAKE_SYSTEM MATCHES "Darwin")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -111,6 +112,9 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
+    if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
+      set(BUILD_EXE ON)
+    endif()
   elseif(CMAKE_SYSTEM MATCHES "Windows")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -136,6 +140,7 @@ elseif(${TARGET} STREQUAL "plugin")
     find_package(devstat REQUIRED)
     find_package(kvm REQUIRED)
     find_package(elf REQUIRED)
+    set(BUILD_EXE ON)
   elseif(CMAKE_SYSTEM MATCHES "NetBSD")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -146,6 +151,7 @@ elseif(${TARGET} STREQUAL "plugin")
     )
     find_package(kvm REQUIRED)
     find_package(proplib REQUIRED)
+    set(BUILD_EXE ON)
   elseif(CMAKE_SYSTEM MATCHES "OpenBSD")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -156,21 +162,20 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(kvm REQUIRED)
+    set(BUILD_EXE ON)
   else()
     message(FATAL_ERROR "Unsupported platform")
   endif()
 
   if(BUILD_EXE)
-    if(NOT DEFINED BINARY_NAME)
-      set(BINARY_NAME "libcosmotop.exe")
-    endif()
-
+    set(BINARY_NAME "cosmotop-plugin.exe")
     add_executable(${BINARY_NAME} ${PLUGIN_SOURCES})
-  else()
-    if(NOT DEFINED BINARY_NAME)
-      set(BINARY_NAME "cosmotop")
+    target_compile_definitions(${BINARY_NAME} PRIVATE COSMO_PLUGIN_WANT_MAIN)
+    if(NOT CMAKE_SYSTEM MATCHES "Darwin")
+      target_compile_options(${BINARY_NAME} PRIVATE -static)
     endif()
-
+  else()
+    set(BINARY_NAME "cosmotop-plugin")
     add_library(${BINARY_NAME} SHARED ${PLUGIN_SOURCES})
   endif()
 
