@@ -312,7 +312,7 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-openbsd-x86_64.exe /zip/
 
           cd /zip
-          zip ${{ github.workspace }}/cosmotop.com *
+          zip -r ${{ github.workspace }}/cosmotop.com *
 
           cd ${{ github.workspace }}
           mv cosmotop.com cosmotop.exe
