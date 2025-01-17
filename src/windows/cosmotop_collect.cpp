@@ -133,7 +133,7 @@ namespace Shared {
 	IWbemServices* WbemServices;
 
 	namespace WMI {
-		mutable std::mutex guard;
+		std::mutex guard;
 		std::condition_variable signal;
 		bool running;
 
