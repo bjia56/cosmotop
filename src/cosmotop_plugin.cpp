@@ -380,17 +380,13 @@ void create_plugin_host() {
 		pluginName << "-x86_64";
 	}
 
-	if (IsLinux() || IsFreebsd()) {
-		pluginName << ".so";
-	} else if (IsXnu()) {
-		if (IsXnuSilicon()) {
-			pluginName << ".dylib";
-		} else {
-			pluginName << ".exe";
-		}
+	if (IsXnuSilicon()) {
+		pluginName << ".dylib";
 	} else if (IsWindows()) {
 		pluginName << ".dll";
-	} else if (IsOpenbsd() || IsNetbsd()) {
+	} else if (IsFreebsd()) {
+		pluginName << ".so";
+	} else {
 		pluginName << ".exe";
 	}
 
@@ -414,7 +410,12 @@ void create_plugin_host() {
 		chmod(pluginPath.c_str(), 0500);
 	}
 
-	pluginHost = new PluginHost(pluginPath.string());
+	auto launchMethod = PluginHost::DLOPEN;
+	if (!IsXnuSilicon() && !IsWindows() && !IsFreebsd()) {
+		launchMethod = PluginHost::FORK;
+	}
+
+	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
 
 	pluginHost->registerHandler<std::unordered_map<std::string, int>>("Config::get_ints", std::function([]() {
 		// convert map of string_view to map of string

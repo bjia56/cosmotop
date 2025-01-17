@@ -36,7 +36,7 @@ jobs:
         run: |
           export CC=cosmocc
           export CXX=cosmoc++
-          cmake -B build  ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake -B build -DTARGET=host ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
 
       - name: Upload cosmotop.com
@@ -67,17 +67,17 @@ jobs:
       - name: Build plugin
         shell: bash
         run: |
-          export CC="zig cc -target ${{ matrix.arch }}-linux-gnu.2.17"
-          export CXX="zig c++ -target ${{ matrix.arch }}-linux-gnu.2.17"
-          cmake -B build -DTARGET=plugin  ${{ inputs.version && '-DRELEASE=1' || '' }}
+          export CC="zig cc -target ${{ matrix.arch }}-linux-musl"
+          export CXX="zig c++ -target ${{ matrix.arch }}-linux-musl"
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
-          cp build/libcosmotop.so ./cosmotop-linux-${{ matrix.arch }}.so
+          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-linux-${{ matrix.arch }}
-          path: ./cosmotop-linux-${{ matrix.arch }}.so
+          path: ./cosmotop-linux-${{ matrix.arch }}.exe
 
   build_macos_plugin:
     name: Build plugin MacOS ${{ matrix.arch }}
@@ -101,13 +101,13 @@ jobs:
         shell: bash
         run: |
           if [[ ${{ matrix.arch }} == "x86_64" ]]; then
-            cmake -B build -DTARGET=plugin -DBUILD_EXE=ON  ${{ inputs.version && '-DRELEASE=1' || '' }}
+            cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
             cmake --build build --parallel 4
-            cp build/libcosmotop.exe ./cosmotop-macos-${{ matrix.arch }}.exe
+            cp build/cosmotop-plugin.exe ./cosmotop-macos-${{ matrix.arch }}.exe
           else
-            cmake -B build -DTARGET=plugin  ${{ inputs.version && '-DRELEASE=1' || '' }}
+            cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
             cmake --build build --parallel 4
-            cp build/libcosmotop.dylib ./cosmotop-macos-${{ matrix.arch }}.dylib
+            cp build/libcosmotop-plugin.dylib ./cosmotop-macos-${{ matrix.arch }}.dylib
           fi
 
       - name: Upload plugin
@@ -133,9 +133,9 @@ jobs:
       - name: Build plugin
         shell: bash
         run: |
-          cmake -B build -DTARGET=plugin  ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4 --config Release
-          cp build/Release/cosmotop.dll ./cosmotop-windows-${{ matrix.arch }}.dll
+          cp build/Release/cosmotop-plugin.dll ./cosmotop-windows-${{ matrix.arch }}.dll
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
@@ -170,9 +170,9 @@ jobs:
         shell: freebsd {0}
         run: |
           cd ${{ github.workspace }}
-          cmake -B build -DTARGET=plugin  ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
-          cp build/libcosmotop.so ./cosmotop-freebsd-${{ matrix.arch }}.so
+          cp build/libcosmotop-plugin.so ./cosmotop-freebsd-${{ matrix.arch }}.so
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
@@ -207,9 +207,9 @@ jobs:
         shell: netbsd {0}
         run: |
           cd ${{ github.workspace }}
-          CC=clang CXX=clang++ cmake -B build -DTARGET=plugin -DBUILD_EXE=ON  ${{ inputs.version && '-DRELEASE=1' || '' }}
+          CC=clang CXX=clang++ cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
-          cp build/libcosmotop.exe ./cosmotop-netbsd-${{ matrix.arch }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-netbsd-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
@@ -244,9 +244,9 @@ jobs:
         shell: openbsd {0}
         run: |
           cd ${{ github.workspace }}
-          cmake -B build -DTARGET=plugin -DBUILD_EXE=ON  ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
-          cp build/libcosmotop.exe ./cosmotop-openbsd-${{ matrix.arch }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
@@ -300,8 +300,8 @@ jobs:
           tree /tmp/cosmotop-plugin || true
 
           sudo mkdir -p /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.so /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.so /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.exe /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.dylib /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-windows-x86_64.dll /zip/
