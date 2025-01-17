@@ -49,13 +49,11 @@ tab-size = 4
 #include "../cosmotop_config.hpp"
 #include "../cosmotop_tools.hpp"
 
-#if defined(GPU_SUPPORT)
-	#define class class_
+#define class class_
 extern "C" {
 	#include "./intel_gpu_top/intel_gpu_top.h"
 }
-	#undef class
-#endif
+#undef class
 
 #include <httplib.h>
 
