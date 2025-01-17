@@ -101,6 +101,25 @@ elseif(${TARGET} STREQUAL "plugin")
     )
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     set(BUILD_EXE ON)
+
+    # ROCm doesn't properly add it's folders to the module path if `CMAKE_MODULE_PATH` is already
+    # set
+    # We could also manually append ROCm's path here
+    set(_CMAKE_MODULE_PATH CMAKE_MODULE_PATH)
+    unset(CMAKE_MODULE_PATH)
+
+    # Build a static ROCm library
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+    add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/rocm_smi_lib EXCLUDE_FROM_ALL)
+
+    add_library(ROCm INTERFACE)
+    # Export ROCm's properties to a target
+    target_compile_definitions(ROCm INTERFACE RSMI_STATIC)
+    target_include_directories(ROCm INTERFACE ${PROJECT_SOURCE_DIR}/third_party/rocm_smi_lib/include)
+    target_link_libraries(ROCm INTERFACE rocm_smi64)
+
+    set(CMAKE_MODULE_PATH _CMAKE_MODULE_PATH)
   elseif(CMAKE_SYSTEM MATCHES "Darwin")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -189,7 +208,9 @@ elseif(${TARGET} STREQUAL "plugin")
   find_package(Threads REQUIRED)
 
   target_link_libraries(${BINARY_NAME} PRIVATE Threads::Threads)
-  if(CMAKE_SYSTEM MATCHES "Darwin")
+  if(CMAKE_SYSTEM MATCHES "Linux")
+    target_link_libraries(${BINARY_NAME} PRIVATE ROCm)
+  elseif(CMAKE_SYSTEM MATCHES "Darwin")
     target_link_libraries(${BINARY_NAME} PRIVATE $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit>)
   elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
     target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm elf::elf)
