@@ -21,9 +21,6 @@ tab-size = 4
 #include <csignal>
 #include <clocale>
 #include <pthread.h>
-#ifdef __FreeBSD__
-	#include <pthread_np.h>
-#endif
 #include <thread>
 #include <numeric>
 #include <unistd.h>
@@ -34,17 +31,13 @@ tab-size = 4
 #include <regex>
 #include <chrono>
 #include <utility>
-#ifdef __APPLE__
-	#include <CoreFoundation/CoreFoundation.h>
-	#include <mach-o/dyld.h>
-	#include <limits.h>
-#endif
 #if !defined(__clang__) && __GNUC__ < 11
 	#include <semaphore.h>
 #else
 	#include <semaphore>
 #endif
 
+#include <cosmo.h>
 #include <libc/calls/struct/utsname.h>
 
 #include <fmt/core.h>
@@ -383,11 +376,7 @@ void clean_quit(int sig) {
 
 	const auto excode = (sig != -1 ? sig : 0);
 
-#if defined __APPLE__ || defined __OpenBSD__ || defined __NetBSD__
-	_Exit(excode);
-#else
 	quick_exit(excode);
-#endif
 }
 
 //* Handler for SIGTSTP; stops threads, restores terminal and sends SIGSTOP
@@ -970,33 +959,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	//? Try to find global cosmotop theme path relative to binary path
-#ifdef __linux__
-	{ 	std::error_code ec;
-		Global::self_path = fs::read_symlink("/proc/self/exe", ec).remove_filename();
-	}
-#elif __APPLE__
-	{
-		char buf [PATH_MAX];
-		uint32_t bufsize = PATH_MAX;
-		if(!_NSGetExecutablePath(buf, &bufsize))
-			Global::self_path = fs::path(buf).remove_filename();
-	}
-#endif
-	if (std::error_code ec; not Global::self_path.empty()) {
-		Theme::theme_dir = fs::canonical(Global::self_path / "../share/cosmotop/themes", ec);
-		if (ec or not fs::is_directory(Theme::theme_dir) or access(Theme::theme_dir.c_str(), R_OK) == -1) Theme::theme_dir.clear();
-	}
-	//? If relative path failed, check two most common absolute paths
-	if (Theme::theme_dir.empty()) {
-		for (auto theme_path : {"/usr/local/share/cosmotop/themes", "/usr/share/cosmotop/themes"}) {
-			if (fs::is_directory(fs::path(theme_path)) and access(theme_path, R_OK) != -1) {
-				Theme::theme_dir = fs::path(theme_path);
-				break;
-			}
-		}
-	}
-
 	//? Config init
 	init_config();
 
@@ -1005,10 +967,9 @@ int main(int argc, char **argv) {
 
 	//? Try to find and set a UTF-8 locale
 	if (std::setlocale(LC_ALL, "") != nullptr and not s_contains((string)std::setlocale(LC_ALL, ""), ";")
-	and str_to_upper(s_replace((string)std::setlocale(LC_ALL, ""), "-", "")).ends_with("UTF8")) {
+		and str_to_upper(s_replace((string)std::setlocale(LC_ALL, ""), "-", "")).ends_with("UTF8")) {
 		Logger::debug("Using locale " + (string)std::setlocale(LC_ALL, ""));
-	}
-	else {
+	} else {
 		string found;
 		bool set_failure{};
 		for (const auto loc_env : array{"LANG", "LC_ALL", "LC_CTYPE"}) {
@@ -1037,35 +998,14 @@ int main(int argc, char **argv) {
 				catch (...) { found.clear(); }
 			}
 		}
-	//
-	#ifdef __APPLE__
-		if (found.empty()) {
-			CFLocaleRef cflocale = CFLocaleCopyCurrent();
-			CFStringRef id_value = (CFStringRef)CFLocaleGetValue(cflocale, kCFLocaleIdentifier);
-			auto loc_id = CFStringGetCStringPtr(id_value, kCFStringEncodingUTF8);
-			CFRelease(cflocale);
-			std::string cur_locale = (loc_id != nullptr ? loc_id : "");
-			if (cur_locale.empty()) {
-				Logger::warning("No UTF-8 locale detected! Some symbols might not display correctly.");
-			}
-			else if (std::setlocale(LC_ALL, string(cur_locale + ".UTF-8").c_str()) != nullptr) {
-				Logger::debug("Setting LC_ALL=" + cur_locale + ".UTF-8");
-			}
-			else if(std::setlocale(LC_ALL, "en_US.UTF-8") != nullptr) {
-				Logger::debug("Setting LC_ALL=en_US.UTF-8");
-			}
-			else {
-				Logger::warning("Failed to set macos locale, continuing anyway.");
-			}
-		}
-	#else
-		if (found.empty() and Global::utf_force)
+		if (found.empty() and IsWindows())
+			Logger::warning("No UTF-8 locale detected! Assuming we can continue on Windows.");
+		else if (found.empty() and Global::utf_force)
 			Logger::warning("No UTF-8 locale detected! Forcing start with --utf-force argument.");
 		else if (found.empty()) {
 			Global::exit_error_msg = "No UTF-8 locale detected!\nUse --utf-force argument to force start if you're sure your terminal can handle it.";
 			clean_quit(1);
 		}
-	#endif
 		else if (not set_failure)
 			Logger::debug("Setting LC_ALL=" + found);
 	}
@@ -1081,12 +1021,10 @@ int main(int argc, char **argv) {
 		Config::set("tty_mode", true);
 		Logger::info("Forcing tty mode: setting 16 color mode and using tty friendly graph symbols");
 	}
-#if not defined __APPLE__ && not defined __OpenBSD__ && not defined __NetBSD__
 	else if (not Global::arg_tty and Term::current_tty.starts_with("/dev/tty")) {
 		Config::set("tty_mode", true);
 		Logger::info("Real tty detected: setting 16 color mode and using tty friendly graph symbols");
 	}
-#endif
 
 	//? Check for valid terminal dimensions
 	{

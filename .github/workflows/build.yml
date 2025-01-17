@@ -300,6 +300,7 @@ jobs:
           tree /tmp/cosmotop-plugin || true
 
           sudo mkdir -p /zip/
+          sudo cp -r ${{ github.workspace }}/themes /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
