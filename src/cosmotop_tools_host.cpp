@@ -225,7 +225,7 @@ namespace Logger {
 				std::ofstream lwrite(logfile, std::ios::app);
 				if (first) {
 					first = false;
-					lwrite << "\n" << strf_time(tdf) << "===> cosmotop v." << Global::Version << "\n";
+					lwrite << "\n" << strf_time(tdf) << "===> cosmotop v" << Global::Version << "\n";
 				}
 				lwrite << strf_time(tdf) << log_levels.at(level) << ": " << msg << "\n";
 			}
