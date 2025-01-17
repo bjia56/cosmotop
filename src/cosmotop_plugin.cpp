@@ -384,6 +384,8 @@ void create_plugin_host() {
 		pluginName << ".dylib";
 	} else if (IsWindows()) {
 		pluginName << ".dll";
+	} else if (IsFreebsd()) {
+		pluginName << ".so";
 	} else {
 		pluginName << ".exe";
 	}
@@ -409,7 +411,7 @@ void create_plugin_host() {
 	}
 
 	auto launchMethod = PluginHost::DLOPEN;
-	if (!IsXnuSilicon() && !IsWindows()) {
+	if (!IsXnuSilicon() && !IsWindows() && !IsFreebsd()) {
 		launchMethod = PluginHost::FORK;
 	}
 

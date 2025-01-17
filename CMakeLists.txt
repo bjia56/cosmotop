@@ -140,7 +140,6 @@ elseif(${TARGET} STREQUAL "plugin")
     find_package(devstat REQUIRED)
     find_package(kvm REQUIRED)
     find_package(elf REQUIRED)
-    set(BUILD_EXE ON)
   elseif(CMAKE_SYSTEM MATCHES "NetBSD")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
