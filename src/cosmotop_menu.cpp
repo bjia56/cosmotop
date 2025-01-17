@@ -272,9 +272,7 @@ namespace Menu {
 				"Manually set which boxes to show.",
 				"",
 				"Available values are \"cpu mem net proc\".",
-			#ifdef GPU_SUPPORT
 				"Or \"gpu0\" through \"gpu5\" for GPU boxes.",
-			#endif
 				"Separate values with whitespace.",
 				"",
 				"Toggle between presets with key \"p\"."},
@@ -390,7 +388,6 @@ namespace Menu {
 				"\"user\" = User mode cpu usage.",
 				"\"system\" = Kernel mode cpu usage.",
 				"+ more depending on kernel.",
-		#ifdef GPU_SUPPORT
 				"",
 				"GPU:",
 				"\"gpu-totals\" = GPU usage split by device.",
@@ -400,7 +397,6 @@ namespace Menu {
 				"\"gpu-vram-total\" = VRAM usage of all GPUs.",
 				"\"gpu-pwr-total\" = Power usage of all GPUs.",
 				"Not all stats are supported on all devices."
-		#endif
 				},
 			{"cpu_graph_lower",
 				"Cpu lower graph.",
@@ -413,7 +409,6 @@ namespace Menu {
 				"\"user\" = User mode cpu usage.",
 				"\"system\" = Kernel mode cpu usage.",
 				"+ more depending on kernel.",
-		#ifdef GPU_SUPPORT
 				"",
 				"GPU:",
 				"\"gpu-totals\" = GPU usage split/device. (Auto)",
@@ -423,7 +418,6 @@ namespace Menu {
 				"\"gpu-vram-total\" = VRAM usage of all GPUs.",
 				"\"gpu-pwr-total\" = Power usage of all GPUs.",
 				"Not all stats are supported on all devices."
-		#endif
 				},
 			{"cpu_invert_lower",
 					"Toggles orientation of the lower CPU graph.",
@@ -436,7 +430,6 @@ namespace Menu {
 					"to fit to box height.",
 					"",
 					"True or False."},
-		#ifdef GPU_SUPPORT
 			{"show_gpu_info",
 					"Show gpu info in cpu box.",
 					"",
@@ -447,7 +440,6 @@ namespace Menu {
 					"\"Auto\" to show when no gpu box is shown.",
 					"\"On\" to always show.",
 					"\"Off\" to never show."},
-		#endif
 			{"check_temp",
 				"Enable cpu temperature reporting.",
 				"",
@@ -509,7 +501,6 @@ namespace Menu {
 				"",
 				"True or False."},
 		},
-	#ifdef GPU_SUPPORT
 		{
 			{"nvml_measure_pcie_speeds",
 				"Measure PCIe throughput on NVIDIA cards.",
@@ -568,7 +559,6 @@ namespace Menu {
 				"",
 				"Empty string to disable."},
 		},
-	#endif
 		{
 			{"mem_below_net",
 				"Mem box location.",
@@ -1200,10 +1190,8 @@ namespace Menu {
 			{"cpu_graph_lower", std::cref(Cpu::get_available_fields())},
 			{"cpu_sensor", std::cref(Cpu::get_available_sensors())},
 			{"selected_battery", std::cref(Config::available_batteries)},
-		#ifdef GPU_SUPPORT
 			{"show_gpu_info", std::cref(Config::show_gpu_values)},
 			{"graph_symbol_gpu", std::cref(Config::valid_graph_symbols_def)},
-		#endif
 		};
 
 		// ensure the following fields are updated from the plugin
@@ -1342,11 +1330,7 @@ namespace Menu {
 			if (--selected_cat < 0) selected_cat = (int)categories.size() - 1;
 			page = selected = 0;
 		}
-#ifdef GPU_SUPPORT
 		else if (is_in(key, "1", "2", "3", "4", "5", "6") or key.starts_with("select_cat_")) {
-#else
-		else if (is_in(key, "1", "2", "3", "4", "5") or key.starts_with("select_cat_")) {
-#endif
 		selected_cat = key.back() - '0' - 1;
 			page = selected = 0;
 		}
@@ -1444,19 +1428,11 @@ namespace Menu {
 
 			//? Category buttons
 			out += Mv::to(y+7, x+4);
-		#ifdef GPU_SUPPORT
 			for (int i = 0; const auto& m : {"general", "cpu", "gpu", "mem", "net", "proc"}) {
-		#else
-			for (int i = 0; const auto& m : {"general", "cpu", "mem", "net", "proc"}) {
-		#endif
 				out += Fx::b + (i == selected_cat
 						? Theme::c("hi_fg") + '[' + Theme::c("title") + m + Theme::c("hi_fg") + ']'
 						: Theme::c("hi_fg") + to_string(i + 1) + Theme::c("title") + m + ' ')
-				#ifdef GPU_SUPPORT
 					+ Mv::r(7);
-				#else
-					+ Mv::r(10);
-				#endif
 				if (string button_name = "select_cat_" + to_string(i + 1); not editing and not mouse_mappings.contains(button_name))
 					mouse_mappings[button_name] = {y+6, x+2 + 15*i, 3, 15};
 				i++;

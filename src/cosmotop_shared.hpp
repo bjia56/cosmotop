@@ -127,7 +127,6 @@ namespace Shared {
 
 
 namespace Gpu {
-#ifdef GPU_SUPPORT
 	extern vector<string> box;
 	extern int width, height, min_width, min_height;
 	extern vector<int> x_vec, y_vec;
@@ -150,12 +149,6 @@ namespace Gpu {
 	std::unordered_map<string, deque<long long>>& get_shared_gpu_percent();
 
 	const array mem_names { "used"s, "free"s };
-
-	//* Container for process information // TODO
-	/*struct proc_info {
-    unsigned int pid;
-    unsigned long long mem;
-	};*/
 
 	//* Container for supported Gpu::*::collect() functions
 	struct gpu_info_supported {
@@ -213,11 +206,6 @@ namespace Gpu {
 
 	//* Draw contents of gpu box using <gpus> as source
   	string draw(const gpu_info& gpu, unsigned long index, bool force_redraw, bool data_same);
-#else
-	struct gpu_info {
-		bool supported = false;
-	};
-#endif
 }
 
 namespace Cpu {

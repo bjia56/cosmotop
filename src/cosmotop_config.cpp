@@ -76,9 +76,9 @@ namespace Config {
 								"#* Note that \"tty\" only has half the horizontal resolution of the other two, so will show a shorter historical view."},
 
 		{"graph_symbol_cpu", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
-#ifdef GPU_SUPPORT
+
 		{"graph_symbol_gpu", 	"# Graph symbol to use for graphs in gpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
-#endif
+
 		{"graph_symbol_mem", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
 		{"graph_symbol_net", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
@@ -124,9 +124,9 @@ namespace Config {
 
 		{"cpu_graph_lower", 	"#* Sets the CPU stat shown in lower half of the CPU graph, \"total\" is always available.\n"
 								"#* Select from a list of detected attributes from the options menu."},
-	#ifdef GPU_SUPPORT
+
 		{"show_gpu_info",		"#* If gpu info should be shown in the cpu box. Available values = \"Auto\", \"On\" and \"Off\"."},
-	#endif
+
 		{"cpu_invert_lower", 	"#* Toggles if the lower CPU graph should be inverted."},
 
 		{"cpu_single_graph", 	"#* Set to True to completely disable the lower CPU graph."},
@@ -209,7 +209,6 @@ namespace Config {
 
 		{"log_level", 			"#* Set loglevel for \"~/.config/cosmotop/cosmotop.log\" levels are: \"ERROR\" \"WARNING\" \"INFO\" \"DEBUG\".\n"
 								"#* The level set includes all lower levels, i.e. \"DEBUG\" will show all logging info."},
-	#ifdef GPU_SUPPORT
 
 		{"nvml_measure_pcie_speeds",
 								"#* Measure PCIe throughput on NVIDIA cards, may impact performance on certain cards."},
@@ -225,7 +224,6 @@ namespace Config {
 
 		{"intel_gpu_exporter",	"#* HTTP endpoint to pull Intel GPU metrics from, if Intel PMU is not available.\n"
 								"#* Use with https://github.com/bjia56/intel-gpu-exporter"},
-	#endif
 	};
 
 	std::unordered_map<std::string_view, string> strings = {
@@ -256,7 +254,6 @@ namespace Config {
 		{"proc_command", ""},
 		{"selected_name", ""},
 		{"detailed_name", ""},
-	#ifdef GPU_SUPPORT
 		{"custom_gpu_name0", ""},
 		{"custom_gpu_name1", ""},
 		{"custom_gpu_name2", ""},
@@ -265,7 +262,6 @@ namespace Config {
 		{"custom_gpu_name5", ""},
 		{"show_gpu_info", "Auto"},
 		{"intel_gpu_exporter", ""}
-	#endif
 	};
 	std::unordered_map<std::string_view, string> stringsTmp;
 
@@ -317,11 +313,9 @@ namespace Config {
 		{"show_detailed", false},
 		{"proc_filtering", false},
 		{"proc_aggregate", false},
-	#ifdef GPU_SUPPORT
 		{"nvml_measure_pcie_speeds", true},
 		{"rsmi_measure_pcie_speeds", true},
 		{"gpu_mirror_graph", true}
-	#endif
 	};
 	std::unordered_map<std::string_view, bool> boolsTmp;
 
@@ -556,10 +550,8 @@ namespace Config {
 				return true;
 		}
 
-	#ifdef GPU_SUPPORT
 		else if (name == "show_gpu_info" and not v_contains(show_gpu_values, value))
 			validError = "Invalid value for show_gpu_info: " + value;
-	#endif
 
 		else if (name == "presets" and not presetsValid(value))
 			return false;
@@ -663,12 +655,10 @@ namespace Config {
 		auto new_boxes = ssplit(boxes);
 		for (auto& box : new_boxes) {
 			if (not v_contains(valid_boxes, box)) return false;
-		#ifdef GPU_SUPPORT
 			if (box.starts_with("gpu")) {
 				int gpu_num = stoi(box.substr(3)) + 1;
 				if (gpu_num > Gpu::get_count()) return false;
 			}
-		#endif
 		}
 		current_boxes = std::move(new_boxes);
 		return true;

@@ -122,27 +122,23 @@ namespace Term {
         bool mem = boxes.find("mem") != string::npos;
         bool net = boxes.find("net") != string::npos;
         bool proc = boxes.find("proc") != string::npos;
-	#ifdef GPU_SUPPORT
+
 		int gpu = 0;
         if (Gpu::get_count() > 0)
         	for (char i = '0'; i <= '5'; i++)
         		gpu += (Tools::s_contains(boxes, "gpu"s + i) ? 1 : 0);
-	#endif
+
         int width = 0;
 		if (mem) width = Mem::min_width;
 		else if (net) width = Mem::min_width;
 		width += (proc ? Proc::min_width : 0);
 		if (cpu and width < Cpu::min_width) width = Cpu::min_width;
-	#ifdef GPU_SUPPORT
 		if (gpu != 0 and width < Gpu::min_width) width = Gpu::min_width;
-	#endif
 
 		int height = (cpu ? Cpu::min_height : 0);
 		if (proc) height += Proc::min_height;
 		else height += (mem ? Mem::min_height : 0) + (net ? Net::min_height : 0);
-	#ifdef GPU_SUPPORT
 		height += Gpu::min_height*gpu;
-	#endif
 
 		return { width, height };
 	}

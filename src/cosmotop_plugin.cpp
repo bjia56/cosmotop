@@ -41,7 +41,6 @@ void plugin_initializer(Plugin* plugin) {
 		return ss.str();
 	}));
 
-#ifdef GPU_SUPPORT
 	plugin->registerHandler<bool>("Gpu::Nvml::shutdown", std::function([]() {
 #ifdef __linux__
 		return Gpu::Nvml::shutdown();
@@ -91,7 +90,6 @@ void plugin_initializer(Plugin* plugin) {
 		return unordered_map<string, deque<long long>>();
 #endif
 	}));
-#endif
 
 	plugin->registerHandler<Cpu::cpu_info, bool>("Cpu::collect", std::function([](bool no_update) {
 		return Cpu::collect(no_update);
@@ -262,13 +260,11 @@ namespace Cpu {
 	}
 }
 
-#ifdef GPU_SUPPORT
 namespace Gpu {
 	int get_width() {
 		return plugin->call<int>("Gpu::get_width");
 	}
 }
-#endif
 
 namespace Net{
 	int get_width() {
@@ -474,11 +470,9 @@ void create_plugin_host() {
 		return Cpu::width;
 	}));
 
-#ifdef GPU_SUPPORT
 	pluginHost->registerHandler<int>("Gpu::get_width", std::function([]() {
 		return Gpu::width;
 	}));
-#endif
 
 	pluginHost->registerHandler<int>("Net::get_width", std::function([]() {
 		return Net::width;
@@ -525,7 +519,6 @@ string plugin_build_info() {
 	return pluginHost->call<string>("build_info");
 }
 
-#ifdef GPU_SUPPORT
 namespace Gpu {
 	bool Nvml::shutdown() {
 		return pluginHost->call<bool>("Gpu::Nvml::shutdown");
@@ -557,7 +550,6 @@ namespace Gpu {
 		return result;
 	}
 }
-#endif
 
 namespace Cpu {
 	cpu_info& collect(bool no_update) {

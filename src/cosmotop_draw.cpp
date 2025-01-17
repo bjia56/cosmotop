@@ -536,26 +536,20 @@ namespace Cpu {
 		auto single_graph = Config::getB("cpu_single_graph");
 		bool hide_cores = show_temps and (get_cpu_temp_only() or not Config::getB("show_coretemp"));
 		const int extra_width = (hide_cores ? max(6, 6 * b_column_size) : 0);
-	#ifdef GPU_SUPPORT
+
 		auto gpu_count = Gpu::get_count();
 		const auto& show_gpu_info = Config::getS("show_gpu_info");
 		const bool gpu_always = show_gpu_info == "On";
 		const bool gpu_auto = show_gpu_info == "Auto";
 		const bool show_gpu = (gpus.size() > 0 and (gpu_always or (gpu_auto and Gpu::shown < gpu_count)));
-	#else
-		(void)gpus;
-	#endif
+
 		auto available_fields = Cpu::get_available_fields();
 		auto graph_up_field = Config::getS("cpu_graph_upper");
 		if (graph_up_field == "Auto" or not v_contains(available_fields, graph_up_field))
 			graph_up_field = "total";
 		auto graph_lo_field = Config::getS("cpu_graph_lower");
 		if (graph_lo_field == "Auto" or not v_contains(available_fields, graph_lo_field)) {
-		#ifdef GPU_SUPPORT
 			graph_lo_field = show_gpu ? "gpu-totals" : graph_up_field;
-		#else
-			graph_lo_field = graph_up_field;
-		#endif
 		}
 		auto tty_mode = Config::getB("tty_mode");
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_cpu"));
@@ -603,7 +597,6 @@ namespace Cpu {
 			const int graph_default_width = x + width - b_width - 3;
 
 			auto init_graphs = [&](vector<Draw::Graph>& graphs, const int graph_height, int& graph_width, const string& graph_field, bool invert) {
-			#ifdef GPU_SUPPORT
 				if (graph_field.starts_with("gpu")) {
 					if (graph_field.find("totals") != string::npos) {
 						graphs.resize(gpus.size());
@@ -637,20 +630,16 @@ namespace Cpu {
 					}
 				}
 				else {
-			#endif
 					graphs.resize(1);
 					graph_width = graph_default_width;
 					graphs[0] = Draw::Graph{ graph_width, graph_height, "cpu", safeVal(cpu.cpu_percent, graph_field), graph_symbol, invert, true };
-			#ifdef GPU_SUPPORT
 				}
-			#endif
 			};
 
             init_graphs(graphs_upper, graph_up_height, graph_up_width, graph_up_field, false);
             if (not single_graph)
             	init_graphs(graphs_lower, graph_low_height, graph_low_width, graph_lo_field, Config::getB("cpu_invert_lower"));
 
-			#ifdef GPU_SUPPORT
 			if (show_gpu and b_columns > 1) {
 				gpu_temp_graphs.resize(gpus.size());
 				gpu_mem_graphs.resize(gpus.size());
@@ -679,7 +668,6 @@ namespace Cpu {
 					}
 				}
 			}
-			#endif
 
 			cpu_meter = Draw::Meter{b_width - (show_temps ? 23 - (b_column_size <= 1 and b_columns == 1 ? 6 : 0) : 11), "cpu"};
 
@@ -755,7 +743,6 @@ namespace Cpu {
 		//? Cpu/Gpu graphs
 		out += Fx::ub + Mv::to(y + 1, x + 1);
 		auto draw_graphs = [&](vector<Draw::Graph>& graphs, const int graph_height, const int graph_width, const string& graph_field) {
-		#ifdef GPU_SUPPORT
 			if (graph_field.starts_with("gpu"))
 				if (graph_field.ends_with("totals")) {
 					int gpu_drawn = 0;
@@ -776,10 +763,6 @@ namespace Cpu {
 				else
 					out += graphs[0](safeVal(Gpu::get_shared_gpu_percent(), graph_field), (data_same or redraw));
 			else
-		#else
-			(void)graph_height;
-			(void)graph_width;
-		#endif
 				out += graphs[0](safeVal(cpu.cpu_percent, graph_field), (data_same or redraw));
 		};
 
@@ -867,15 +850,10 @@ namespace Cpu {
 			} else {
 				lavg_str_len = lavg_str.length();
 			}
-		#ifdef GPU_SUPPORT
 			cy = b_height - 2 - (show_gpu ? (gpus.size() - (gpu_always ? 0 : Gpu::shown)) : 0);
-		#else
-			cy = b_height - 2;
-		#endif
 			out += Mv::to(b_y + cy, b_x + cx + 1) + Theme::c("main_fg") + lavg_str;
 		}
 
-	#ifdef GPU_SUPPORT
 		//? Gpu brief info
 		if (show_gpu) {
 			for (unsigned long i = 0; i < gpus.size(); ++i) {
@@ -921,7 +899,6 @@ namespace Cpu {
 				if (cy > b_height - 1) break;
 			}
 		}
-	#endif
 
 		redraw = false;
 		return out + Fx::reset;
@@ -929,7 +906,6 @@ namespace Cpu {
 
 }
 
-#ifdef GPU_SUPPORT
 namespace Gpu {
 	int width_p = 100, height_p = 32;
 	int min_width = 41, min_height = 11;
@@ -1100,7 +1076,6 @@ namespace Gpu {
 	}
 
 }
-#endif
 
 namespace Mem {
 	int width_p = 45, height_p = 36;
@@ -2001,7 +1976,6 @@ namespace Draw {
 		Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true;
 
 		Cpu::shown = s_contains(boxes, "cpu");
-	#ifdef GPU_SUPPORT
 		auto gpu_count = Gpu::get_count();
 		Gpu::box.clear();
 		Gpu::width = 0;
@@ -2016,7 +1990,6 @@ namespace Draw {
 		}
 		Gpu::shown = Gpu::shown_panels.size();
 
-	#endif
 		Mem::shown = s_contains(boxes, "mem");
 		Net::shown = s_contains(boxes, "net");
 		Proc::shown = s_contains(boxes, "proc");
@@ -2027,32 +2000,24 @@ namespace Draw {
 			auto coreCount = Shared::get_coreCount();
 			auto got_sensors = get_got_sensors();
 
-		#ifdef GPU_SUPPORT
 			int gpus_extra_height =
 				Config::getS("show_gpu_info") == "On" ? gpu_count
 				: Config::getS("show_gpu_info") == "Auto" ? gpu_count - Gpu::shown
 				: 0;
-		#endif
+
             const bool show_temp = (Config::getB("check_temp") and got_sensors);
 			width = round((double)Term::width * width_p / 100);
-		#ifdef GPU_SUPPORT
+
 			if (Gpu::shown != 0 and not (Mem::shown or Net::shown or Proc::shown)) {
 				height = Term::height - Gpu::min_height*Gpu::shown - gpus_extra_height;
 			} else {
 				height = max(8, (int)ceil((double)Term::height * (trim(boxes) == "cpu" ? 100 : height_p/(Gpu::shown+1) + (Gpu::shown != 0)*5) / 100));
 			}
 			if (height <= Term::height-gpus_extra_height) height += gpus_extra_height;
-		#else
-			height = max(8, (int)ceil((double)Term::height * (trim(boxes) == "cpu" ? 100 : height_p) / 100));
-		#endif
 			x = 1;
 			y = cpu_bottom ? Term::height - height + 1 : 1;
 
-		#ifdef GPU_SUPPORT
 			b_columns = max(2, (int)ceil((double)(coreCount + 1) / (height - gpus_extra_height - 5)));
-		#else
-			b_columns = max(1, (int)ceil((double)(coreCount + 1) / (height - 5)));
-		#endif
 			if (b_columns * (21 + 12 * show_temp) < width - (width / 3)) {
 				b_column_size = 2;
 				b_width = (21 + 12 * show_temp) * b_columns - (b_columns - 1);
@@ -2070,12 +2035,9 @@ namespace Draw {
 			}
 
 			if (b_column_size == 0) b_width = (8 + 6 * show_temp) * b_columns + 1;
-		#ifdef GPU_SUPPORT
+
 			//gpus_extra_height = max(0, gpus_extra_height - 1);
 			b_height = min(height - 2, (int)ceil((double)coreCount / b_columns) + 4 + gpus_extra_height);
-		#else
-			b_height = min(height - 2, (int)ceil((double)coreCount / b_columns) + 4);
-		#endif
 
 			b_x = x + width - b_width - 1;
 			b_y = y + ceil((double)(height - 2) / 2) - ceil((double)b_height / 2) + 1;
@@ -2091,7 +2053,6 @@ namespace Draw {
 			box += createBox(b_x, b_y, b_width, b_height, "", false, cpu_title);
 		}
 
-	#ifdef GPU_SUPPORT
 		//* Calculate and draw gpu box outlines
 		if (Gpu::shown != 0) {
 			using namespace Gpu;
@@ -2138,7 +2099,6 @@ namespace Draw {
 				box[i] += createBox(b_x_vec[i], b_y_vec[i], b_width, b_height_vec[i], "", false, name.substr(0, b_width-5));
 			}
 		}
-	#endif
 
 		//* Calculate and draw mem box outlines
 		if (Mem::shown) {
@@ -2149,22 +2109,12 @@ namespace Draw {
 			auto has_swap = get_has_swap();
 
 			width = round((double)Term::width * (Proc::shown ? width_p : 100) / 100);
-		#ifdef GPU_SUPPORT
 			height = ceil((double)Term::height * (100 - Net::height_p * Net::shown*4 / ((Gpu::shown != 0 and Cpu::shown) + 4)) / 100) - Cpu::height - Gpu::height*Gpu::shown;
-		#else
-			height = ceil((double)Term::height * (100 - Cpu::height_p * Cpu::shown - Net::height_p * Net::shown) / 100) + 1;
-		#endif
 			x = (proc_left and Proc::shown) ? Term::width - width + 1: 1;
 			if (mem_below_net and Net::shown)
-		#ifdef GPU_SUPPORT
 				y = Term::height - height + 1 - (cpu_bottom ? Cpu::height + Gpu::height*Gpu::shown : 0);
 			else
 				y = cpu_bottom ? 1 : Cpu::height + Gpu::height*Gpu::shown + 1;
-		#else
-				y = Term::height - height + 1 - (cpu_bottom ? Cpu::height : 0);
-			else
-				y = cpu_bottom ? 1 : Cpu::height + 1;
-		#endif
 
 			if (show_disks) {
 				mem_width = ceil((double)(width - 3) / 2);
@@ -2213,18 +2163,10 @@ namespace Draw {
 		if (Net::shown) {
 			using namespace Net;
 			width = round((double)Term::width * (Proc::shown ? width_p : 100) / 100);
-		#ifdef GPU_SUPPORT
 			height = Term::height - Cpu::height - Gpu::height*Gpu::shown - Mem::height;
-		#else
-			height = Term::height - Cpu::height - Mem::height;
-		#endif
 			x = (proc_left and Proc::shown) ? Term::width - width + 1 : 1;
 			if (mem_below_net and Mem::shown)
-			#ifdef GPU_SUPPORT
 				y = cpu_bottom ? 1 : Cpu::height + Gpu::height*Gpu::shown + 1;
-			#else
-				y = cpu_bottom ? 1 : Cpu::height + 1;
-			#endif
 			else
 				y = Term::height - height + 1 - (cpu_bottom ? Cpu::height : 0);
 
@@ -2243,17 +2185,9 @@ namespace Draw {
 		if (Proc::shown) {
 			using namespace Proc;
 			width = Term::width - (Mem::shown ? Mem::width : (Net::shown ? Net::width : 0));
-		#ifdef GPU_SUPPORT
 			height = Term::height - Cpu::height - Gpu::height*Gpu::shown;
-		#else
-			height = Term::height - Cpu::height;
-		#endif
 			x = proc_left ? 1 : Term::width - width + 1;
-		#ifdef GPU_SUPPORT
 			y = (cpu_bottom and Cpu::shown) ? 1 : Cpu::height + Gpu::height*Gpu::shown + 1;
-		#else
-			y = (cpu_bottom and Cpu::shown) ? 1 : Cpu::height + 1;
-		#endif
 			select_max = height - 3;
 			box = createBox(x, y, width, height, Theme::c("proc_box"), true, "proc", "", 4);
 		}

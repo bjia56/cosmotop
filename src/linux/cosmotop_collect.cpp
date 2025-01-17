@@ -117,7 +117,6 @@ namespace Cpu {
 
 namespace Gpu {
 	vector<gpu_info> gpus;
-#ifdef GPU_SUPPORT
 	vector<string> gpu_names;
 	vector<int> gpu_b_height_offsets;
 	std::unordered_map<string, deque<long long>> shared_gpu_percent = {
@@ -247,7 +246,6 @@ namespace Gpu {
 		template <bool is_init> bool collect(gpu_info* gpus_slice);
 		uint32_t device_count = 0;
 	}
-#endif
 }
 
 namespace Mem {
@@ -310,7 +308,6 @@ namespace Shared {
 		Cpu::core_mapping = Cpu::get_core_mapping();
 
 		//? Init for namespace Gpu
-	#ifdef GPU_SUPPORT
 		Gpu::Nvml::init();
 		Gpu::Rsmi::init();
 		Gpu::Intel::init();
@@ -329,7 +326,6 @@ namespace Shared {
 					   + (gpus[i].supported_functions.mem_total or gpus[i].supported_functions.mem_used)
 						* (1 + 2*(gpus[i].supported_functions.mem_total and gpus[i].supported_functions.mem_used) + 2*gpus[i].supported_functions.mem_utilization);
 		}
-	#endif
 
 		//? Init for namespace Mem
 		Mem::old_uptime = system_uptime();
@@ -1037,7 +1033,6 @@ namespace Cpu {
 	}
 }
 
-#ifdef GPU_SUPPORT
 namespace Gpu {
     //? NVIDIA
     namespace Nvml {
@@ -1869,7 +1864,6 @@ namespace Gpu {
 		return gpus;
 	}
 }
-#endif
 
 namespace Mem {
 	bool has_swap{};
