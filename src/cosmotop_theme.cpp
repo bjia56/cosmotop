@@ -40,7 +40,7 @@ string Fx::reset = reset_base;
 
 namespace Theme {
 
-	fs::path theme_dir;
+	fs::path theme_dir = "/zip/themes";
 	fs::path user_theme_dir;
 	vector<string> themes;
 	std::unordered_map<string, string> colors;

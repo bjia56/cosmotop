@@ -970,33 +970,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	//? Try to find global cosmotop theme path relative to binary path
-#ifdef __linux__
-	{ 	std::error_code ec;
-		Global::self_path = fs::read_symlink("/proc/self/exe", ec).remove_filename();
-	}
-#elif __APPLE__
-	{
-		char buf [PATH_MAX];
-		uint32_t bufsize = PATH_MAX;
-		if(!_NSGetExecutablePath(buf, &bufsize))
-			Global::self_path = fs::path(buf).remove_filename();
-	}
-#endif
-	if (std::error_code ec; not Global::self_path.empty()) {
-		Theme::theme_dir = fs::canonical(Global::self_path / "../share/cosmotop/themes", ec);
-		if (ec or not fs::is_directory(Theme::theme_dir) or access(Theme::theme_dir.c_str(), R_OK) == -1) Theme::theme_dir.clear();
-	}
-	//? If relative path failed, check two most common absolute paths
-	if (Theme::theme_dir.empty()) {
-		for (auto theme_path : {"/usr/local/share/cosmotop/themes", "/usr/share/cosmotop/themes"}) {
-			if (fs::is_directory(fs::path(theme_path)) and access(theme_path, R_OK) != -1) {
-				Theme::theme_dir = fs::path(theme_path);
-				break;
-			}
-		}
-	}
-
 	//? Config init
 	init_config();
 

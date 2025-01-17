@@ -213,7 +213,6 @@ namespace Menu {
 				"Set color theme.",
 				"",
 				"Choose from all theme files in (usually)",
-				"\"/usr/[local/]share/cosmotop/themes\" and",
 				"\"~/.config/cosmotop/themes\".",
 				"",
 				"\"Default\" for builtin default theme.",

@@ -50,7 +50,7 @@ namespace Config {
 
 	const vector<array<string, 2>> descriptions = {
 		{"color_theme", 		"#* Name of a cosmotop formatted \".theme\" file, \"Default\" and \"TTY\" for builtin themes.\n"
-								"#* Themes should be placed in \"../share/cosmotop/themes\" relative to binary or \"$HOME/.config/cosmotop/themes\""},
+								"#* Themes should be placed in \"$HOME/.config/cosmotop/themes\""},
 
 		{"theme_background", 	"#* If the theme set background should be shown, set to False if you want terminal background transparency."},
 
