@@ -111,6 +111,11 @@ namespace Shared {
 	//* Initialize platform specific needed variables and check for errors
 	void init();
 
+	//* Tear down WMI on Windows
+	namespace WMI {
+		bool shutdown();
+	}
+
 	extern long coreCount, page_size, clk_tck;
 
 	long get_coreCount();

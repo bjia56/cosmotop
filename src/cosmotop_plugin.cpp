@@ -191,6 +191,13 @@ void plugin_initializer(Plugin* plugin) {
 	plugin->registerHandler<long>("Shared::get_coreCount", std::function([]() {
 		return Shared::coreCount;
 	}));
+	plugin->registerHandler<bool>("Shared::WMI::shutdown", std::function([]() {
+#ifdef _WIN32
+		return Shared::WMI::shutdown();
+#else
+		return true;
+#endif
+	}));
 
 	plugin->registerHandler<double>("Tools::system_uptime", std::function([]() {
 		return Tools::system_uptime();
@@ -670,6 +677,12 @@ namespace Shared {
 	}
 	long get_coreCount() {
 		return pluginHost->call<long>("Shared::get_coreCount");
+	}
+
+	namespace WMI {
+		bool shutdown() {
+			return pluginHost->call<bool>("Shared::WMI::shutdown");
+		}
 	}
 }
 

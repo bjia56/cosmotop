@@ -39,6 +39,7 @@ tab-size = 4
 
 #include <cosmo.h>
 #include <libc/calls/struct/utsname.h>
+//#include <libc/runtime/runtime.h>
 
 #include <fmt/core.h>
 #include <fmt/ostream.h>
@@ -340,6 +341,7 @@ void clean_quit(int sig) {
 
 	Gpu::Nvml::shutdown();
 	Gpu::Rsmi::shutdown();
+	Shared::WMI::shutdown();
 
 	Config::write();
 
@@ -892,6 +894,7 @@ namespace Runner {
 
 //* --------------------------------------------- Main starts here! ---------------------------------------------------
 int main(int argc, char **argv) {
+	//ShowCrashReports();
 
 	//? ------------------------------------------------ INIT ---------------------------------------------------------
 

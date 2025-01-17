@@ -132,7 +132,20 @@ namespace Tools {
 namespace Shared {
 	IWbemServices* WbemServices;
 
+	namespace WMI {
+		mutable std::mutex guard;
+		std::condition_variable signal;
+		bool running;
+
+		bool shutdown() {
+			running = false;
+			signal.notify_all();
+		}
+	}
+
 	void WMI_init() {
+		WMI::running = true;
+
 		volatile bool done = false;
 		std::thread([&] {
 			// Perform initialization in a separate thread to ensure loaded dlls
@@ -150,8 +163,11 @@ namespace Shared {
 			if (auto hr = CoSetProxyBlanket(WbemServices, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE); FAILED(hr))
 				Logger::warning("Shared::WMI_init() -> CoSetProxyBlanket() failed with code: " + to_string(hr));
 			done = true;
-			while (not Global::get_quitting()) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+			std::unique_lock<std::mutex> lock(WMI::guard);
+			while (WMI::running) WMI::signal.wait(lock);
 		}).detach();
+
 		while (!done) busy_wait();
 	}
 
