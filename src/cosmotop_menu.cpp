@@ -208,6 +208,7 @@ namespace Menu {
 	};
 
 	const vector<vector<vector<string>>> categories = {
+		// general
 		{
 			{"color_theme",
 				"Set color theme.",
@@ -365,6 +366,7 @@ namespace Menu {
 				"The level set includes all lower levels,",
 				"i.e. \"DEBUG\" will show all logging info."}
 		},
+		// cpu
 		{
 			{"cpu_bottom",
 				"Cpu box location.",
@@ -501,6 +503,7 @@ namespace Menu {
 				"",
 				"True or False."},
 		},
+		// gpu
 		{
 			{"nvml_measure_pcie_speeds",
 				"Measure PCIe throughput on NVIDIA cards.",
@@ -559,6 +562,12 @@ namespace Menu {
 				"",
 				"Empty string to disable."},
 		},
+		// npu
+		{
+			{"coming_soon",
+				"Coming soon..."},
+		},
+		// mem
 		{
 			{"mem_below_net",
 				"Mem box location.",
@@ -574,6 +583,18 @@ namespace Menu {
 				"Show graphs for memory values.",
 				"",
 				"True or False."},
+			{"show_swap",
+				"If swap memory should be shown in memory box.",
+				"",
+				"True or False."},
+			{"swap_disk",
+				"Show swap as a disk.",
+				"",
+				"Ignores show_swap value above.",
+				"Inserts itself after first disk."},
+		},
+		// disk
+		{
 			{"show_disks",
 				"Split memory box to also show disks.",
 				"",
@@ -609,15 +630,6 @@ namespace Menu {
 				"whitespace \" \".",
 				"",
 				"Example: \"/dev/sda:100, /dev/sdb:20\"."},
-			{"show_swap",
-				"If swap memory should be shown in memory box.",
-				"",
-				"True or False."},
-			{"swap_disk",
-				"Show swap as a disk.",
-				"",
-				"Ignores show_swap value above.",
-				"Inserts itself after first disk."},
 			{"only_physical",
 				"Filter out non physical disks.",
 				"",
@@ -671,6 +683,7 @@ namespace Menu {
 				"",
 				"True or False."},
 		},
+		// net
 		{
 			{"graph_symbol_net",
 				"Graph symbol to use for graphs in net box.",
@@ -712,6 +725,7 @@ namespace Menu {
 				"Will otherwise automatically choose the NIC",
 				"with the highest total download since boot."},
 		},
+		// proc
 		{
 			{"proc_left",
 				"Proc box location.",
@@ -1433,7 +1447,7 @@ namespace Menu {
 			//? Category buttons
 			out += Mv::to(y+7, x+2);
 
-			static const array titles = {"general"s, "cpu"s, "gpu"s, "mem"s, "net"s, "proc"s};
+			static const array titles = {"general"s, "cpu"s, "gpu"s, "npu"s, "mem"s, "disk"s, "net"s, "proc"s};
 
 			// Get expected size of each category title, allow 2 spaces on each side next to the border
 			const int title_width = (menubox_width - 4) / titles.size();
