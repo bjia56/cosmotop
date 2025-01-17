@@ -53,7 +53,7 @@ Documentation coming soon!
 
 `cosmotop` supports the following operating systems and architectures:
 
-- Linux 2.6.18+ (x86_64 and aarch64) with glibc 2.17+
+- Linux 2.6.18+ (x86_64 and aarch64)
 - MacOS 13+ (x86_64 and aarch64)
 - Windows 10+ (x86_64)
 - FreeBSD 13+ (x86_64 and aarch64)
@@ -66,7 +66,7 @@ Documentation coming soon!
 [Actually Portable Executable](https://justine.lol/ape.html) file format to create a single executable capable of
 running on multiple operating systems and architectures. This multiplatform executable contains code to draw
 the terminal UI and handle generic systems metrics, like processes, memory, disk, etc. On Windows, the executable
-runs natively. On UNIX, the executable will self-extract a small loader program to run the program.
+runs natively. On UNIX, the executable will self-extract a small loader binary to run the program.
 
 Collecting real data from the underlying system is done by helper [plugins](https://github.com/bjia56/libcosmo_plugin), which are built for each target platform using host-native compilers and libraries. These plugins are then bundled into `cosmotop.exe` and extracted out onto the host under the path `~/.cosmotop`, and are used at runtime to gather system metrics that are then displayed by the primary multiplatform executable process in the terminal.
 
@@ -92,23 +92,22 @@ This should produce a `cosmotop.com` binary.
 
 ### Building platform-native "plugin" binaries
 
-Platform-native binaries are built as shared libraries on Linux, MacOS (aarch64), Windows, and FreeBSD, and as
-executables on MacOS (x86_64), NetBSD, and OpenBSD. Plugins are built as executables on platforms where Cosmopolitan
-is unable to reliably load native shared libraries. To tell CMake to build plugins, use `-DTARGET=plugin`, which
-defaults to building in shared library mode. To switch to executable mode, add `-DBUILD_EXE=ON`.
+Platform-native binaries are built as shared libraries on MacOS (aarch64), Windows, and FreeBSD, and as
+executables on Linux, MacOS (x86_64), NetBSD, and OpenBSD. Plugins are built as executables on platforms where Cosmopolitan
+is unable to reliably load native shared libraries, or when building an executable provides greater distro compatibility (e.g. Linux plugins are statically linked with musl libc). To tell CMake to build plugins, use `-DTARGET=plugin`, which
+automatically selects whether to build a shared library or an executable.
 
 ```bash
 cmake -B build-plugin -DTARGET=plugin
-# or: cmake -B build-plugin -DTARGET=plugin -DBUILD_EXE=ON
 cmake --build build
 # or: cmake --build build --parallel
 ```
 
-This should produce a `libcosmotop.[so|dylib]`, `cosmotop.dll`, or `libcosmotop.exe`. Rename it to one of the following, matching the target platform:
+This should produce a `libcosmotop-plugin.[so|dylib]`, `cosmotop-plugin.dll`, or `cosmotop-plugin.exe`. Rename it to one of the following, matching the target platform:
 
 ```
-cosmotop-linux-x86_64.so
-cosmotop-linux-aarch64.so
+cosmotop-linux-x86_64.exe
+cosmotop-linux-aarch64.exe
 cosmotop-macos-x86_64.exe
 cosmotop-macos-aarch64.dylib
 cosmotop-windows-x86_64.dll
@@ -123,7 +122,13 @@ cosmotop-openbsd-x86_64.exe
 The plugin binaries can be added to `cosmotop.com` with `zip`, for example:
 
 ```bash
-zip cosmotop.com cosmotop-linux-x86_64.so
+zip cosmotop.com cosmotop-linux-x86_64.exe
+```
+
+Themes can also be bundled:
+
+```bash
+zip -r cosmotop.com themes/
 ```
 
 Optionally, rename `cosmotop.com` to `cosmotop.exe`.
