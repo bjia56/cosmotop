@@ -305,7 +305,7 @@ void term_resize(bool force) {
 					clean_quit(0);
 				else if (key.size() == 1 and isint(key)) {
 					auto intKey = stoi(key);
-					auto gpu_count = Gpu::get_count();
+					const auto gpu_count = Gpu::get_count();
 					if ((intKey == 0 and gpu_count >= 5) or (intKey >= 5 and intKey - 4 <= gpu_count)) {
 						auto box = all_boxes.at(intKey);
 						Config::current_preset = -1;

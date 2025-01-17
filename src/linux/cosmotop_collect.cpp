@@ -785,7 +785,7 @@ namespace Cpu {
 			}
 		}
 
-		auto battery_sel = Config::getS("selected_battery");
+		const auto battery_sel = Config::getS("selected_battery");
 
 		if (auto_sel.empty()) {
 			for (auto& [name, bat] : batteries) {
@@ -892,7 +892,7 @@ namespace Cpu {
 	auto collect(bool no_update) -> cpu_info& {
 		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
 		auto& cpu = current_cpu;
-		auto width = get_width();
+		const auto width = get_width();
 
 		if (Config::getB("show_cpu_freq"))
 			cpuHz = get_cpuHz();
@@ -1676,7 +1676,7 @@ namespace Gpu {
 
 		// Attempts to initialize with intel_gpu_exporter REST api
 		static char *init_rest() {
-			string rest_endpoint = Config::getS("intel_gpu_exporter");
+			const auto rest_endpoint = Config::getS("intel_gpu_exporter");
 			if (rest_endpoint.empty()) {
 				Logger::debug("Fallback Intel GPU exporter not configured, Intel GPUs will not be detected");
 				return nullptr;
@@ -1814,7 +1814,7 @@ namespace Gpu {
 		Rsmi::collect<0>(gpus.data() + Nvml::device_count); // size = Rsmi::device_count
 		Intel::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count); // size = Intel::device_count
 
-		auto width = get_width();
+		const auto width = get_width();
 
 		//* Calculate average usage
 		long long avg = 0;
@@ -1894,13 +1894,13 @@ namespace Mem {
 
 	auto collect(bool no_update) -> mem_info& {
 		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty())) return current_mem;
-		auto show_swap = Config::getB("show_swap");
-		auto swap_disk = Config::getB("swap_disk");
-		auto show_disks = Config::getB("show_disks");
-		auto zfs_arc_cached = Config::getB("zfs_arc_cached");
+		const auto show_swap = Config::getB("show_swap");
+		const auto swap_disk = Config::getB("swap_disk");
+		const auto show_disks = Config::getB("show_disks");
+		const auto zfs_arc_cached = Config::getB("zfs_arc_cached");
 		auto totalMem = get_totalMem();
 		auto& mem = current_mem;
-		auto width = get_width();
+		const auto width = get_width();
 
 		mem.stats.at("swap_total") = 0;
 
@@ -1988,13 +1988,13 @@ namespace Mem {
 		if (show_disks) {
 			static vector<string> ignore_list;
 			double uptime = system_uptime();
-			auto free_priv = Config::getB("disk_free_priv");
+			const auto free_priv = Config::getB("disk_free_priv");
 			try {
-				auto disks_filter = Config::getS("disks_filter");
+				const auto disks_filter = Config::getS("disks_filter");
 				bool filter_exclude = false;
-				auto use_fstab = Config::getB("use_fstab");
-				auto only_physical = Config::getB("only_physical");
-				auto zfs_hide_datasets = Config::getB("zfs_hide_datasets");
+				const auto use_fstab = Config::getB("use_fstab");
+				const auto only_physical = Config::getB("only_physical");
+				const auto zfs_hide_datasets = Config::getB("zfs_hide_datasets");
 				auto& disks = mem.disks;
 				static std::unordered_map<string, future<pair<disk_info, int>>> disks_stats_promises;
 				ifstream diskread;
@@ -2366,7 +2366,7 @@ namespace Mem {
 		int64_t io_ticks_total{};
 		int64_t objects_read{};
 
-		auto width = get_width();
+		const auto width = get_width();
 
 		// looking through all files that start with 'objset'
 		for (const auto& file: fs::directory_iterator(disk.stat)) {
@@ -2451,11 +2451,11 @@ namespace Net {
 	auto collect(bool no_update) -> net_info& {
 		if (Runner::get_stopping()) return empty_net;
 		auto& net = current_net;
-		auto config_iface = Config::getS("net_iface");
-		auto net_sync = Config::getB("net_sync");
-		auto net_auto = Config::getB("net_auto");
+		const auto config_iface = Config::getS("net_iface");
+		const auto net_sync = Config::getB("net_sync");
+		const auto net_auto = Config::getB("net_auto");
 		auto new_timestamp = time_ms();
-		auto width = get_width();
+		const auto width = get_width();
 
 		if (not no_update and errors < 3) {
 			//? Get interface list using getifaddrs() wrapper
@@ -2663,7 +2663,7 @@ namespace Proc {
 	//* Get detailed info for selected process
 	void _collect_details(const size_t pid, const uint64_t uptime, vector<proc_info>& procs) {
 		fs::path pid_path = Shared::procPath / std::to_string(pid);
-		auto width = get_width();
+		const auto width = get_width();
 
 		if (pid != detailed.last_pid) {
 			detailed = {};
@@ -2762,12 +2762,12 @@ namespace Proc {
 	auto collect(bool no_update) -> vector<proc_info>& {
 		if (Runner::get_stopping()) return current_procs;
 		const auto sorting = Config::getS("proc_sorting");
-		auto reverse = Config::getB("proc_reversed");
+		const auto reverse = Config::getB("proc_reversed");
 		const auto filter = Config::getS("proc_filter");
-		auto per_core = Config::getB("proc_per_core");
-		auto should_filter_kernel = Config::getB("proc_filter_kernel");
-		auto tree = Config::getB("proc_tree");
-		auto show_detailed = Config::getB("show_detailed");
+		const auto per_core = Config::getB("proc_per_core");
+		const auto should_filter_kernel = Config::getB("proc_filter_kernel");
+		const auto tree = Config::getB("proc_tree");
+		const auto show_detailed = Config::getB("show_detailed");
 		const size_t detailed_pid = Config::getI("detailed_pid");
 		bool should_filter = current_filter != filter;
 		if (should_filter) current_filter = filter;

@@ -253,9 +253,11 @@ namespace Cpu {
 	}
 
 	bool get_sensors() {
-		Logger::debug("get_sensors(): show_coretemp=" + std::to_string(Config::getB("show_coretemp")) + " check_temp=" + std::to_string(Config::getB("check_temp")));
+		const auto show_coretemp = Config::getB("show_coretemp");
+		const auto check_temp = Config::getB("check_temp");
+		Logger::debug("get_sensors(): show_coretemp=" + std::to_string(show_coretemp) + " check_temp=" + std::to_string(check_temp));
 		got_sensors = false;
-		if (Config::getB("show_coretemp") and Config::getB("check_temp")) {
+		if (show_coretemp and check_temp) {
 #if __MAC_OS_X_VERSION_MIN_REQUIRED > 101504
 			ThermalSensors sensors;
 			if (sensors.getSensors() > 0) {
@@ -456,7 +458,7 @@ namespace Cpu {
 		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty()))
 			return current_cpu;
 		auto &cpu = current_cpu;
-		auto width = get_width();
+		const auto width = get_width();
 
 		if (getloadavg(cpu.load_avg.data(), cpu.load_avg.size()) < 0) {
 			Logger::error("failed to get load averages");
@@ -606,7 +608,7 @@ namespace Mem {
 	void collect_disk(std::unordered_map<string, disk_info> &disks, std::unordered_map<string, string> &mapping) {
 		io_registry_entry_t drive;
 		io_iterator_t drive_list;
-		auto width = get_width();
+		const auto width = get_width();
 
 		mach_port_t libtop_master_port;
 		if (IOMasterPort(bootstrap_port, &libtop_master_port)) {
@@ -679,12 +681,12 @@ namespace Mem {
 		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty()))
 			return current_mem;
 
-		auto show_swap = Config::getB("show_swap");
-		auto show_disks = Config::getB("show_disks");
-		auto swap_disk = Config::getB("swap_disk");
+		const auto show_swap = Config::getB("show_swap");
+		const auto show_disks = Config::getB("show_disks");
+		const auto swap_disk = Config::getB("swap_disk");
 		auto &mem = current_mem;
 		static bool snapped = (getenv("COSMOTOP_SNAPPED") != nullptr);
-		auto width = get_width();
+		const auto width = get_width();
 
 		vm_statistics64 p;
 		mach_msg_type_number_t info_size = HOST_VM_INFO64_COUNT;
@@ -724,9 +726,9 @@ namespace Mem {
 		if (show_disks) {
 			std::unordered_map<string, string> mapping;  // keep mapping from device -> mountpoint, since IOKit doesn't give us the mountpoint
 			double uptime = system_uptime();
-			auto disks_filter = Config::getS("disks_filter");
+			const auto disks_filter = Config::getS("disks_filter");
 			bool filter_exclude = false;
-			// auto only_physical = Config::getB("only_physical");
+			// const auto only_physical = Config::getB("only_physical");
 			auto &disks = mem.disks;
 			vector<string> filter;
 			if (not disks_filter.empty()) {
@@ -863,11 +865,11 @@ namespace Net {
 
 	auto collect(bool no_update) -> net_info & {
 		auto &net = current_net;
-		auto config_iface = Config::getS("net_iface");
-		auto net_sync = Config::getB("net_sync");
-		auto net_auto = Config::getB("net_auto");
+		const auto config_iface = Config::getS("net_iface");
+		const auto net_sync = Config::getB("net_sync");
+		const auto net_auto = Config::getB("net_auto");
 		auto new_timestamp = time_ms();
-		auto width = get_width();
+		const auto width = get_width();
 
 		if (not no_update and errors < 3) {
 			//? Get interface list using getifaddrs() wrapper
@@ -1099,7 +1101,7 @@ namespace Proc {
 			detailed.last_pid = pid;
 			detailed.skip_smaps = not Config::getB("proc_info_smaps");
 		}
-		auto width = get_width();
+		const auto width = get_width();
 
 		//? Copy proc_info for process from proc vector
 		auto p_info = rng::find(procs, pid, &proc_info::pid);
@@ -1146,11 +1148,11 @@ namespace Proc {
 	//* Collects and sorts process information from /proc
 	auto collect(bool no_update) -> vector<proc_info> & {
 		const auto sorting = Config::getS("proc_sorting");
-		auto reverse = Config::getB("proc_reversed");
+		const auto reverse = Config::getB("proc_reversed");
 		const auto filter = Config::getS("proc_filter");
-		auto per_core = Config::getB("proc_per_core");
-		auto tree = Config::getB("proc_tree");
-		auto show_detailed = Config::getB("show_detailed");
+		const auto per_core = Config::getB("proc_per_core");
+		const auto tree = Config::getB("proc_tree");
+		const auto show_detailed = Config::getB("show_detailed");
 		const size_t detailed_pid = Config::getI("detailed_pid");
 		bool should_filter = current_filter != filter;
 		if (should_filter) current_filter = filter;

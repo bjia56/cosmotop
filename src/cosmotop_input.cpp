@@ -233,7 +233,7 @@ namespace Input {
 				else if (key.size() == 1 and isint(key)) {
 					auto intKey = stoi(key);
 					static const array<string, 10> boxes = {"gpu5", "cpu", "mem", "net", "proc", "gpu0", "gpu1", "gpu2", "gpu3", "gpu4"};
-					auto gpu_count = Gpu::get_count();
+					const auto gpu_count = Gpu::get_count();
 					if ((intKey == 0 and gpu_count < 5) or (intKey >= 5 and intKey - 4 > gpu_count))
 						return;
 					atomic_wait(Runner::active);

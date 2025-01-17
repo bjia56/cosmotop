@@ -537,7 +537,7 @@ namespace Cpu {
 		bool hide_cores = show_temps and (get_cpu_temp_only() or not Config::getB("show_coretemp"));
 		const int extra_width = (hide_cores ? max(6, 6 * b_column_size) : 0);
 
-		auto gpu_count = Gpu::get_count();
+		const auto gpu_count = Gpu::get_count();
 		const auto& show_gpu_info = Config::getS("show_gpu_info");
 		const bool gpu_always = show_gpu_info == "On";
 		const bool gpu_auto = show_gpu_info == "Auto";
@@ -1976,7 +1976,7 @@ namespace Draw {
 		Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true;
 
 		Cpu::shown = s_contains(boxes, "cpu");
-		auto gpu_count = Gpu::get_count();
+		const auto gpu_count = Gpu::get_count();
 		Gpu::box.clear();
 		Gpu::width = 0;
 		Gpu::shown_panels.clear();
