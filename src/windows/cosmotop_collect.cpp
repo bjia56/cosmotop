@@ -140,6 +140,7 @@ namespace Shared {
 		bool shutdown() {
 			running = false;
 			signal.notify_all();
+			return true;
 		}
 	}
 
