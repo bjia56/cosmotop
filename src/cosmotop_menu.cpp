@@ -888,10 +888,12 @@ namespace Menu {
 		auto& out = Global::overlay;
 		int retval = Changed;
 
+		const auto menubox_width = 78;
+
 		if (redraw) {
 			x = Term::width/2 - 40;
 			y = Term::height/2 - 9;
-			bg = Draw::createBox(x + 2, y, 78, 19, Theme::c("hi_fg"), true, "signals");
+			bg = Draw::createBox(x + 2, y, menubox_width, 19, Theme::c("hi_fg"), true, "signals");
 			bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Send signal to PID " + to_string(s_pid) + " ("
 				+ uresize((s_pid == Config::getI("detailed_pid") ? Proc::get_detailed().entry.name : Config::getS("selected_name")), 30) + ")", 76);
 		}
@@ -1215,6 +1217,8 @@ namespace Menu {
 		bool screen_redraw{};
 		bool theme_refresh{};
 
+		const auto menubox_width = 78;
+
 		//? Draw background if needed else process input
 		if (redraw) {
 			mouse_mappings.clear();
@@ -1224,9 +1228,9 @@ namespace Menu {
 			height = min(Term::height - 7, max_items * 2 + 4);
 			if (height % 2 != 0) height--;
 			bg 	= Draw::banner_gen(y, 0, true)
-				+ Draw::createBox(x, y + 6, 78, height, Theme::c("hi_fg"), true, "tab" + Symbols::right)
+				+ Draw::createBox(x, y + 6, menubox_width, height, Theme::c("hi_fg"), true, "tab" + Symbols::right)
 				+ Mv::to(y+8, x) + Theme::c("hi_fg") + Symbols::div_left + Theme::c("div_line") + Symbols::h_line * 29
-				+ Symbols::div_up + Symbols::h_line * (78 - 32) + Theme::c("hi_fg") + Symbols::div_right
+				+ Symbols::div_up + Symbols::h_line * (menubox_width - 32) + Theme::c("hi_fg") + Symbols::div_right
 				+ Mv::to(y+6+height - 1, x+30) + Symbols::div_down + Theme::c("div_line");
 			for (const auto& i : iota(0, height - 4)) {
 				bg += Mv::to(y+9 + i, x + 30) + Symbols::v_line;
@@ -1427,20 +1431,45 @@ namespace Menu {
 			}
 
 			//? Category buttons
-			out += Mv::to(y+7, x+4);
-			for (int i = 0; const auto& m : {"general", "cpu", "gpu", "mem", "net", "proc"}) {
-				out += Fx::b + (i == selected_cat
+			out += Mv::to(y+7, x+2);
+
+			static const array titles = {"general"s, "cpu"s, "gpu"s, "mem"s, "net"s, "proc"s};
+
+			// Get expected size of each category title, allow 2 spaces on each side next to the border
+			const int title_width = (menubox_width - 4) / titles.size();
+
+			// Account for rounding errors
+			const int diff = menubox_width - 4 - title_width * titles.size();
+			out += string(diff / 2, ' ');
+
+			// Draw category titles
+			for (int i = 0; const auto& m : titles) {
+				assert(m.length() <= title_width - 2); // sanity check
+
+				// calculate padding to center title with brackets/number
+				// we cannot use cjust because of the themes
+				const int paddingl_len = (title_width - 2 - m.length()) / 2;
+				const int paddingr_len = title_width - 2 - m.length() - paddingl_len;
+				const string paddingl = paddingl_len > 0 ? Mv::r(paddingl_len) : "";
+				const string paddingr = paddingr_len > 0 ? Mv::r(paddingr_len) : "";
+
+				out += paddingl + Fx::b + (
+						i == selected_cat
 						? Theme::c("hi_fg") + '[' + Theme::c("title") + m + Theme::c("hi_fg") + ']'
-						: Theme::c("hi_fg") + to_string(i + 1) + Theme::c("title") + m + ' ')
-					+ Mv::r(7);
-				if (string button_name = "select_cat_" + to_string(i + 1); not editing and not mouse_mappings.contains(button_name))
-					mouse_mappings[button_name] = {y+6, x+2 + 15*i, 3, 15};
+						: Theme::c("hi_fg") + to_string(i + 1) + Theme::c("title") + m + ' '
+					) + paddingr;
+				if (string button_name = "select_cat_" + to_string(i + 1); not editing and not mouse_mappings.contains(button_name)) {
+					mouse_mappings[button_name] = {y+6, x+2 + title_width*i, 3, title_width};
+				}
 				i++;
 			}
+
+			// Draw page indicator in lower left
 			if (pages > 1) {
 				out += Mv::to(y+6 + height - 1, x+2) + Theme::c("hi_fg") + Symbols::title_left_down + Fx::b + Symbols::up + Theme::c("title") + " page "
 					+ to_string(page+1) + '/' + to_string(pages) + ' ' + Theme::c("hi_fg") + Symbols::down + Fx::ub + Symbols::title_right_down;
 			}
+
 			//? Option name and value
 			auto cy = y+9;
 			for (int c = 0, i = max(0, item_height * page); c++ < item_height and i < (int)categories[selected_cat].size(); i++) {
@@ -1476,7 +1505,7 @@ namespace Menu {
 			}
 
 			if (not warnings.empty()) {
-				messageBox = msgBox{min(78, (int)ulen(warnings) + 10), msgBox::BoxTypes::OK, {uresize(warnings, 74)}, "warning"};
+				messageBox = msgBox{min(menubox_width, (int)ulen(warnings) + 10), msgBox::BoxTypes::OK, {uresize(warnings, 74)}, "warning"};
 				out += messageBox();
 			}
 
@@ -1516,6 +1545,8 @@ namespace Menu {
 		if (bg.empty()) page = 0;
 		int retval = Changed;
 
+		const auto menubox_width = 78;
+
 		if (redraw) {
 			y = max(1, Term::height/2 - 4 - (int)(help_text.size() / 2));
 			x = Term::width/2 - 39;
@@ -1523,7 +1554,7 @@ namespace Menu {
 			pages = ceil((double)help_text.size() / (height - 3));
 			page = 0;
 			bg = Draw::banner_gen(y, 0, true);
-			bg += Draw::createBox(x, y + 6, 78, height, Theme::c("hi_fg"), true, "help");
+			bg += Draw::createBox(x, y + 6, menubox_width, height, Theme::c("hi_fg"), true, "help");
 		}
 		else if (is_in(key, "escape", "q", "h", "backspace", "space", "enter", "mouse_click")) {
 			return Closed;
