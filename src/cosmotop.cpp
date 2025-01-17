@@ -330,19 +330,12 @@ void clean_quit(int sig) {
 	Runner::stop();
 
 	if (Global::_runner_started) {
-	#if defined __APPLE__ || defined __OpenBSD__ || defined __NetBSD__
-		if (pthread_join(Runner::runner_id, nullptr) != 0) {
-			Logger::warning("Failed to join _runner thread on exit!");
-			pthread_cancel(Runner::runner_id);
-		}
-	#else
 		struct timespec ts;
 		ts.tv_sec = 5;
 		if (pthread_timedjoin_np(Runner::runner_id, nullptr, &ts) != 0) {
 			Logger::warning("Failed to join _runner thread on exit!");
 			pthread_cancel(Runner::runner_id);
 		}
-	#endif
 	}
 
 	Gpu::Nvml::shutdown();
