@@ -30,6 +30,21 @@ using std::unordered_map;
 
 #include "config.h"
 
+namespace Gpu {
+	namespace Nvml {
+		bool shutdown();
+	}
+	namespace Rsmi {
+		bool shutdown();
+	}
+}
+
+namespace Shared {
+	namespace WMI {
+		bool shutdown();
+	}
+}
+
 Plugin* plugin = nullptr;
 
 void plugin_initializer(Plugin* plugin) {
@@ -41,20 +56,42 @@ void plugin_initializer(Plugin* plugin) {
 		return ss.str();
 	}));
 
-	plugin->registerHandler<bool>("Gpu::Nvml::shutdown", std::function([]() {
+	plugin->registerHandler<vector<Npu::npu_info>, bool>("Npu::collect", std::function([](bool no_update) {
 #ifdef __linux__
-		return Gpu::Nvml::shutdown();
+		return Npu::collect(no_update);
 #else
-		return true;
+		return vector<Npu::npu_info>();
 #endif
 	}));
-	plugin->registerHandler<bool>("Gpu::Rsmi::shutdown", std::function([]() {
+	plugin->registerHandler<int>("Npu::get_count", std::function([]() {
 #ifdef __linux__
-		return Gpu::Rsmi::shutdown();
+		return Npu::count;
 #else
-		return true;
+		return 0;
 #endif
 	}));
+	plugin->registerHandler<vector<string>>("Npu::get_npu_names", std::function([]() {
+#ifdef __linux__
+		return Npu::npu_names;
+#else
+		return vector<string>();
+#endif
+	}));
+	plugin->registerHandler<vector<int>>("Npu::get_npu_b_height_offsets", std::function([]() {
+#ifdef __linux__
+		return Npu::npu_b_height_offsets;
+#else
+		return vector<int>();
+#endif
+	}));
+	plugin->registerHandler<unordered_map<string, deque<long long>>>("Npu::get_shared_npu_percent", std::function([]() {
+#ifdef __linux__
+		return Npu::shared_npu_percent;
+#else
+		return unordered_map<string, deque<long long>();
+#endif
+	}));
+
 	plugin->registerHandler<vector<Gpu::gpu_info>, bool>("Gpu::collect", std::function([](bool no_update) {
 #ifdef __linux__
 		return Gpu::collect(no_update);
@@ -191,12 +228,14 @@ void plugin_initializer(Plugin* plugin) {
 	plugin->registerHandler<long>("Shared::get_coreCount", std::function([]() {
 		return Shared::coreCount;
 	}));
-	plugin->registerHandler<bool>("Shared::WMI::shutdown", std::function([]() {
-#ifdef _WIN32
-		return Shared::WMI::shutdown();
-#else
-		return true;
+	plugin->registerHandler<bool>("Shared::shutdown", std::function([]() {
+#if defined(_WIN32)
+		Shared::WMI::shutdown();
+#elif defined(__linux__)
+		Gpu::Nvml::shutdown();
+		Gpu::Rsmi::shutdown();
 #endif
+		return true;
 	}));
 
 	plugin->registerHandler<double>("Tools::system_uptime", std::function([]() {
@@ -270,6 +309,12 @@ namespace Cpu {
 namespace Gpu {
 	int get_width() {
 		return plugin->call<int>("Gpu::get_width");
+	}
+}
+
+namespace Npu {
+	int get_width() {
+		return plugin->call<int>("Npu::get_width");
 	}
 }
 
@@ -481,6 +526,10 @@ void create_plugin_host() {
 		return Gpu::width;
 	}));
 
+	pluginHost->registerHandler<int>("Npu::get_width", std::function([]() {
+		return Npu::width;
+	}));
+
 	pluginHost->registerHandler<int>("Net::get_width", std::function([]() {
 		return Net::width;
 	}));
@@ -526,13 +575,33 @@ string plugin_build_info() {
 	return pluginHost->call<string>("build_info");
 }
 
+namespace Npu {
+	vector<npu_info>& collect(bool no_update) {
+		static vector<npu_info> result;
+		result = pluginHost->call<vector<npu_info>, bool>("Npu::collect", std::move(no_update));
+		return result;
+	}
+	int get_count() {
+		return pluginHost->call<int>("Npu::get_count");
+	}
+	vector<string>& get_npu_names() {
+		static vector<string> result;
+		result = pluginHost->call<vector<string>>("Npu::get_npu_names");
+		return result;
+	}
+	vector<int>& get_npu_b_height_offsets() {
+		static vector<int> result;
+		result = pluginHost->call<vector<int>>("Npu::get_npu_b_height_offsets");
+		return result;
+	}
+	unordered_map<string, deque<long long>>& get_shared_npu_percent() {
+		static unordered_map<string, deque<long long>> result;
+		result = pluginHost->call<unordered_map<string, deque<long long>>>("Npu::get_shared_npu_percent");
+		return result;
+	}
+}
+
 namespace Gpu {
-	bool Nvml::shutdown() {
-		return pluginHost->call<bool>("Gpu::Nvml::shutdown");
-	}
-	bool Rsmi::shutdown() {
-		return pluginHost->call<bool>("Gpu::Rsmi::shutdown");
-	}
 	vector<gpu_info>& collect(bool no_update) {
 		static vector<gpu_info> result;
 		result = pluginHost->call<vector<gpu_info>, bool>("Gpu::collect", std::move(no_update));
@@ -678,11 +747,8 @@ namespace Shared {
 	long get_coreCount() {
 		return pluginHost->call<long>("Shared::get_coreCount");
 	}
-
-	namespace WMI {
-		bool shutdown() {
-			return pluginHost->call<bool>("Shared::WMI::shutdown");
-		}
+	bool shutdown() {
+		return pluginHost->call<bool>("Shared::shutdown");
 	}
 }
 

@@ -39,7 +39,7 @@ tab-size = 4
 
 #include <cosmo.h>
 #include <libc/calls/struct/utsname.h>
-//#include <libc/runtime/runtime.h>
+#include <libc/runtime/runtime.h>
 
 #include <fmt/core.h>
 #include <fmt/ostream.h>
@@ -266,7 +266,7 @@ void term_resize(bool force) {
 		if (force and refreshed) force = false;
 	}
 	else return;
-	static const array<string, 10> all_boxes = {"gpu5", "cpu", "mem", "net", "proc", "gpu0", "gpu1", "gpu2", "gpu3", "gpu4"};
+	static const array<string, 10> all_boxes = {"npu2", "cpu", "mem", "net", "proc", "gpu0", "gpu1", "gpu2", "npu0", "npu1"};
 	Global::resized = true;
 	if (Runner::active) Runner::stop();
 	Term::refresh();
@@ -307,7 +307,13 @@ void term_resize(bool force) {
 				else if (key.size() == 1 and isint(key)) {
 					auto intKey = stoi(key);
 					const auto gpu_count = Gpu::get_count();
-					if ((intKey == 0 and gpu_count >= 5) or (intKey >= 5 and intKey - 4 <= gpu_count)) {
+					const auto npu_count = Npu::get_count();
+					if ((intKey >= 5 and intKey <= 7 and intKey - 4 <= gpu_count)) {
+						auto box = all_boxes.at(intKey);
+						Config::current_preset = -1;
+						Config::toggle_box(box);
+						boxes = Config::getS("shown_boxes");
+					} else if ((intKey == 0 and npu_count >= 3) or (intKey >= 8 and intKey - 7 <= npu_count)) {
 						auto box = all_boxes.at(intKey);
 						Config::current_preset = -1;
 						Config::toggle_box(box);
@@ -339,9 +345,7 @@ void clean_quit(int sig) {
 		}
 	}
 
-	Gpu::Nvml::shutdown();
-	Gpu::Rsmi::shutdown();
-	Shared::WMI::shutdown();
+	Shared::shutdown();
 
 	Config::write();
 
@@ -634,6 +638,25 @@ namespace Runner {
 				}
 				auto& gpus_ref = gpus;
 
+				//? NPU data collection
+				const bool npu_in_cpu_panel = Npu::get_npu_names().size() > 0 and (
+					Config::getS("cpu_graph_lower").starts_with("npu-") or Config::getS("cpu_graph_upper").starts_with("npu-")
+					or (Npu::shown == 0 and Config::getS("show_npu_info") != "Off")
+				);
+
+				vector<unsigned int> npu_panels = {};
+				for (auto& box : conf.boxes)
+					if (box.starts_with("npu"))
+						npu_panels.push_back(box.back()-'0');
+
+				vector<Npu::npu_info> npus;
+				if (npu_in_cpu_panel or not npu_panels.empty()) {
+					if (Global::debug) debug_timer("npu", collect_begin);
+					npus = Npu::collect(conf.no_update);
+					if (Global::debug) debug_timer("npu", collect_done);
+				}
+				auto& npus_ref = npus;
+
 				//? CPU
 				if (v_contains(conf.boxes, "cpu")) {
 					try {
@@ -653,7 +676,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("cpu", draw_begin);
 
 						//? Draw box
-						if (not pause_output) output += Cpu::draw(cpu, gpus_ref, conf.force_redraw, conf.no_update);
+						if (not pause_output) output += Cpu::draw(cpu, gpus_ref, npus_ref, conf.force_redraw, conf.no_update);
 
 						if (Global::debug) debug_timer("cpu", draw_done);
 					}
@@ -675,7 +698,24 @@ namespace Runner {
 						if (Global::debug) debug_timer("gpu", draw_done);
 					}
 					catch (const std::exception& e) {
-                        throw std::runtime_error("Gpu:: -> " + string{e.what()});
+						throw std::runtime_error("Gpu:: -> " + string{e.what()});
+					}
+				}
+
+				//? NPU
+				if (not npu_panels.empty() and not npus_ref.empty()) {
+					try {
+						if (Global::debug) debug_timer("npu", draw_begin_only);
+
+						//? Draw box
+						if (not pause_output)
+							for (unsigned long i = 0; i < npu_panels.size(); ++i)
+								output += Npu::draw(npus_ref[npu_panels[i]], i, conf.force_redraw, conf.no_update);
+
+						if (Global::debug) debug_timer("npu", draw_done);
+					}
+					catch (const std::exception& e) {
+						throw std::runtime_error("Npu:: -> " + string{e.what()});
 					}
 				}
 
@@ -894,7 +934,7 @@ namespace Runner {
 
 //* --------------------------------------------- Main starts here! ---------------------------------------------------
 int main(int argc, char **argv) {
-	//ShowCrashReports();
+	ShowCrashReports();
 
 	//? ------------------------------------------------ INIT ---------------------------------------------------------
 

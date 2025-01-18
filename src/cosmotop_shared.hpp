@@ -111,10 +111,8 @@ namespace Shared {
 	//* Initialize platform specific needed variables and check for errors
 	void init();
 
-	//* Tear down WMI on Windows
-	namespace WMI {
-		bool shutdown();
-	}
+	//* Tear down GPU, etc.
+	bool shutdown();
 
 	extern long coreCount, page_size, clk_tck;
 
@@ -128,6 +126,46 @@ namespace Shared {
 	};
 	using KvmPtr = std::unique_ptr<kvm_t, KvmDeleter>;
 #endif
+}
+
+
+namespace Npu {
+	extern int width;
+	extern int shown;
+	extern int count;
+	extern vector<int> shown_panels;
+	extern vector<string> npu_names;
+	extern vector<int> npu_b_height_offsets;
+	extern std::unordered_map<string, deque<long long>> shared_npu_percent; // averages
+
+	int get_count();
+
+	vector<string>& get_npu_names();
+	vector<int>& get_npu_b_height_offsets();
+
+	int get_width();
+
+	std::unordered_map<string, deque<long long>>& get_shared_npu_percent();
+
+	//* Container for supported Npu::*::collect() functions
+	struct npu_info_supported {
+		bool npu_utilization = true;
+	};
+
+	//* Per-device container for NPU info
+	struct npu_info {
+		std::unordered_map<string, deque<long long>> npu_percent = {
+			{"npu-totals", {}},
+		};
+
+		npu_info_supported supported_functions;
+	};
+
+	//* Collect npu stats
+    auto collect(bool no_update = false) -> vector<npu_info>&;
+
+	//* Draw contents of npu box using <npus> as source
+  	string draw(const npu_info& npu, unsigned long index, bool force_redraw, bool data_same);
 }
 
 
@@ -199,13 +237,6 @@ namespace Gpu {
 		// vector<proc_info> compute_processes = {};
 	};
 
-	namespace Nvml {
-		extern bool shutdown();
-	}
-	namespace Rsmi {
-		extern bool shutdown();
-	}
-
 	//* Collect gpu stats and temperatures
     auto collect(bool no_update = false) -> vector<gpu_info>&;
 
@@ -257,7 +288,7 @@ namespace Cpu {
 	auto collect(bool no_update = false) -> cpu_info&;
 
 	//* Draw contents of cpu box using <cpu> as source
-    string draw(const cpu_info& cpu, const vector<Gpu::gpu_info>& gpu, bool force_redraw = false, bool data_same = false);
+    string draw(const cpu_info& cpu, const vector<Gpu::gpu_info>& gpu, const vector<Npu::npu_info>& npu, bool force_redraw = false, bool data_same = false);
 
 	//* Parse /proc/cpu info for mapping of core ids
 	auto get_core_mapping() -> std::unordered_map<int, int>;

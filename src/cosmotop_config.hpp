@@ -51,6 +51,7 @@ namespace Config {
 	};
 	const vector<string> temp_scales = { "celsius", "fahrenheit", "kelvin", "rankine" };
 	const vector<string> show_gpu_values = { "Auto", "On", "Off" };
+	const vector<string> show_npu_values = { "Auto", "On", "Off" };
 	extern vector<string> current_boxes;
 	extern vector<string> preset_list;
 	extern vector<string> available_batteries;

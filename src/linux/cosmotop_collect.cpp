@@ -244,6 +244,35 @@ namespace Gpu {
 		template <bool is_init> bool collect(gpu_info* gpus_slice);
 		uint32_t device_count = 0;
 	}
+
+	//? Test data collection, for development use only. Set device_count to number of simulated devices.
+	namespace Test {
+		bool initialized = false;
+		bool init();
+		bool shutdown();
+		template <bool is_init> bool collect(gpu_info* gpus_slice);
+		constexpr uint32_t device_count = 0;
+	}
+}
+
+namespace Npu {
+	vector<npu_info> npus;
+	vector<string> npu_names;
+	vector<int> npu_b_height_offsets;
+	std::unordered_map<string, deque<long long>> shared_npu_percent = {
+		{"npu-average", {}},
+	};
+
+	int count = 0;
+
+	//? Test data collection, for development use only. Set device_count to number of simulated devices.
+	namespace Test {
+		bool initialized = false;
+		bool init();
+		bool shutdown();
+		template <bool is_init> bool collect(npu_info* npus_slice);
+		constexpr uint32_t device_count = 0;
+	}
 }
 
 namespace Mem {
@@ -309,6 +338,7 @@ namespace Shared {
 		Gpu::Nvml::init();
 		Gpu::Rsmi::init();
 		Gpu::Intel::init();
+		if constexpr(Gpu::Test::device_count > 0) Gpu::Test::init();
 		if (not Gpu::gpu_names.empty()) {
 			for (auto const& [key, _] : Gpu::gpus[0].gpu_percent)
 				Cpu::available_fields.push_back(key);
@@ -323,6 +353,21 @@ namespace Shared {
 					   + gpus[i].supported_functions.pwr_usage
 					   + (gpus[i].supported_functions.mem_total or gpus[i].supported_functions.mem_used)
 						* (1 + 2*(gpus[i].supported_functions.mem_total and gpus[i].supported_functions.mem_used) + 2*gpus[i].supported_functions.mem_utilization);
+		}
+
+		//? Init for namespace Npu
+		if constexpr(Npu::Test::device_count > 0) Npu::Test::init();
+		if (not Npu::npu_names.empty()) {
+			for (auto const& [key, _] : Npu::npus[0].npu_percent)
+				Cpu::available_fields.push_back(key);
+			for (auto const& [key, _] : Npu::shared_npu_percent)
+				Cpu::available_fields.push_back(key);
+
+			using namespace Npu;
+			count = npus.size();
+			npu_b_height_offsets.resize(npus.size());
+			for (size_t i = 0; i < npu_b_height_offsets.size(); ++i)
+				npu_b_height_offsets[i] = npus[i].supported_functions.npu_utilization;
 		}
 
 		//? Init for namespace Mem
@@ -1416,7 +1461,7 @@ namespace Gpu {
 
 		bool shutdown() {
 			if (!initialized) return false;
-    		if (rsmi_shut_down() == RSMI_STATUS_SUCCESS) {
+			if (rsmi_shut_down() == RSMI_STATUS_SUCCESS) {
 				initialized = false;
 			#if !defined(RSMI_STATIC)
 				dlclose(rsmi_dl_handle);
@@ -1803,6 +1848,89 @@ namespace Gpu {
 		}
 	}
 
+	//? Test
+	namespace Test {
+		bool init() {
+			if (initialized) return false;
+
+			const size_t previous_size = gpus.size();
+			gpus.resize(previous_size + device_count);
+			gpu_names.resize(previous_size + device_count);
+
+			for (int i = 0; i < device_count; ++i) {
+				gpu_names[previous_size + i] = "Test GPU" + std::to_string(i);
+			}
+
+			initialized = true;
+			Test::collect<1>(gpus.data() + previous_size);
+
+			return true;
+		}
+
+		bool shutdown() {
+			if (!initialized) return false;
+			initialized = false;
+			return true;
+		}
+
+		template <bool is_init> bool collect(gpu_info* gpus_slice) {
+			if (!initialized) return false;
+
+			for (int i = 0; i < device_count; ++i) {
+				if constexpr(is_init) {
+					gpus_slice[i].supported_functions = {
+						.gpu_utilization = true,
+						.mem_utilization = true,
+						.gpu_clock = true,
+						.mem_clock = true,
+						.pwr_usage = true,
+						.pwr_state = true,
+						.temp_info = true,
+						.mem_total = true,
+						.mem_used = true,
+						.pcie_txrx = true
+					};
+
+					gpus_slice[i].pwr_max_usage = 10'000; //? 10W
+					gpus_slice[i].temp_max = 100;
+					gpus_slice[i].mem_total = 8'589'934'592; //? 8GB
+				}
+
+				//? GPU utilization
+				gpus_slice[i].gpu_percent.at("gpu-totals").push_back(rand() % 101);
+
+				//? Memory utilization
+				gpus_slice[i].mem_utilization_percent.push_back(rand() % 101);
+
+				//? Clock speeds
+				gpus_slice[i].gpu_clock_speed = rand() % 2000 + 1000;
+				gpus_slice[i].mem_clock_speed = rand() % 2000 + 1000;
+
+				//? Power usage
+				gpus_slice[i].pwr_usage = rand() % 10000;
+				if (gpus_slice[i].pwr_usage > gpus_slice[i].pwr_max_usage)
+					gpus_slice[i].pwr_max_usage = gpus_slice[i].pwr_usage;
+				gpus_slice[i].gpu_percent.at("gpu-pwr-totals").push_back(clamp((long long)round((double)gpus_slice[i].pwr_usage * 100.0 / (double)gpus_slice[i].pwr_max_usage), 0ll, 100ll));
+
+				//? Power state
+				gpus_slice[i].pwr_state = rand() % 8;
+
+				//? Temperature
+				gpus_slice[i].temp.push_back(rand() % 100);
+
+				//? Memory usage
+				gpus_slice[i].mem_used = rand() % gpus_slice[i].mem_total;
+				gpus_slice[i].gpu_percent.at("gpu-vram-totals").push_back((long long)round((double)gpus_slice[i].mem_used * 100.0 / (double)gpus_slice[i].mem_total));
+
+				//? PCIe link speeds
+				gpus_slice[i].pcie_tx = rand() % 1000;
+				gpus_slice[i].pcie_rx = rand() % 1000;
+			}
+
+			return true;
+		}
+	}
+
 	//? Collect data from GPU-specific libraries
 	auto collect(bool no_update) -> vector<gpu_info>& {
 		if (Runner::get_stopping() or (no_update and not gpus.empty())) return gpus;
@@ -1813,6 +1941,7 @@ namespace Gpu {
 		Nvml::collect<0>(gpus.data()); // raw pointer to vector data, size == Nvml::device_count
 		Rsmi::collect<0>(gpus.data() + Nvml::device_count); // size = Rsmi::device_count
 		Intel::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count); // size = Intel::device_count
+		if constexpr(Test::device_count > 0) Test::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count + Intel::device_count); // size = Test::device_count
 
 		const auto width = get_width();
 
@@ -1860,6 +1989,85 @@ namespace Gpu {
 		count = gpus.size();
 
 		return gpus;
+	}
+}
+
+namespace Npu {
+	//? Test
+	namespace Test {
+		bool init() {
+			if (initialized) return false;
+
+			size_t previous_size = npus.size();
+			npus.resize(previous_size + device_count);
+			npu_names.resize(previous_size + device_count);
+
+			for (int i = 0; i < device_count; i++) {
+				npu_names[previous_size + i] = "Test NPU" + std::to_string(i);
+			}
+
+			initialized = true;
+			Test::collect<1>(npus.data() + previous_size);
+
+			return true;
+		}
+
+		bool shutdown() {
+			if (!initialized) return false;
+			initialized = false;
+			return true;
+		}
+
+		template <bool is_init> bool collect(npu_info* npus_slice) {
+			if (!initialized) return false;
+
+			for (int i = 0; i < device_count; i++) {
+				if constexpr(is_init) {
+					npus_slice[i].supported_functions = {
+						.npu_utilization = true
+					};
+				}
+
+				//? NPU utilization
+				if (npus_slice[i].supported_functions.npu_utilization) {
+					npus_slice[i].npu_percent.at("npu-totals").push_back(rand() % 101);
+				}
+			}
+
+			return true;
+		}
+	}
+
+	auto collect(bool no_update) -> vector<npu_info>& {
+		if (Runner::get_stopping() or (no_update and not npus.empty())) return npus;
+
+		//* Collect data
+		if constexpr(Test::device_count > 0) Test::collect<0>(npus.data());
+
+		const auto width = get_width();
+
+		//* Calculate average usage
+		long long avg = 0;
+		for (auto& npu : npus) {
+			if (npu.supported_functions.npu_utilization)
+				avg += npu.npu_percent.at("npu-totals").back();
+
+			//* Trim vectors if there are more values than needed for graphs
+			if (width != 0) {
+				//? NPU utilization
+				while (cmp_greater(npu.npu_percent.at("npu-totals").size(), width * 2)) npu.npu_percent.at("npu-totals").pop_front();
+			}
+		}
+
+		shared_npu_percent.at("npu-average").push_back(avg / npus.size());
+
+		if (width != 0) {
+			while (cmp_greater(shared_npu_percent.at("npu-average").size(), width * 2)) shared_npu_percent.at("npu-average").pop_front();
+		}
+
+		count = npus.size();
+
+		return npus;
 	}
 }
 

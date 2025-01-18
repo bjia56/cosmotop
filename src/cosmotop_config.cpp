@@ -79,13 +79,15 @@ namespace Config {
 
 		{"graph_symbol_gpu", 	"# Graph symbol to use for graphs in gpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
+		{"graph_symbol_npu", 	"# Graph symbol to use for graphs in npu box, \"default\", \"braille\", \"block\" or \"tty\"."},
+
 		{"graph_symbol_mem", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
 		{"graph_symbol_net", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
 		{"graph_symbol_proc", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
-		{"shown_boxes", 		"#* Manually set which boxes to show. Available values are \"cpu mem net proc\" and \"gpu0\" through \"gpu5\", separate values with whitespace."},
+		{"shown_boxes", 		"#* Manually set which boxes to show. Available values are \"cpu mem net proc\", \"gpu0\" through \"gpu5\", and \"npu0\" through \"npu2\", separate values with whitespace."},
 
 		{"update_ms", 			"#* Update time in milliseconds, recommended 2000 ms or above for better sample times for graphs."},
 
@@ -126,6 +128,8 @@ namespace Config {
 								"#* Select from a list of detected attributes from the options menu."},
 
 		{"show_gpu_info",		"#* If gpu info should be shown in the cpu box. Available values = \"Auto\", \"On\" and \"Off\"."},
+
+		{"show_npu_info",		"#* If npu info should be shown in the cpu box. Available values = \"Auto\", \"On\" and \"Off\"."},
 
 		{"cpu_invert_lower", 	"#* Toggles if the lower CPU graph should be inverted."},
 
@@ -215,6 +219,7 @@ namespace Config {
 		{"rsmi_measure_pcie_speeds",
 								"#* Measure PCIe throughput on AMD cards, may impact performance on certain cards."},
 		{"gpu_mirror_graph",	"#* Horizontally mirror the GPU graph."},
+		{"npu_mirror_graph",	"#* Horizontally mirror the NPU graph."},
 		{"custom_gpu_name0",	"#* Custom gpu0 model name, empty string to disable."},
 		{"custom_gpu_name1",	"#* Custom gpu1 model name, empty string to disable."},
 		{"custom_gpu_name2",	"#* Custom gpu2 model name, empty string to disable."},
@@ -224,6 +229,10 @@ namespace Config {
 
 		{"intel_gpu_exporter",	"#* HTTP endpoint to pull Intel GPU metrics from, if Intel PMU is not available.\n"
 								"#* Use with https://github.com/bjia56/intel-gpu-exporter"},
+
+		{"custom_npu_name0",	"#* Custom npu0 model name, empty string to disable."},
+		{"custom_npu_name1",	"#* Custom npu1 model name, empty string to disable."},
+		{"custom_npu_name2",	"#* Custom npu2 model name, empty string to disable."},
 	};
 
 	std::unordered_map<std::string_view, string> strings = {
@@ -233,6 +242,7 @@ namespace Config {
 		{"presets", "cpu:1:default,proc:0:default cpu:0:default,mem:0:default,net:0:default cpu:0:block,net:0:tty"},
 		{"graph_symbol_cpu", "default"},
 		{"graph_symbol_gpu", "default"},
+		{"graph_symbol_npu", "default"},
 		{"graph_symbol_mem", "default"},
 		{"graph_symbol_net", "default"},
 		{"graph_symbol_proc", "default"},
@@ -261,6 +271,10 @@ namespace Config {
 		{"custom_gpu_name4", ""},
 		{"custom_gpu_name5", ""},
 		{"show_gpu_info", "Auto"},
+		{"show_npu_info", "Auto"},
+		{"custom_npu_name0", ""},
+		{"custom_npu_name1", ""},
+		{"custom_npu_name2", ""},
 		{"intel_gpu_exporter", ""}
 	};
 	std::unordered_map<std::string_view, string> stringsTmp;
@@ -315,7 +329,8 @@ namespace Config {
 		{"proc_aggregate", false},
 		{"nvml_measure_pcie_speeds", true},
 		{"rsmi_measure_pcie_speeds", true},
-		{"gpu_mirror_graph", true}
+		{"gpu_mirror_graph", true},
+		{"npu_mirror_graph", true}
 	};
 	std::unordered_map<std::string_view, bool> boolsTmp;
 
@@ -552,6 +567,9 @@ namespace Config {
 
 		else if (name == "show_gpu_info" and not v_contains(show_gpu_values, value))
 			validError = "Invalid value for show_gpu_info: " + value;
+
+		else if (name == "show_npu_info" and not v_contains(show_npu_values, value))
+			validError = "Invalid value for show_npu_info: " + value;
 
 		else if (name == "presets" and not presetsValid(value))
 			return false;
