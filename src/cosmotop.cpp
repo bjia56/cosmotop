@@ -39,7 +39,7 @@ tab-size = 4
 
 #include <cosmo.h>
 #include <libc/calls/struct/utsname.h>
-//#include <libc/runtime/runtime.h>
+#include <libc/runtime/runtime.h>
 
 #include <fmt/core.h>
 #include <fmt/ostream.h>
@@ -934,7 +934,7 @@ namespace Runner {
 
 //* --------------------------------------------- Main starts here! ---------------------------------------------------
 int main(int argc, char **argv) {
-	//ShowCrashReports();
+	ShowCrashReports();
 
 	//? ------------------------------------------------ INIT ---------------------------------------------------------
 
