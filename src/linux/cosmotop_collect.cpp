@@ -34,6 +34,7 @@ tab-size = 4
 #include <dlfcn.h>
 #include <unordered_map>
 #include <utility>
+#include <regex>
 
 #include <range/v3/all.hpp>
 
@@ -265,6 +266,14 @@ namespace Npu {
 
 	int count = 0;
 
+	namespace Rockchip {
+		bool initialized = false;
+		bool init();
+		bool shutdown();
+		template <bool is_init> bool collect(npu_info* npus_slice);
+		uint32_t device_count = 0;
+	}
+
 	//? Test data collection, for development use only. Set device_count to number of simulated devices.
 	namespace Test {
 		bool initialized = false;
@@ -356,6 +365,7 @@ namespace Shared {
 		}
 
 		//? Init for namespace Npu
+		Npu::Rockchip::init();
 		if constexpr(Npu::Test::device_count > 0) Npu::Test::init();
 		if (not Npu::npu_names.empty()) {
 			for (auto const& [key, _] : Npu::npus[0].npu_percent)
@@ -1657,14 +1667,14 @@ namespace Gpu {
 		static string init_pmu() {
 			char *gpu_path = find_intel_gpu_dir();
 			if (!gpu_path) {
-				Logger::debug("Failed to find Intel GPU sysfs path, Intel GPUs will not be detected");
+				Logger::info("Failed to find Intel GPU sysfs path, Intel GPUs will not be detected");
 				return "";
 			}
 
 			char *gpu_device_id = get_intel_device_id(gpu_path);
 			free(gpu_path);
 			if (!gpu_device_id) {
-				Logger::debug("Failed to find Intel GPU device ID, Intel GPUs will not be detected");
+				Logger::info("Failed to find Intel GPU device ID, Intel GPUs will not be detected");
 				return "";
 			}
 
@@ -1682,7 +1692,7 @@ namespace Gpu {
 
 			engines = discover_engines(device);
 			if (!engines) {
-				Logger::debug("Failed to find Intel GPU engines, Intel GPUs will not be detected");
+				Logger::warning("Failed to find Intel GPU engines, Intel GPUs will not be detected");
 				return "";
 			}
 
@@ -1726,7 +1736,7 @@ namespace Gpu {
 		static string init_rest() {
 			const auto rest_endpoint = Config::getS("intel_gpu_exporter");
 			if (rest_endpoint.empty()) {
-				Logger::debug("Fallback Intel GPU exporter not configured, Intel GPUs will not be detected");
+				Logger::info("Fallback Intel GPU exporter not configured, Intel GPUs will not be detected");
 				return "";
 			}
 
@@ -1998,6 +2008,106 @@ namespace Gpu {
 }
 
 namespace Npu {
+	//? Rockchip
+	namespace Rockchip {
+		/*
+		 * Sample contents:
+		 * NPU load:  Core0:  0%, Core1:  0%, Core2:  0%,
+		 */
+		static fs::path rknpu_load_path = "/sys/kernel/debug/rknpu/load";
+
+		bool init() {
+			if (initialized) return false;
+
+			// Wrap in try-catch to prevent crashes if the file is missing
+			// or if the user cannot access it
+			try {
+				// Does the load file exist?
+				if (!fs::exists(rknpu_load_path)) {
+					Logger::debug("Rockchip NPU not found, Rockchip NPUs will not be detected");
+					return false;
+				}
+
+				// Read the load file
+				std::ifstream load_file(rknpu_load_path);
+				if (!load_file.is_open()) {
+					Logger::warning("Failed to open Rockchip NPU load file");
+					return false;
+				}
+
+				// Extract the number of NPUs
+				std::stringstream buffer;
+				buffer << load_file.rdbuf();
+				std::regex npu_count_regex("Core([0-9]+):\\s*[0-9]+%");
+				std::string data = buffer.str();
+				for (std::smatch match; std::regex_search(data, match, npu_count_regex); data = match.suffix()) {
+					device_count++;
+				}
+			} catch (const std::exception& e) {
+				Logger::info("Failed to load Rockchip NPU: "s + e.what());
+				return false;
+			}
+
+			if (!device_count) {
+				Logger::info("Rockchip NPU not found, Rockchip NPUs will not be detected");
+				return false;
+			}
+
+			size_t previous_size = npus.size();
+			npus.resize(previous_size + device_count);
+			npu_names.resize(previous_size + device_count);
+
+			for (int i = 0; i < device_count; i++) {
+				npu_names[previous_size + i] = "Rockchip NPU" + std::to_string(i);
+			}
+
+			initialized = true;
+			Rockchip::collect<1>(npus.data() + previous_size);
+
+			return true;
+		}
+
+		bool shutdown() {
+			if (!initialized) return false;
+			initialized = false;
+			return true;
+		}
+
+		template <bool is_init> bool collect(npu_info* npus_slice) {
+			if (!initialized) return false;
+
+			std::ifstream load_file(rknpu_load_path);
+
+			// Read all lines
+			std::stringstream buffer;
+			if (load_file.is_open()) {
+				buffer << load_file.rdbuf();
+			} else {
+				Logger::info("Failed to read Rockchip NPU load file");
+			}
+
+			for (int i = 0; i < device_count; i++) {
+				if constexpr(is_init) {
+					npus_slice[i].supported_functions = {
+						.npu_utilization = true
+					};
+				}
+
+				//? NPU utilization
+				std::regex npu_count_regex("Core" + std::to_string(i) + ":\\s*([0-9]+)%");
+				std::smatch match;
+				std::string data = buffer.str();
+				if (std::regex_search(data, match, npu_count_regex) && match.size() > 1) {
+					npus_slice[i].npu_percent.at("npu-totals").push_back(std::stoi(match[1].str()));
+				} else {
+					npus_slice[i].npu_percent.at("npu-totals").push_back(0);
+				}
+			}
+
+			return true;
+		}
+	}
+
 	//? Test
 	namespace Test {
 		bool init() {
@@ -2047,7 +2157,8 @@ namespace Npu {
 		if (Runner::get_stopping() or (no_update and not npus.empty())) return npus;
 
 		//* Collect data
-		if constexpr(Test::device_count > 0) Test::collect<0>(npus.data());
+		Rockchip::collect<0>(npus.data());
+		if constexpr(Test::device_count > 0) Test::collect<0>(npus.data() + Rockchip::device_count);
 
 		const auto width = get_width();
 
