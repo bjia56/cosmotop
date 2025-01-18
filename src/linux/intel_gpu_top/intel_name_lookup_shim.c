@@ -28,10 +28,11 @@
 #define VENDOR_FILE "vendor"
 #define DEVICE_FILE "device"
 
+// Caller must free the returned pointer
 char* find_intel_gpu_dir() {
     DIR *dir;
     struct dirent *entry;
-    static char path[256];
+    char path[256];
     char vendor_path[256];
     char vendor_id[16];
 
@@ -57,7 +58,7 @@ char* find_intel_gpu_dir() {
                         closedir(dir);
                         // Return the parent directory (i.e., /sys/class/drm/card*)
                         snprintf(path, sizeof(path), "%s/%s", SYSFS_PATH, entry->d_name);
-                        return path;
+                        return strdup(path);
                     }
                 }
                 fclose(file);
@@ -69,8 +70,9 @@ char* find_intel_gpu_dir() {
     return NULL;  // Intel GPU not found
 }
 
+// Caller must free the returned pointer
 char* get_intel_device_id(const char* gpu_dir) {
-    static char device_path[256];
+    char device_path[256];
     char device_id[16];
 
     // Construct the path to the device file
@@ -93,6 +95,7 @@ char* get_intel_device_id(const char* gpu_dir) {
     return NULL;
 }
 
+// Caller must free the returned pointer
 char *get_intel_device_name(const char *device_id) {
     uint16_t devid = strtol(device_id, NULL, 16);
     char dev_name[256];

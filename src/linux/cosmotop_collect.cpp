@@ -1654,41 +1654,44 @@ namespace Gpu {
 
 	namespace Intel {
 		// Attempts to initialize with Intel PMU, returning the device name if successful
-		static char *init_pmu() {
+		static string init_pmu() {
 			char *gpu_path = find_intel_gpu_dir();
 			if (!gpu_path) {
 				Logger::debug("Failed to find Intel GPU sysfs path, Intel GPUs will not be detected");
-				return nullptr;
+				return "";
 			}
 
 			char *gpu_device_id = get_intel_device_id(gpu_path);
+			free(gpu_path);
 			if (!gpu_device_id) {
 				Logger::debug("Failed to find Intel GPU device ID, Intel GPUs will not be detected");
-				return nullptr;
+				return "";
 			}
 
-			char *gpu_device_name = get_intel_device_name(gpu_device_id);
-			if (!gpu_device_name) {
-				Logger::warning("Failed to find Intel GPU device name in internal database");
-				gpu_device_name = strdup("Intel GPU");
-			}
-
+			char *dev_name = get_intel_device_name(gpu_device_id);
 			free(gpu_device_id);
+
+			string gpu_device_name;
+			if (dev_name) {
+				gpu_device_name = string(dev_name);
+				free(dev_name);
+			} else {
+				Logger::warning("Failed to find Intel GPU device name in internal database");
+				gpu_device_name = "Intel GPU"s;
+			}
 
 			engines = discover_engines(device);
 			if (!engines) {
 				Logger::debug("Failed to find Intel GPU engines, Intel GPUs will not be detected");
-				free(gpu_device_name);
-				return nullptr;
+				return "";
 			}
 
 			int ret = pmu_init(engines);
 			if (ret) {
 				Logger::warning("Intel GPU: Failed to initialize PMU");
-				free(gpu_device_name);
 				free_engines(engines);
 				engines = nullptr;
-				return nullptr;
+				return "";
 			}
 
 			return gpu_device_name;
@@ -1720,11 +1723,11 @@ namespace Gpu {
 		}
 
 		// Attempts to initialize with intel_gpu_exporter REST api
-		static char *init_rest() {
+		static string init_rest() {
 			const auto rest_endpoint = Config::getS("intel_gpu_exporter");
 			if (rest_endpoint.empty()) {
 				Logger::debug("Fallback Intel GPU exporter not configured, Intel GPUs will not be detected");
-				return nullptr;
+				return "";
 			}
 
 			try {
@@ -1737,7 +1740,7 @@ namespace Gpu {
 					Logger::warning("Failed to get Intel GPU device ID from exporter");
 					delete exporter;
 					exporter = nullptr;
-					return nullptr;
+					return "";
 				}
 
 				// We get the value as a float, so need to convert it to hex string
@@ -1748,25 +1751,28 @@ namespace Gpu {
 				char *gpu_device_name = get_intel_device_name(ss.str().c_str());
 				if (!gpu_device_name) {
 					Logger::warning("Failed to find Intel GPU device name in internal database");
-					gpu_device_name = strdup("Intel GPU");
+					return "Intel GPU"s;
 				}
 
-				return gpu_device_name;
+				string result = string(gpu_device_name);
+				free(gpu_device_name);
+
+				return result;
 			} catch (const std::exception &e) {
 				Logger::warning("Failed to connect to Intel GPU exporter: "s + e.what());
 				if (exporter) delete exporter;
 				exporter = nullptr;
-				return nullptr;
+				return "";
 			}
 		}
 
 		bool init() {
 			if (initialized) return false;
 
-			char *gpu_device_name = init_pmu();
-			if (!gpu_device_name) {
+			string gpu_device_name = init_pmu();
+			if (gpu_device_name.empty()) {
 				gpu_device_name = init_rest();
-				if (!gpu_device_name) return false;
+				if (gpu_device_name.empty()) return false;
 			}
 
 			if (engines) {
@@ -1778,8 +1784,7 @@ namespace Gpu {
 			gpus.resize(gpus.size() + device_count);
 			gpu_names.resize(gpus.size() + device_count);
 
-			gpu_names[Nvml::device_count + Rsmi::device_count] = string(gpu_device_name);
-			free(gpu_device_name);
+			gpu_names[Nvml::device_count + Rsmi::device_count] = gpu_device_name;
 
 			initialized = true;
 			Intel::collect<1>(gpus.data() + Nvml::device_count + Rsmi::device_count);
