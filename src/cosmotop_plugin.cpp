@@ -88,7 +88,7 @@ void plugin_initializer(Plugin* plugin) {
 #ifdef __linux__
 		return Npu::shared_npu_percent;
 #else
-		return unordered_map<string, deque<long long>();
+		return unordered_map<string, deque<long long>>();
 #endif
 	}));
 
