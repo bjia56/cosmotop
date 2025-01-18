@@ -274,6 +274,14 @@ namespace Npu {
 		uint32_t device_count = 0;
 	}
 
+	namespace Intel {
+		bool initialized = false;
+		bool init();
+		bool shutdown();
+		template <bool is_init> bool collect(npu_info* npus_slice);
+		uint32_t device_count = 0;
+	}
+
 	//? Test data collection, for development use only. Set device_count to number of simulated devices.
 	namespace Test {
 		bool initialized = false;
@@ -366,6 +374,7 @@ namespace Shared {
 
 		//? Init for namespace Npu
 		Npu::Rockchip::init();
+		Npu::Intel::init();
 		if constexpr(Npu::Test::device_count > 0) Npu::Test::init();
 		if (not Npu::npu_names.empty()) {
 			for (auto const& [key, _] : Npu::npus[0].npu_percent)
@@ -2014,7 +2023,7 @@ namespace Npu {
 		 * Sample contents:
 		 * NPU load:  Core0:  0%, Core1:  0%, Core2:  0%,
 		 */
-		static fs::path rknpu_load_path = "/sys/kernel/debug/rknpu/load";
+		const fs::path rknpu_load_path = "/sys/kernel/debug/rknpu/load";
 
 		bool init() {
 			if (initialized) return false;
@@ -2108,6 +2117,103 @@ namespace Npu {
 		}
 	}
 
+	//? Intel
+	namespace Intel {
+		const fs::path intel_npu_busy_path = "/sys/devices/pci0000:00/0000:00:0b.0/npu_busy_time_us";
+
+		bool init() {
+			if (initialized) return false;
+
+			// Wrap in try-catch to prevent crashes if the file is missing
+			// or if the user cannot access it
+			try {
+				// Does the load file exist?
+				if (!fs::exists(intel_npu_busy_path)) {
+					Logger::debug("Intel NPU not found, Intel NPUs will not be detected");
+					return false;
+				}
+
+				// Read the load file
+				std::ifstream busy_file(intel_npu_busy_path);
+				if (!busy_file.is_open()) {
+					Logger::warning("Failed to open Intel NPU busy file");
+					return false;
+				}
+
+				// If the file can be read, assume we only have one NPU
+				device_count = 1;
+			} catch (const std::exception& e) {
+				Logger::info("Failed to load Intel NPU: "s + e.what());
+				return false;
+			}
+
+			if (!device_count) {
+				Logger::info("Intel NPU not found, Intel NPUs will not be detected");
+				return false;
+			}
+
+			size_t previous_size = npus.size();
+			npus.resize(previous_size + device_count);
+			npu_names.resize(previous_size + device_count);
+
+			for (int i = 0; i < device_count; i++) {
+				npu_names[previous_size + i] = "Intel NPU" + std::to_string(i);
+			}
+
+			initialized = true;
+			Intel::collect<1>(npus.data() + previous_size);
+
+			return true;
+		}
+
+		bool shutdown() {
+			if (!initialized) return false;
+			initialized = false;
+			return true;
+		}
+
+		template <bool is_init> bool collect(npu_info* npus_slice) {
+			if (!initialized) return false;
+
+			std::ifstream busy_file(intel_npu_busy_path);
+
+			// Read all lines
+			std::stringstream buffer;
+			if (busy_file.is_open()) {
+				buffer << busy_file.rdbuf();
+			} else {
+				Logger::info("Failed to read Intel NPU busy file");
+			}
+
+			// Initialized once and will be updated every subsequent sample
+			// https://github.com/nokyan/resources/issues/302#issuecomment-2284297338
+			static auto last_sample_time = std::chrono::system_clock::now();
+			static int last_sample_busy = 0;
+
+			if constexpr(is_init) {
+				npus_slice[0].supported_functions = {
+					.npu_utilization = true
+				};
+				last_sample_busy = std::stoi(buffer.str());
+
+				npus_slice[0].npu_percent.at("npu-totals").push_back(0);
+			} else {
+				auto current_sample_time = std::chrono::system_clock::now();
+				auto current_sample_busy = std::stoi(buffer.str());
+
+				auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(current_sample_time - last_sample_time).count();
+				auto busy_diff = current_sample_busy - last_sample_busy;
+
+				npus_slice[0].npu_percent.at("npu-totals").push_back(clamp((long long)round((double)busy_diff * 100.0 / (double)time_diff), 0ll, 100ll));
+
+				last_sample_time = current_sample_time;
+				last_sample_busy = current_sample_busy;
+			}
+
+			return true;
+		}
+	}
+
 	//? Test
 	namespace Test {
 		bool init() {
@@ -2158,7 +2264,8 @@ namespace Npu {
 
 		//* Collect data
 		Rockchip::collect<0>(npus.data());
-		if constexpr(Test::device_count > 0) Test::collect<0>(npus.data() + Rockchip::device_count);
+		Intel::collect<0>(npus.data() + Rockchip::device_count);
+		if constexpr(Test::device_count > 0) Test::collect<0>(npus.data() + Rockchip::device_count + Intel::device_count);
 
 		const auto width = get_width();
 
