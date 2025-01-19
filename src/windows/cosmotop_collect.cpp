@@ -476,14 +476,14 @@ namespace Cpu {
 			auto lines = ssplit(output.substr(output.find("Parameters")), '\n');
 			bool hit = false;
 			for (auto& instr : lines) {
-				if (instr.contains("CPU Core") or instr.contains("CPU Package")) {
+				if (instr.find("CPU Core") != string::npos or instr.find("CPU Package") != string::npos) {
 					hit = true;
 				}
-				else if (instr.contains("TjMax") and hit) {
+				else if (instr.find("TjMax") != string::npos and hit) {
 					current_cpu.temp_max = std::stoi(instr.substr(instr.find_last_of(':') + 1));
 					break;
 				}
-				else if (not instr.contains("+"))
+				else if (instr.find("+") == string::npos)
 					hit = false;
 				else if (instr.starts_with("-----"))
 					break;
@@ -561,7 +561,7 @@ namespace Gpu {
 		collect(false);
 	}
 
-	auto collect(bool no_update) {
+	auto collect(bool no_update) -> vector<gpu_info>& {
 		if (no_update or not Cpu::has_OHMR) return gpus;
 
 		const auto width = get_width();
@@ -575,8 +575,14 @@ namespace Gpu {
 		{
 			std::lock_guard lck(Cpu::OHMRmutex);
 			for (auto& [name, gpu] : Cpu::OHMRrawStats.GPUS) {
-				auto &info = rng::find_if(gpus, [&](const gpu_info& g) { return g.name == name; });
-				if (info == gpus.end()) {
+				ssize_t gpu_idx = -1;
+				for (size_t i = 0; i < gpu_names.size(); i++) {
+					if (gpu_names[i] == name) {
+						gpu_idx = i;
+						break;
+					}
+				}
+				if (gpu_idx == -1) {
 					gpu_info new_gpu = {
 						.supported_functions = {
 							.gpu_utilization = true,
@@ -590,7 +596,6 @@ namespace Gpu {
 							.mem_used = true,
 							.pcie_txrx = false,
 						},
-						.name = name,
 						.mem_used = gpu.mem_used,
 						.mem_total = gpu.mem_total,
 						.gpu_clock_speed = gpu.clock_mhz,
@@ -607,6 +612,7 @@ namespace Gpu {
 					);
 				}
 				else {
+					auto& info = gpus[gpu_idx];
 					info->temp.push_back(gpu.temp);
 					info->gpu_percent.at("gpu-totals").push_back(gpu.usage);
 					info->gpu_percent.at("gpu-vram-totals").push_back((long long)round((double)gpu.mem_used * 100.0 / (double)gpu.mem_total));
