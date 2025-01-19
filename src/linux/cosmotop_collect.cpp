@@ -434,6 +434,26 @@ namespace Cpu {
 				cpuinfo.ignore(1);
 				getline(cpuinfo, name);
 			}
+#ifdef __aarch64__
+			else if (access("/proc/device-tree/compatible", R_OK | F_OK) != -1) {
+				// https://github.com/fastfetch-cli/fastfetch/blob/5137a9e7a40b086e6ad7c4a21e05ea36ac4c9638/src/detection/cpu/cpu_linux.c#L440
+				// device-vendor,device-model\0soc-vendor,soc-model\0
+				ifstream compatible("/proc/device-tree/compatible");
+				if (compatible.good()) {
+					// read model from the second string
+					compatible.ignore(SSmax, '\0');
+					getline(compatible, name);
+
+					// remove any spaces
+					name = trim(name);
+
+					// split on commas and take the last part
+					auto name_vec = ssplit(name, ',');
+					if (name_vec.size() > 1) name = name_vec.back();
+					name = capitalize(name);
+				}
+			}
+#endif
 			else if (fs::exists("/sys/devices")) {
 				for (const auto& d : fs::directory_iterator("/sys/devices")) {
 					if (string(d.path().filename()).starts_with("arm")) {
