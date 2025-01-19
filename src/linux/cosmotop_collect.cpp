@@ -3303,7 +3303,9 @@ namespace Proc {
 				auto& new_proc = *find_old;
 
 				//? Get program name, command and username
-				if (no_cache) {
+				// weirdly enough, sometimes the proc entry exists but the name disappears,
+				// so we need to check if the name is empty and re-read from /proc
+				if (no_cache or new_proc.name.empty()) {
 					pread.open(d.path() / "comm");
 					if (not pread.good()) continue;
 					getline(pread, new_proc.name);
