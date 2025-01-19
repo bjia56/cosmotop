@@ -2119,46 +2119,67 @@ namespace Npu {
 
 	//? Intel
 	namespace Intel {
+		// https://github.com/nokyan/resources/issues/302#issuecomment-2284297338
+		// https://github.com/chromium/chromium/blob/884f7b1b2fd5a110f628860aef806f7291620644/chrome/browser/ui/webui/ash/sys_internals/sys_internals_message_handler.cc#L268
 		const fs::path intel_npu_busy_path = "/sys/devices/pci0000:00/0000:00:0b.0/npu_busy_time_us";
+
+		// https://github.com/DMontgomery40/intel-npu-top/blob/b1328afe5469e5d0a8256cde9c002b240b6f4470/intel-npu-top.py#L10
+		// https://github.com/ZoLArk173/nputop/blob/bfb22a49f15bee1d054a5d4e9ce98f1dd4da0021/src/main.rs#L61
+		const fs::path intel_npu_power_path = "/sys/devices/pci0000:00/0000:00:0b.0/power/runtime_active_time";
+
+		enum class MetricsMethod {
+			BUSY, POWER
+		};
+
+		MetricsMethod detected_method;
+
+		static bool detectBusy() {
+			// Wrap in try-catch to prevent crashes if the file is missing
+			// or if the user cannot access it
+			try {
+				if (fs::exists(intel_npu_busy_path)) {
+					std::ifstream busy_file(intel_npu_busy_path);
+					if (busy_file.is_open()) {
+						detected_method = MetricsMethod::BUSY;
+						return true;
+					}
+				}
+			} catch (const std::exception& e) {
+			}
+			return false;
+		}
+
+		static bool detectPower() {
+			try {
+				if (fs::exists(intel_npu_power_path)) {
+					std::ifstream power_file(intel_npu_power_path);
+					if (power_file.is_open()) {
+						detected_method = MetricsMethod::POWER;
+						return true;
+					}
+				}
+			} catch (const std::exception& e) {
+			}
+			return false;
+		}
 
 		bool init() {
 			if (initialized) return false;
 
-			// Wrap in try-catch to prevent crashes if the file is missing
-			// or if the user cannot access it
-			try {
-				// Does the load file exist?
-				if (!fs::exists(intel_npu_busy_path)) {
-					Logger::debug("Intel NPU not found, Intel NPUs will not be detected");
-					return false;
-				}
-
-				// Read the load file
-				std::ifstream busy_file(intel_npu_busy_path);
-				if (!busy_file.is_open()) {
-					Logger::warning("Failed to open Intel NPU busy file");
-					return false;
-				}
-
-				// If the file can be read, assume we only have one NPU
-				device_count = 1;
-			} catch (const std::exception& e) {
-				Logger::info("Failed to load Intel NPU: "s + e.what());
-				return false;
-			}
-
-			if (!device_count) {
+			// Detect the method to use
+			if (!detectBusy() && !detectPower()) {
 				Logger::info("Intel NPU not found, Intel NPUs will not be detected");
 				return false;
 			}
+
+			// Assume there is only one on the system
+			device_count = 1;
 
 			size_t previous_size = npus.size();
 			npus.resize(previous_size + device_count);
 			npu_names.resize(previous_size + device_count);
 
-			for (int i = 0; i < device_count; i++) {
-				npu_names[previous_size + i] = "Intel NPU" + std::to_string(i);
-			}
+			npu_names[previous_size] = "Intel NPU";
 
 			initialized = true;
 			Intel::collect<1>(npus.data() + previous_size);
@@ -2175,39 +2196,42 @@ namespace Npu {
 		template <bool is_init> bool collect(npu_info* npus_slice) {
 			if (!initialized) return false;
 
-			std::ifstream busy_file(intel_npu_busy_path);
+			std::ifstream metrics_file(detected_method == MetricsMethod::BUSY ? intel_npu_busy_path : intel_npu_power_path);
 
 			// Read all lines
 			std::stringstream buffer;
-			if (busy_file.is_open()) {
-				buffer << busy_file.rdbuf();
+			if (metrics_file.is_open()) {
+				buffer << metrics_file.rdbuf();
 			} else {
 				Logger::info("Failed to read Intel NPU busy file");
 			}
 
 			// Initialized once and will be updated every subsequent sample
-			// https://github.com/nokyan/resources/issues/302#issuecomment-2284297338
 			static auto last_sample_time = std::chrono::system_clock::now();
-			static int last_sample_busy = 0;
+			static double last_sample = 0;
 
 			if constexpr(is_init) {
 				npus_slice[0].supported_functions = {
 					.npu_utilization = true
 				};
-				last_sample_busy = std::stoi(buffer.str());
+				last_sample = std::stod(buffer.str());
 
 				npus_slice[0].npu_percent.at("npu-totals").push_back(0);
 			} else {
 				auto current_sample_time = std::chrono::system_clock::now();
-				auto current_sample_busy = std::stoi(buffer.str());
+				auto current_sample = std::stod(buffer.str());
 
-				auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(current_sample_time - last_sample_time).count();
-				auto busy_diff = current_sample_busy - last_sample_busy;
+				auto time_diff = (
+					detected_method == MetricsMethod::BUSY ?
+					std::chrono::duration_cast<std::chrono::microseconds>(current_sample_time - last_sample_time).count() :
+					std::chrono::duration_cast<std::chrono::milliseconds>(current_sample_time - last_sample_time).count()
+				);
+				auto sample_diff = current_sample - last_sample;
 
-				npus_slice[0].npu_percent.at("npu-totals").push_back(clamp((long long)round((double)busy_diff * 100.0 / (double)time_diff), 0ll, 100ll));
+				npus_slice[0].npu_percent.at("npu-totals").push_back(clamp((long long)round((double)sample_diff * 100.0 / (double)time_diff), 0ll, 100ll));
 
 				last_sample_time = current_sample_time;
-				last_sample_busy = current_sample_busy;
+				last_sample = current_sample;
 			}
 
 			return true;
