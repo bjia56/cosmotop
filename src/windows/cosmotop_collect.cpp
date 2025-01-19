@@ -329,7 +329,7 @@ namespace Cpu {
 					//? New sensor section
 					if (linevec.front() == "Hardware") {
 						cur_id = linevec.at(2);
-						if (cur_id.contains("Gpu")) {
+						if (cur_id.find("Gpu") != string::npos) {
 							gpu_name = linevec.at(1);
 							if (gpu_name.empty()) gpu_name = cur_id;
 							isGPU = true;
@@ -377,7 +377,7 @@ namespace Cpu {
 						}
 						//? Cpu core and package temp
 						else if (linevec.at(1) == "Temperature") {
-							if (linevec.front().starts_with("CPU Core #") and not linevec.front().contains("TjMax")) {
+							if (linevec.front().starts_with("CPU Core #") and linevec.front().find("TjMax") == string::npos) {
 								cpu_temps.push_back(std::stoi(linevec.at(2)));
 							}
 							else if (not hasPackage and (linevec.front().starts_with("CPU Package") or linevec.front() == "Core (Tctl/Tdie)")) {
@@ -398,7 +398,6 @@ namespace Cpu {
 					has_gpu = false;
 					got_sensors = false;
 					has_OHMR = false;
-					Global::resized = true;
 					return;
 				}
 			}
@@ -432,25 +431,12 @@ namespace Cpu {
 
 			if (has_gpu == gpus.empty()) {
 				Runner::active_atomic_wait();
-				Config::available_gpus = { "Auto" };
-				for (auto& gpu : gpu_order) {
-					Config::available_gpus.push_back(gpu);
-				}
-				if (auto it = rng::find(available_fields, "gpu"s); it != available_fields.end()) {
-					available_fields.erase(it);
-				}
-				else {
-					available_fields.push_back("gpu");
-				}
-
 				has_gpu = not has_gpu;
-				if (not ohmr_init) Global::resized = true;
 			}
 			if (got_sensors == cpu_temps.empty()) {
 				Runner::active_atomic_wait();
 				got_sensors = not got_sensors;
 				if (OHMRrawStats.CPU.size() == 1) cpu_temp_only = true;
-				if (not ohmr_init) Global::resized = true;
 			}
 
 			if (ohmr_init) { ohmr_init = false; return; }
@@ -1008,6 +994,21 @@ namespace Shared {
 		Logger::debug("GPU Init");
 		//? Init for namespace Gpu
 		Gpu::init();
+		if (not Gpu::gpu_names.empty()) {
+			for (auto const& [key, _] : Gpu::gpus[0].gpu_percent)
+				Cpu::available_fields.push_back(key);
+			for (auto const& [key, _] : Gpu::shared_gpu_percent)
+				Cpu::available_fields.push_back(key);
+
+			using namespace Gpu;
+			count = gpus.size();
+			gpu_b_height_offsets.resize(gpus.size());
+			for (size_t i = 0; i < gpu_b_height_offsets.size(); ++i)
+				gpu_b_height_offsets[i] = gpus[i].supported_functions.gpu_utilization
+					   + gpus[i].supported_functions.pwr_usage
+					   + (gpus[i].supported_functions.mem_total or gpus[i].supported_functions.mem_used)
+						* (1 + 2*(gpus[i].supported_functions.mem_total and gpus[i].supported_functions.mem_used) + 2*gpus[i].supported_functions.mem_utilization);
+		}
 
 		//? Start up loadAVG counter in background
 		std::thread(Cpu::loadAVG_init).detach();
@@ -1223,39 +1224,6 @@ namespace Cpu {
 					}
 				}
 			}
-
-			/*
-			if (has_gpu) {
-				if (current_gpu != Config::getS("selected_gpu")) {
-					current_gpu = Config::getS("selected_gpu");
-					cpu.gpu_temp.clear();
-					cpu.cpu_percent.at("gpu").clear();
-
-					if (current_gpu != "Auto" and not OHMRrawStats.GPUS.contains(current_gpu)) {
-						current_gpu = "Auto";
-						Config::set("selected_gpu", current_gpu);
-					}
-
-					if (current_gpu == "Auto")
-						gpu_name = Config::available_gpus.at(1);
-					else
-						gpu_name = current_gpu;
-
-					for (const auto& s : { "NVIDIA", "Nvidia", "AMD", "Amd", "Intel", "(R)", "(TM)"}) {
-						gpu_name = s_replace(gpu_name, s, "");
-					}
-					gpu_name = trim(gpu_name);
-
-					Cpu::set_redraw(true);
-				}
-				const auto& gpu = OHMRrawStats.GPUS.contains(current_gpu) ? OHMRrawStats.GPUS.at(current_gpu) : OHMRrawStats.GPUS.at(Config::available_gpus.at(1));
-				gpu_clock = gpu.clock_mhz;
-				cpu.gpu_temp.push_back(gpu.temp);
-				if (cpu.gpu_temp.size() > 40) cpu.gpu_temp.pop_front();
-				cpu.cpu_percent.at("gpu").push_back(gpu.usage);
-				while (cmp_greater(cpu.cpu_percent.at("gpu").size(), width * 2)) cpu.cpu_percent.at("gpu").pop_front();
-			}
-			*/
 		}
 		else {
 			cpuHz = get_cpuHz();
@@ -1366,41 +1334,6 @@ namespace Mem {
 		const auto show_disks = Config::getB("show_disks");
 		auto& mem = current_mem;
 		auto width = get_width();
-
-		/*
-		if (Cpu::has_OHMR and Cpu::has_gpu and Config::getB("show_gpu")) {
-			std::lock_guard lck(Cpu::OHMRmutex);
-			if (not Cpu::shown) {
-				Cpu::OHMR_trigger();
-				if (Cpu::current_gpu != Config::getS("selected_gpu")) {
-					Cpu::current_gpu = Config::getS("selected_gpu");
-					if (Cpu::current_gpu != "Auto" and not Cpu::OHMRrawStats.GPUS.contains(Cpu::current_gpu)) {
-						Cpu::current_gpu = "Auto";
-						Config::set("selected_gpu", Cpu::current_gpu);
-					}
-					set_redraw(true);
-				}
-			}
-			const auto& gpu = Cpu::OHMRrawStats.GPUS.contains(Cpu::current_gpu) ? Cpu::OHMRrawStats.GPUS.at(Cpu::current_gpu) : Cpu::OHMRrawStats.GPUS.at(Config::available_gpus.at(1));
-			const uint64_t conf_gpu_total = (int64_t)Config::getI("gpu_mem_override") << 20;
-			if (conf_gpu_total > 0 and conf_gpu_total > gpu.mem_used) {
-				mem.stats.at("gpu_total") = conf_gpu_total;
-			}
-			else if (gpu.mem_total < 1) {
-				if (mem.stats.at("gpu_total") < gpu.mem_used) mem.stats.at("gpu_total") = gpu.mem_used;
-			}
-			else {
-				mem.stats.at("gpu_total") = gpu.mem_total;
-			}
-			mem.stats.at("gpu_used") = gpu.mem_used;
-			mem.stats.at("gpu_free") = mem.stats.at("gpu_total") - mem.stats.at("gpu_used");
-			cpu_gpu = gpu.cpu_gpu;
-			for (const auto name : { "gpu_used", "gpu_free" }) {
-				mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / mem.stats.at("gpu_total")));
-				while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
-			}
-		}
-		*/
 
 		MEMORYSTATUSEX memstat;
 		memstat.dwLength = sizeof(MEMORYSTATUSEX);
