@@ -93,35 +93,35 @@ void plugin_initializer(Plugin* plugin) {
 	}));
 
 	plugin->registerHandler<vector<Gpu::gpu_info>, bool>("Gpu::collect", std::function([](bool no_update) {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::collect(no_update);
 #else
 		return vector<Gpu::gpu_info>();
 #endif
 	}));
 	plugin->registerHandler<int>("Gpu::get_count", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::count;
 #else
 		return 0;
 #endif
 	}));
 	plugin->registerHandler<vector<string>>("Gpu::get_gpu_names", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::gpu_names;
 #else
 		return vector<string>();
 #endif
 	}));
 	plugin->registerHandler<vector<int>>("Gpu::get_gpu_b_height_offsets", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::gpu_b_height_offsets;
 #else
 		return vector<int>();
 #endif
 	}));
 	plugin->registerHandler<unordered_map<string, deque<long long>>>("Gpu::get_shared_gpu_percent", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::shared_gpu_percent;
 #else
 		return unordered_map<string, deque<long long>>();
