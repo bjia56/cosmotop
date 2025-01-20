@@ -325,7 +325,7 @@ jobs:
           wget https://github.com/aristocratos/LHM-CppExport/releases/download/CPPdll-v1/LHM-CPPdll-x64.zip
           unzip LHM-CPPdll-x64.zip
           sudo mkdir -p /zip/windows
-          sudo cp LHM-CPPdll-x64/*.dll /zip/windows/
+          sudo cp LHM-CPPdll-x64/external/*.dll /zip/windows/
 
           cd /zip
           zip -r ${{ github.workspace }}/cosmotop.com *
