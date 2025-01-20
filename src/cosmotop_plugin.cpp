@@ -598,7 +598,17 @@ void create_plugin_host() {
 		return Global::quitting.load();
 	}));
 
-	pluginHost->initialize();
+	try {
+		pluginHost->initialize();
+	} catch (const std::exception& e) {
+		delete pluginHost;
+		pluginHost = nullptr;
+		if (IsWindows()) {
+			throw std::runtime_error("Failed to initialize plugin: " + string(e.what()) + " (" + to_string(GetLastError()) + ")");
+		} else {
+			throw;
+		}
+	}
 }
 
 bool is_plugin_loaded() {
