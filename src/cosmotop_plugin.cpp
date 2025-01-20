@@ -504,15 +504,7 @@ void create_plugin_host() {
 		launchMethod = PluginHost::FORK;
 	}
 
-	try {
-		pluginHost = new PluginHost(pluginPath.string(), launchMethod);
-	} catch (const std::exception& e) {
-		if (IsWindows()) {
-			throw std::runtime_error("Failed to create PluginHost: " + string(e.what()) + " (" + to_string(GetLastError()) + ")");
-		} else {
-			throw std::runtime_error("Failed to create PluginHost: " + string(e.what()));
-		}
-	}
+	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
 
 	pluginHost->registerHandler<std::unordered_map<std::string, int>>("Config::get_ints", std::function([]() {
 		// convert map of string_view to map of string
