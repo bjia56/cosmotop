@@ -355,6 +355,7 @@ namespace Global {
 #include <sys/stat.h>
 
 #include <libc/nt/runtime.h>
+#include <libc/nt/enum/loadlibrarysearch.h>
 #include <libc/nt/dll.h>
 #include <libc/proc/ntspawn.h>
 
@@ -488,6 +489,10 @@ void create_plugin_host() {
 			ntpath[i] = outdir_path[i];
 		}
 		ntpath[strlen(outdir_path)] = '\0';
+
+		if (!SetDefaultDllDirectories(kNtLoadLibrarySearchDefaultDirs)) {
+			throw std::runtime_error("Failed to set default dll directories (" + to_string(GetLastError()) + ")");
+		}
 
 		void *handle = AddDllDirectory(ntpath);
 		if (handle == NULL) {
