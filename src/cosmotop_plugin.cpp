@@ -446,6 +446,7 @@ void create_plugin_host() {
 	auto outdir = getOutputDirectory();
 	if (!std::filesystem::exists(outdir)) {
 		std::filesystem::create_directory(outdir);
+		sync();
 	}
 
 	// Extract cosmotop plugin from zipos
@@ -491,9 +492,11 @@ void create_plugin_host() {
 		void *handle = AddDllDirectory(ntpath);
 		if (handle == NULL) {
 			throw std::runtime_error("Failed to add directory to dll search path: " + string(outdir_path) + " (" + to_string(GetLastError()) + ")");
-        }
+		}
 		delete[] ntpath;
 		free(outdir_path);
+
+		sync();
 	}
 
 	auto launchMethod = PluginHost::DLOPEN;
