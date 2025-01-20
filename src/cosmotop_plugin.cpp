@@ -354,6 +354,7 @@ namespace Global {
 #include <filesystem>
 #include <sys/stat.h>
 
+#include <libc/nt/runtime.h>
 #include <libc/nt/dll.h>
 #include <libc/proc/ntspawn.h>
 
@@ -480,17 +481,17 @@ void create_plugin_host() {
 		}
 
 		// Add the output directory to dll search path
-		char *posixish_path = strdup(outdir.string().c_str());
-		mungentpath(posixish_path);
-		char16_t* path = new char16_t[outdir.string().size() + 1];
-		for (size_t i = 0; i < strlen(posixish_path); i++) {
-			path[i] = posixish_path[i];
+		char *outdir_path = strdup(outdir.string().c_str());
+		mungentpath(outdir_path);
+		char16_t* path = new char16_t[strlen(outdir_path) + 1];
+		for (size_t i = 0; i < strlen(outdir_path); i++) {
+			path[i] = outdir_path[i];
 		}
-		free(posixish_path);
+		free(outdir_path);
 
 		void *handle = AddDllDirectory(path);
 		if (handle == NULL) {
-			throw std::runtime_error("Failed to add directory to dll search path: " + outdir.string());
+			throw std::runtime_error("Failed to add directory to dll search path: " + string(path) + " (" + to_string(GetLastError()) + ")");
 		}
 		delete[] path;
 	}
