@@ -976,13 +976,8 @@ namespace Shared {
 
 		Logger::debug("Libre Hardware Monitor Init");
 		//? Start up background thread for Libre Hardware Monitor
-		if (Config::bools.at("enable_ohmr")) {
-			Cpu::OHMR_init();
-			if (Cpu::has_OHMR) std::thread(Cpu::OHMR_collect).detach();
-		}
-		else {
-			Cpu::has_OHMR = false;
-		}
+		Cpu::OHMR_init();
+		if (Cpu::has_OHMR) std::thread(Cpu::OHMR_collect).detach();
 
 		Logger::debug("CPU Init");
 		//? Init for namespace Cpu
