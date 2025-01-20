@@ -613,9 +613,9 @@ namespace Gpu {
 				}
 				else {
 					auto& info = gpus[gpu_idx];
-					info->temp.push_back(gpu.temp);
-					info->gpu_percent.at("gpu-totals").push_back(gpu.usage);
-					info->gpu_percent.at("gpu-vram-totals").push_back((long long)round((double)gpu.mem_used * 100.0 / (double)gpu.mem_total));
+					info.temp.push_back(gpu.temp);
+					info.gpu_percent.at("gpu-totals").push_back(gpu.usage);
+					info.gpu_percent.at("gpu-vram-totals").push_back((long long)round((double)gpu.mem_used * 100.0 / (double)gpu.mem_total));
 				}
 			}
 		}
