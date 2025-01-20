@@ -483,17 +483,17 @@ void create_plugin_host() {
 		// Add the output directory to dll search path
 		char *outdir_path = strdup(outdir.string().c_str());
 		mungentpath(outdir_path);
-		char16_t* path = new char16_t[strlen(outdir_path) + 1];
+		char16_t* ntpath = new char16_t[strlen(outdir_path) + 1];
 		for (size_t i = 0; i < strlen(outdir_path); i++) {
-			path[i] = outdir_path[i];
+			ntpath[i] = outdir_path[i];
 		}
-		free(outdir_path);
 
-		void *handle = AddDllDirectory(path);
+		void *handle = AddDllDirectory(ntpath);
 		if (handle == NULL) {
-			throw std::runtime_error("Failed to add directory to dll search path: " + string(path) + " (" + to_string(GetLastError()) + ")");
-		}
-		delete[] path;
+			throw std::runtime_error("Failed to add directory to dll search path: " + string(outdir_path) + " (" + to_string(GetLastError()) + ")");
+        }
+		delete[] ntpath;
+		free(outdir_path);
 	}
 
 	auto launchMethod = PluginHost::DLOPEN;
