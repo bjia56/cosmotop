@@ -575,15 +575,18 @@ namespace Gpu {
 		{
 			std::lock_guard lck(Cpu::OHMRmutex);
 			for (auto& [name, gpu] : Cpu::OHMRrawStats.GPUS) {
-				ssize_t gpu_idx = -1;
+				size_t gpu_idx = gpu_names.size();
 				for (size_t i = 0; i < gpu_names.size(); i++) {
 					if (gpu_names[i] == name) {
 						gpu_idx = i;
 						break;
 					}
 				}
-				if (gpu_idx == -1) {
+				if (gpu_idx == gpu_names.size()) {
 					gpu_info new_gpu = {
+						.gpu_clock_speed = static_cast<unsigned int>(gpu.clock_mhz),
+						.mem_total = static_cast<long long>(gpu.mem_total),
+						.mem_used = static_cast<long long>(gpu.mem_used),
 						.supported_functions = {
 							.gpu_utilization = true,
 							.mem_utilization = false,
@@ -596,9 +599,6 @@ namespace Gpu {
 							.mem_used = true,
 							.pcie_txrx = false,
 						},
-						.mem_used = gpu.mem_used,
-						.mem_total = gpu.mem_total,
-						.gpu_clock_speed = gpu.clock_mhz,
 					};
 					new_gpu.temp.push_back(gpu.temp);
 					new_gpu.gpu_percent.at("gpu-totals").push_back(gpu.usage);
