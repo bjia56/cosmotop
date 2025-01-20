@@ -322,6 +322,11 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-openbsd-x86_64.exe /zip/
 
+          wget https://github.com/aristocratos/LHM-CppExport/releases/download/CPPdll-v1/LHM-CPPdll-x64.zip
+          unzip LHM-CPPdll-x64.zip
+          sudo mkdir -p /zip/windows
+          sudo cp LHM-CPPdll-x64/*.dll /zip/windows/
+
           cd /zip
           zip -r ${{ github.workspace }}/cosmotop.com *
 

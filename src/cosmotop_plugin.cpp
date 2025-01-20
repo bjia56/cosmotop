@@ -354,6 +354,9 @@ namespace Global {
 #include <filesystem>
 #include <sys/stat.h>
 
+#include <libc/nt/dll.h>
+#include <libc/proc/ntspawn.h>
+
 PluginHost* pluginHost = nullptr;
 
 static std::filesystem::path getOutputDirectory() {
@@ -455,7 +458,41 @@ void create_plugin_host() {
 			std::filesystem::remove(pluginPath);
 		}
 		std::filesystem::copy_file(ziposPath, pluginPath);
-		chmod(pluginPath.c_str(), 0500);
+		if (!IsWindows()) {
+			chmod(pluginPath.c_str(), 0500);
+		}
+	}
+
+	// On Windows, extract extra dlls
+	if (IsWindows()) {
+		auto ziposDir = std::filesystem::path("/zip/windows");
+		if (!std::filesystem::exists(ziposDir)) {
+			throw std::runtime_error("Windows dll directory not found in zipos: " + ziposDir.string());
+		}
+		for (const auto& entry : std::filesystem::directory_iterator(ziposDir)) {
+			auto entryPath = outdir / entry.path().filename();
+			if (!std::filesystem::exists(entryPath) || !compareFiles(entry.path(), entryPath)) {
+				if (std::filesystem::exists(entryPath)) {
+					std::filesystem::remove(entryPath);
+				}
+				std::filesystem::copy_file(entry.path(), entryPath);
+			}
+		}
+
+		// Add the output directory to dll search path
+		char *posixish_path = strdup(outdir.string().c_str());
+		mungentpath(posixish_path);
+		char16_t* path = new char16_t[outdir.string().size() + 1];
+		for (size_t i = 0; i < strlen(posixish_path); i++) {
+			path[i] = posixish_path[i];
+		}
+		free(posixish_path);
+
+		void *handle = AddDllDirectory(path);
+		if (handle == NULL) {
+			throw std::runtime_error("Failed to add directory to dll search path: " + outdir.string());
+		}
+		delete[] path;
 	}
 
 	auto launchMethod = PluginHost::DLOPEN;
