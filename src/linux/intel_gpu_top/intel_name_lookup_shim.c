@@ -30,24 +30,20 @@
 
 // Caller must free the returned pointer
 char* find_intel_gpu_dir() {
-    const size_t path_len = 256;
-
     DIR *dir;
     struct dirent *entry;
-    char* path = (char*)malloc(path_len * sizeof(char));
-    char* vendor_path = (char*)malloc(path_len * sizeof(char));
+    char path[256];
+    char vendor_path[256];
     char vendor_id[16];
 
     if ((dir = opendir(SYSFS_PATH)) == NULL) {
         perror("opendir");
-        free(path);
-        free(vendor_path);
         return NULL;
     }
 
     while ((entry = readdir(dir)) != NULL) {
         // Construct the path to the vendor file
-        snprintf(vendor_path, path_len, "%s/%s/device/%s", SYSFS_PATH, entry->d_name, VENDOR_FILE);
+        snprintf(vendor_path, sizeof(vendor_path), "%s/%s/device/%s", SYSFS_PATH, entry->d_name, VENDOR_FILE);
 
         // Check if the vendor file exists
         if (access(vendor_path, F_OK) != -1) {
@@ -61,9 +57,8 @@ char* find_intel_gpu_dir() {
                         fclose(file);
                         closedir(dir);
                         // Return the parent directory (i.e., /sys/class/drm/card*)
-                        snprintf(path, path_len, "%s/%s", SYSFS_PATH, entry->d_name);
-                        free(vendor_path);
-                        return path;
+                        snprintf(path, sizeof(path), "%s/%s", SYSFS_PATH, entry->d_name);
+                        return strdup(path);
                     }
                 }
                 fclose(file);
@@ -72,8 +67,6 @@ char* find_intel_gpu_dir() {
     }
 
     closedir(dir);
-    free(path);
-    free(vendor_path);
     return NULL;  // Intel GPU not found
 }
 
