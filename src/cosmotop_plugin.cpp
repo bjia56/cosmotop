@@ -600,8 +600,7 @@ void create_plugin_host() {
 	}
 
 	if (IsWindows()) {
-		string tmpstr = outdir.string();
-		char *ntpath = strdup(tmpstr.c_str());
+		char *ntpath = strdup(outdir.c_str());
 		mungentpath(ntpath);
 		pluginHost->call<bool>("register_cosmotop_directory", string(ntpath));
 		free(ntpath);
