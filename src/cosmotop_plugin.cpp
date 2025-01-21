@@ -56,6 +56,14 @@ void plugin_initializer(Plugin* plugin) {
 		return ss.str();
 	}));
 
+	plugin->registerHandler<bool>("register_cosmotop_directory", std::function([](std::string dir) {
+#ifdef _WIN32
+		extern std::filesystem::path cosmotop_dir;
+		cosmotop_dir = dir;
+#endif
+		return true;
+	}));
+
 	plugin->registerHandler<vector<Npu::npu_info>, bool>("Npu::collect", std::function([](bool no_update) {
 #ifdef __linux__
 		return Npu::collect(no_update);
@@ -93,35 +101,35 @@ void plugin_initializer(Plugin* plugin) {
 	}));
 
 	plugin->registerHandler<vector<Gpu::gpu_info>, bool>("Gpu::collect", std::function([](bool no_update) {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::collect(no_update);
 #else
 		return vector<Gpu::gpu_info>();
 #endif
 	}));
 	plugin->registerHandler<int>("Gpu::get_count", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::count;
 #else
 		return 0;
 #endif
 	}));
 	plugin->registerHandler<vector<string>>("Gpu::get_gpu_names", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::gpu_names;
 #else
 		return vector<string>();
 #endif
 	}));
 	plugin->registerHandler<vector<int>>("Gpu::get_gpu_b_height_offsets", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::gpu_b_height_offsets;
 #else
 		return vector<int>();
 #endif
 	}));
 	plugin->registerHandler<unordered_map<string, deque<long long>>>("Gpu::get_shared_gpu_percent", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::shared_gpu_percent;
 #else
 		return unordered_map<string, deque<long long>>();
@@ -354,6 +362,9 @@ namespace Global {
 #include <filesystem>
 #include <sys/stat.h>
 
+#include <libc/nt/runtime.h>
+#include <libc/proc/ntspawn.h>
+
 PluginHost* pluginHost = nullptr;
 
 static std::filesystem::path getOutputDirectory() {
@@ -455,7 +466,26 @@ void create_plugin_host() {
 			std::filesystem::remove(pluginPath);
 		}
 		std::filesystem::copy_file(ziposPath, pluginPath);
-		chmod(pluginPath.c_str(), 0500);
+		if (!IsWindows()) {
+			chmod(pluginPath.c_str(), 0500);
+		}
+	}
+
+	// On Windows, extract extras
+	if (IsWindows()) {
+		auto ziposDir = std::filesystem::path("/zip/windows");
+		if (!std::filesystem::exists(ziposDir)) {
+			throw std::runtime_error("Windows dll directory not found in zipos: " + ziposDir.string());
+		}
+		for (const auto& entry : std::filesystem::directory_iterator(ziposDir)) {
+			auto entryPath = outdir / entry.path().filename();
+			if (!std::filesystem::exists(entryPath) || !compareFiles(entry.path(), entryPath)) {
+				if (std::filesystem::exists(entryPath)) {
+					std::filesystem::remove(entryPath);
+				}
+				std::filesystem::copy_file(entry.path(), entryPath);
+			}
+		}
 	}
 
 	auto launchMethod = PluginHost::DLOPEN;
@@ -557,7 +587,26 @@ void create_plugin_host() {
 		return Global::quitting.load();
 	}));
 
-	pluginHost->initialize();
+	try {
+		pluginHost->initialize();
+	} catch (const std::exception& e) {
+		delete pluginHost;
+		pluginHost = nullptr;
+		if (IsWindows()) {
+			throw std::runtime_error("Failed to initialize plugin: " + string(e.what()) + " (" + to_string(GetLastError()) + ")");
+		} else {
+			throw;
+		}
+	}
+
+	if (IsWindows()) {
+		char *ntpath = strdup(outdir.c_str());
+		mungentpath(ntpath);
+		pluginHost->call<bool>("register_cosmotop_directory", string(ntpath));
+		free(ntpath);
+	} else {
+		pluginHost->call<bool>("register_cosmotop_directory", outdir.string());
+	}
 }
 
 bool is_plugin_loaded() {

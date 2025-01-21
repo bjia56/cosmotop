@@ -182,6 +182,7 @@ namespace Tools {
 		vector<string> out;
 		for (const auto& s : str 	| rng::views::split(delim)
 									| rng::views::transform([](auto &&rng) {
+										if (rng.begin() == rng.end()) return std::string_view();
 										return std::string_view(&*rng.begin(), rng::distance(rng));
 		})) {
 			if (not s.empty()) out.emplace_back(s);
