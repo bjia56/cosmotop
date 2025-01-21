@@ -327,6 +327,11 @@ jobs:
           sudo cp *.dll /zip/windows/
           sudo cp *.exe /zip/windows/
 
+          wget https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE-LibreHardwareMonitor.txt
+          wget https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE.txt
+          mv LICENSE.txt LICENSE-LHM-CppExport.txt
+          sudo cp LICENSE-*.txt /zip/windows/
+
           cd /zip
           zip -r ${{ github.workspace }}/cosmotop.com *
 
