@@ -451,7 +451,7 @@ namespace Cpu {
 							gpus[gpu_name].mem_used = safe_stoll(linevec.at(2)) << 20ll;
 						}
 						//? Gpu mem total
-						else if (linevec.front().starts_with("GPU Memory Total")) {
+						else if (linevec.front().starts_with("GPU Memory Total") or linevec.front() == "D3D Shared Memory Total") {
 							gpus[gpu_name].mem_total = safe_stoll(linevec.at(2)) << 20ll;
 						}
 					}
