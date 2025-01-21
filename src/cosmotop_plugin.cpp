@@ -363,6 +363,7 @@ namespace Global {
 #include <sys/stat.h>
 
 #include <libc/nt/runtime.h>
+#include <libc/proc/ntspawn.h>
 
 PluginHost* pluginHost = nullptr;
 
@@ -598,7 +599,14 @@ void create_plugin_host() {
 		}
 	}
 
-	pluginHost->call<bool>("register_cosmotop_directory", outdir.string());
+	if (IsWindows()) {
+		char *ntpath = strdup(outdir.string().c_str());
+		mungentpath(ntpath);
+		pluginHost->call<bool>("register_cosmotop_directory", string(ntpath));
+		free(ntpath);
+	} else {
+		pluginHost->call<bool>("register_cosmotop_directory", outdir.string());
+	}
 }
 
 bool is_plugin_loaded() {
