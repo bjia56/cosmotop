@@ -373,6 +373,19 @@ namespace Cpu {
 	//* Collects Cpu, Motherboard and Gpu information from Libre Hardware Monitor using LHM-CPPdll (https://github.com/aristocratos/LHM-CppExport)
 	void OHMR_collect() {
 		static bool ohmr_init = true;
+		static auto safe_stoi = [](const std::string& s) -> int {
+			if (s.starts_with("NaN")) {
+				return 0;
+			}
+			return std::stoi(s);
+		};
+		static auto safe_stoll = [](const std::string& s) -> long long {
+			if (s.starts_with("NaN")) {
+				return 0;
+			}
+			return std::stoll(s);
+		};
+
 		while (not Global::get_quitting() and has_OHMR) {
 			if (not OHMR_wait()) continue;
 			if (OHMRTimer > 0) sleep_ms(Config::getI("update_ms") - (OHMRTimer / 750));
@@ -426,52 +439,52 @@ namespace Cpu {
 						if (linevec.front().starts_with("GPU Core")) {
 							//? Gpu clock
 							if (linevec.at(1) == "Clock") {
-								gpus[gpu_name].clock_mhz = std::stoi(linevec.at(2));
+								gpus[gpu_name].clock_mhz = safe_stoi(linevec.at(2));
 							}
 							//? Gpu temp
 							else if (linevec.at(1) == "Temperature") {
-								gpus[gpu_name].temp = std::stoi(linevec.at(2));
+								gpus[gpu_name].temp = safe_stoi(linevec.at(2));
 							}
 							//? Gpu load
 							else if (linevec.at(1) == "Load") {
-								gpus[gpu_name].usage = std::stoi(linevec.at(2));
+								gpus[gpu_name].usage = safe_stoi(linevec.at(2));
 								hasGPUload = true;
 								gpus[gpu_name].cpu_gpu = false;
 							}
 						}
 						else if (not hasGPUload and linevec.front().starts_with("D3D 3D") and linevec.at(1) == "Load") {
-							gpus[gpu_name].usage = std::stoi(linevec.at(2));
+							gpus[gpu_name].usage = safe_stoi(linevec.at(2));
 							gpus[gpu_name].cpu_gpu = true;
 						}
 						//? Gpu mem used
 						else if (linevec.front().starts_with("GPU Memory Used") or linevec.front() == "D3D Shared Memory Used") {
-							gpus[gpu_name].mem_used = std::stoll(linevec.at(2)) << 20ll;
+							gpus[gpu_name].mem_used = safe_stoll(linevec.at(2)) << 20ll;
 						}
 						//? Gpu mem total
 						else if (linevec.front().starts_with("GPU Memory Total")) {
-							gpus[gpu_name].mem_total = std::stoll(linevec.at(2)) << 20ll;
+							gpus[gpu_name].mem_total = safe_stoll(linevec.at(2)) << 20ll;
 						}
 					}
 					else {
 						//? Cpu clock - using highest found value because an average of all cores doesn't do well on systems with efficiency cores
 						if ((linevec.front().starts_with("CPU Core") or linevec.front().starts_with("Core #")) and linevec.at(1) == "Clock") {
-							int clock = std::stoi(linevec.at(2));
+							int clock = safe_stoi(linevec.at(2));
 							if (clock > cpu_clock) cpu_clock = clock;
 						}
 						//? Cpu core and package temp
 						else if (linevec.at(1) == "Temperature") {
 							if (linevec.front().starts_with("CPU Core #") and linevec.front().find("TjMax") == string::npos) {
-								cpu_temps.push_back(std::stoi(linevec.at(2)));
+								cpu_temps.push_back(safe_stoi(linevec.at(2)));
 							}
 							else if (not hasPackage and (linevec.front().starts_with("CPU Package") or linevec.front() == "Core (Tctl/Tdie)")) {
-								cpu_temps.insert(cpu_temps.begin(), std::stoi(linevec.at(2)));
+								cpu_temps.insert(cpu_temps.begin(), safe_stoi(linevec.at(2)));
 								hasPackage = true;
 							}
 							else if (not hasPackage and linevec.front() == "CPU") {
-								mb_cpu = std::stoi(linevec.at(2));
+								mb_cpu = safe_stoi(linevec.at(2));
 							}
 							else if (not hasPackage and linevec.front() == "System") {
-								mb_system = std::stoi(linevec.at(2));
+								mb_system = safe_stoi(linevec.at(2));
 							}
 						}
 					}
@@ -657,6 +670,8 @@ namespace Gpu {
 		// See Cpu::OHMR_collect() for more information
 		{
 			std::lock_guard lck(Cpu::OHMRmutex);
+			if (Cpu::OHMRrawStats.GPUS.empty()) return gpus;
+
 			for (auto& [name, gpu] : Cpu::OHMRrawStats.GPUS) {
 				size_t gpu_idx = gpu_names.size();
 				for (size_t i = 0; i < gpu_names.size(); i++) {
