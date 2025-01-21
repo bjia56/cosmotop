@@ -149,11 +149,13 @@ std::string RunExecutableAndCaptureOutput(const std::string& executablePath) {
 }
 
 std::string FetchLHMValues() {
-	return RunExecutableAndCaptureOutput(cosmotop_dir / "FetchLHMValues.exe");
+	static std::string path = (cosmotop_dir / "FetchLHMValues.exe").string();
+	return RunExecutableAndCaptureOutput(path);
 }
 
 std::string FetchLHMReport() {
-	return RunExecutableAndCaptureOutput(cosmotop_dir / "FetchLHMReport.exe");
+	static std::string path = (cosmotop_dir / "FetchLHMReport.exe").string();
+	return RunExecutableAndCaptureOutput(path);
 }
 
 namespace Tools {

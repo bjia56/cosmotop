@@ -363,9 +363,6 @@ namespace Global {
 #include <sys/stat.h>
 
 #include <libc/nt/runtime.h>
-#include <libc/nt/enum/loadlibrarysearch.h>
-#include <libc/nt/dll.h>
-#include <libc/proc/ntspawn.h>
 
 PluginHost* pluginHost = nullptr;
 
