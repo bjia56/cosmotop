@@ -373,14 +373,20 @@ namespace Cpu {
 	//* Collects Cpu, Motherboard and Gpu information from Libre Hardware Monitor using LHM-CPPdll (https://github.com/aristocratos/LHM-CppExport)
 	void OHMR_collect() {
 		static bool ohmr_init = true;
-		static auto safe_stoi = [](const std::string& s) -> int {
-			if (s.starts_with("NaN")) {
+		static auto is_blank = [](const std::string& s) -> bool {
+			for (const auto& c : s) {
+				if (not std::isspace(c)) return false;
+			}
+			return true;
+		};
+		static auto safe_stoi = [&is_blank](const std::string& s) -> int {
+			if (is_blank(s) or s.starts_with("NaN")) {
 				return 0;
 			}
 			return std::stoi(s);
 		};
-		static auto safe_stoll = [](const std::string& s) -> long long {
-			if (s.starts_with("NaN")) {
+		static auto safe_stoll = [&is_blank](const std::string& s) -> long long {
+			if (is_blank(s) or s.starts_with("NaN")) {
 				return 0;
 			}
 			return std::stoll(s);
