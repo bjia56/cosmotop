@@ -56,6 +56,14 @@ void plugin_initializer(Plugin* plugin) {
 		return ss.str();
 	}));
 
+	plugin->registerHandler<bool>("register_cosmotop_directory", std::function([](std::string dir) {
+#ifdef _WIN32
+		extern std::filesystem::path cosmotop_dir;
+		cosmotop_dir = dir;
+#endif
+		return true;
+	}));
+
 	plugin->registerHandler<vector<Npu::npu_info>, bool>("Npu::collect", std::function([](bool no_update) {
 #ifdef __linux__
 		return Npu::collect(no_update);
@@ -465,7 +473,7 @@ void create_plugin_host() {
 		}
 	}
 
-	// On Windows, extract extra dlls
+	// On Windows, extract extras
 	if (IsWindows()) {
 		auto ziposDir = std::filesystem::path("/zip/windows");
 		if (!std::filesystem::exists(ziposDir)) {
@@ -480,26 +488,6 @@ void create_plugin_host() {
 				std::filesystem::copy_file(entry.path(), entryPath);
 			}
 		}
-
-		// Add the output directory to dll search path
-		char *outdir_path = strdup(outdir.string().c_str());
-		mungentpath(outdir_path);
-		char16_t* ntpath = new char16_t[strlen(outdir_path) + 1];
-		for (size_t i = 0; i < strlen(outdir_path); i++) {
-			ntpath[i] = outdir_path[i];
-		}
-		ntpath[strlen(outdir_path)] = '\0';
-
-		if (!SetDefaultDllDirectories(kNtLoadLibrarySearchDefaultDirs)) {
-			throw std::runtime_error("Failed to set default dll directories (" + to_string(GetLastError()) + ")");
-		}
-
-		void *handle = AddDllDirectory(ntpath);
-		if (handle == NULL) {
-			throw std::runtime_error("Failed to add directory to dll search path: " + string(outdir_path) + " (" + to_string(GetLastError()) + ")");
-		}
-		delete[] ntpath;
-		free(outdir_path);
 	}
 
 	auto launchMethod = PluginHost::DLOPEN;
@@ -612,6 +600,8 @@ void create_plugin_host() {
 			throw;
 		}
 	}
+
+	pluginHost->call<bool>("register_cosmotop_directory", outdir.string());
 }
 
 bool is_plugin_loaded() {

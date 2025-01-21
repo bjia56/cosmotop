@@ -27,6 +27,9 @@ tab-size = 4
 #include <semaphore>
 #include <iostream>
 #include <ranges>
+#include <string>
+#include <sstream>
+#include <stdexcept>
 
 #define _WIN32_DCOM
 #define _WIN32_WINNT 0x0600
@@ -63,10 +66,6 @@ tab-size = 4
 #include "../cosmotop_config.hpp"
 #include "../cosmotop_tools.hpp"
 
-#pragma comment(lib, "external\\CPPdll.lib")
-_declspec(dllexport) std::string FetchLHMValues();
-_declspec(dllexport) std::string FetchLHMReport();
-
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
 namespace fs = std::filesystem;
@@ -74,6 +73,88 @@ namespace rng = std::ranges;
 using namespace Tools;
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
+
+std::filesystem::path cosmotop_dir;
+
+std::string RunExecutableAndCaptureOutput(const std::string& executablePath) {
+    // Create pipes for standard output redirection
+    HANDLE hStdOutRead, hStdOutWrite;
+    SECURITY_ATTRIBUTES saAttr;
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;  // Allow the child process to inherit the handle
+    saAttr.lpSecurityDescriptor = NULL;
+
+    // Create the pipe
+    if (!CreatePipe(&hStdOutRead, &hStdOutWrite, &saAttr, 0)) {
+        throw std::runtime_error("Failed to create pipe for stdout.");
+    }
+
+    // Ensure the read handle is not inherited
+    if (!SetHandleInformation(hStdOutRead, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(hStdOutRead);
+        CloseHandle(hStdOutWrite);
+        throw std::runtime_error("Failed to set pipe handle information.");
+    }
+
+    // Set up the process start-up information
+    STARTUPINFOA si = { sizeof(STARTUPINFOA) };
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = hStdOutWrite;
+    si.hStdError = hStdOutWrite; // Redirect stderr to the same pipe
+    si.hStdInput = NULL;         // No input
+
+    PROCESS_INFORMATION pi = { 0 };
+
+    // Create the child process
+    if (!CreateProcessA(
+            NULL,                               // Application name
+            const_cast<char*>(executablePath.c_str()), // Command line
+            NULL,                               // Process security attributes
+            NULL,                               // Thread security attributes
+            TRUE,                               // Inherit handles
+            0,                                  // Creation flags
+            NULL,                               // Environment block
+            NULL,                               // Current directory
+            &si,                                // Startup information
+            &pi                                 // Process information
+    )) {
+        CloseHandle(hStdOutRead);
+        CloseHandle(hStdOutWrite);
+        throw std::runtime_error("Failed to create process.");
+    }
+
+    // Close the write end of the pipe in the parent process
+    CloseHandle(hStdOutWrite);
+
+    // Read the output from the pipe
+    std::ostringstream output;
+    char buffer[4096];
+    DWORD bytesRead;
+    while (ReadFile(hStdOutRead, buffer, sizeof(buffer) - 1, &bytesRead, NULL) && bytesRead > 0) {
+        buffer[bytesRead] = '\0'; // Null-terminate the string
+        output << buffer;
+    }
+
+    // Close the read end of the pipe and clean up
+    CloseHandle(hStdOutRead);
+
+    // Wait for the child process to finish
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    // Close process and thread handles
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return output.str();
+}
+
+std::string FetchLHMValues() {
+	return RunExecutableAndCaptureOutput(cosmotop_dir / "FetchLHMValues.exe");
+}
+
+std::string FetchLHMReport() {
+	return RunExecutableAndCaptureOutput(cosmotop_dir / "FetchLHMReport.exe");
+}
 
 namespace Tools {
 	//! Set security mode for better chance of collecting process information
