@@ -144,3 +144,4 @@ Unless otherwise stated, the code in this repository is licensed under Apache-2.
 - [**widecharwidth**](https://github.com/ridiculousfish/widecharwidth/): CC0-1.0
 - [**range-v3**](https://github.com/ericniebler/range-v3): Boost Software License, MIT, etc.
 - [**cpp-httplib**](https://github.com/yhirose/cpp-httplib): MIT
+- [**LibreHardwareMonitor**](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor), [**CppExport**](https://github.com/bjia56/LHM-CppExport), and dependencies: MPL-2.0, Apache-2.0
