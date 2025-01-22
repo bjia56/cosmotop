@@ -353,7 +353,7 @@ jobs:
           cp $(dirname $(dirname $(which cosmocc)))/LICENSE "Cosmopolitan Libc"
           cp $(dirname $(which zig))/LICENSE "Zig Programming Language"
           cp $(dirname $(which zig))/lib/libc/musl/COPYRIGHT "musl libc"
-          cp ${dirname $(which zig))/lib/libcxx/LICENSE.TXT "LLVM Project"
+          cp $(dirname $(which zig))/lib/libcxx/LICENSE.TXT "LLVM Project"
           sudo mkdir -p /zip/licenses/
           sudo cp * /zip/licenses/
 
