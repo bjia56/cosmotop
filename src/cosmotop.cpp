@@ -169,6 +169,7 @@ static void print_help() {
 			"  {0}-p,  --preset <id>   {2}start with preset, integer value between 0-9\n"
 			"  {0}-u,  --update <ms>   {2}set the program update rate in milliseconds\n"
 			"  {0}     --utf-force     {2}force start even if no UTF-8 locale was detected\n"
+			"  {0}     --licenses      {2}display licenses of open-source software used in cosmotop\n"
 			"  {0}     --debug         {2}start in DEBUG mode: shows microsecond timer for information collect\n"
 			"  {0}                     {2}and screen draw functions and sets loglevel to DEBUG",
 			"\033[1m", "\033[4m", "\033[0m"
@@ -177,6 +178,107 @@ static void print_help() {
 
 static void print_help_hint() {
 	fmt::println("For more information, try '{0}--help{1}'", "\033[1m", "\033[0m");
+}
+
+static void print_with_pager(const string& text) {
+	auto pager = getenv("PAGER");
+	FILE* pipe;
+	if (pager == nullptr) {
+		// Check if less or more are available
+		pipe = popen("less -R", "w");
+		if (pipe == nullptr) {
+			pipe = popen("more", "w");
+		}
+	} else {
+		pipe = popen(pager, "w");
+	}
+
+	if (pipe == nullptr) {
+		fmt::print("{}\n", text);
+	} else {
+		fmt::print(pipe, "{}\n", text);
+		pclose(pipe);
+	}
+}
+
+static void print_licenses() {
+	auto trimBlankLines = [](const std::string& input) {
+		std::ostringstream result;
+		std::vector<std::string> lines = ssplit(input, '\n', false);
+
+		// Remove blank lines from the front
+		size_t start = 0;
+		while (start < lines.size() && is_blank(lines[start])) {
+			++start;
+		}
+
+		// Remove blank lines from the back
+		size_t end = lines.size();
+		while (end > start && is_blank(lines[end - 1])) {
+			--end;
+		}
+
+		// Collect the trimmed lines
+		for (size_t i = start; i < end; ++i) {
+			result << lines[i];
+			if (i < end - 1) {
+				result << '\n'; // Add newline except after the last line
+			}
+		}
+
+		return result.str();
+	};
+
+	auto licensesPath = fs::path("/zip/licenses");
+	if (fs::exists(licensesPath)) {
+		vector<string> ossNames;
+		for (const auto& entry : fs::directory_iterator(licensesPath)) {
+			if (entry.is_regular_file()) {
+				ossNames.push_back(entry.path().filename().string());
+			}
+		}
+		if (ossNames.empty()) {
+			fmt::print("No licenses found\n");
+			return;
+		}
+
+		std::stringstream licensesText;
+
+		auto cosmotopLicense = find(ossNames.begin(), ossNames.end(), "cosmotop");
+		if (cosmotopLicense != ossNames.end()) {
+			ossNames.erase(cosmotopLicense);
+
+			licensesText << fmt::format("{0}{1}{2}{3}\n\n", "\033[1m", "\033[4m", "cosmotop", "\033[0m");
+			auto licensePath = licensesPath / "cosmotop";
+			std::ifstream licenseFile(licensePath);
+			string license((std::istreambuf_iterator<char>(licenseFile)), std::istreambuf_iterator<char>());
+			if (!license.empty()) {
+				licensesText << fmt::format("{0}\n\n", trimBlankLines(license));
+			}
+		}
+
+		if (ossNames.empty()) {
+			print_with_pager(licensesText.str());
+			return;
+		}
+
+		sort(ossNames.begin(), ossNames.end());
+
+		for (const auto& name : ossNames) {
+			licensesText << fmt::format("{0}{1}{2}{3}\n\n", "\033[1m", "\033[4m", name, "\033[0m");
+
+			auto licensePath = licensesPath / name;
+			std::ifstream licenseFile(licensePath);
+			string license((std::istreambuf_iterator<char>(licenseFile)), std::istreambuf_iterator<char>());
+			if (!license.empty()) {
+				licensesText << fmt::format("{0}\n\n", trimBlankLines(license));
+			}
+		}
+
+		print_with_pager(licensesText.str());
+	} else {
+		fmt::print("No licenses found\n");
+	}
 }
 
 //* A simple argument parser
@@ -193,6 +295,10 @@ void argumentParser(const int argc, char **argv) {
 		}
 		else if (is_in(argument, "--version")) {
 			print_version_with_build_info();
+			exit(0);
+		}
+		else if(is_in(argument, "--licenses")) {
+			print_licenses();
 			exit(0);
 		}
 		else if (is_in(argument, "-lc", "--low-color")) {

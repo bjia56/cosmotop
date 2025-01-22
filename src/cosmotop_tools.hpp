@@ -331,7 +331,7 @@ namespace Tools {
 	}
 
 	//* Split <string> at all occurrences of <delim> and return as vector of strings
-	auto ssplit(const string& str, const char& delim = ' ') -> vector<string>;
+	auto ssplit(const string& str, const char& delim = ' ', bool discard_empty = true) -> vector<string>;
 
 	//* Put current thread to sleep for <ms> milliseconds
 	inline void sleep_ms(const size_t& ms) {
