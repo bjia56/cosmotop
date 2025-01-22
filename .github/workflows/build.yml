@@ -317,6 +317,7 @@ jobs:
 
           sudo mkdir -p /zip/
           sudo cp -r ${{ github.workspace }}/themes /zip/
+          sudo cp ${{ github.workspace }}/third_party/catppuccin/themes/* /zip/themes/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
@@ -343,6 +344,7 @@ jobs:
           curl -L -o LibreHardwareMonitor https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE-LibreHardwareMonitor.txt
           curl -L -o LHM-CppExport https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE.txt
           curl -L -o HIDSharp https://raw.githubusercontent.com/IntergatedCircuits/HidSharp/refs/tags/2.1.0/License.txt
+          cp ${{ github.workspace }}//third_party/catppuccin/LICENSE "Catppuccin themes"
           cp ${{ github.workspace }}/third_party/range-v3/LICENSE.txt range-v3
           cp ${{ github.workspace }}/third_party/fmt/LICENSE fmt
           cp ${{ github.workspace }}/third_party/libcosmo_plugin/LICENSE libcosmo_plugin
