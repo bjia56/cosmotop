@@ -129,4 +129,7 @@ namespace Config {
 
 	//* Write the config file to disk
 	void write();
+
+	//* Write the config file to a stream
+	void write(std::ostream& stream);
 }

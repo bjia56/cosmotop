@@ -783,8 +783,12 @@ namespace Config {
 		Logger::debug("Writing new config file");
 		if (geteuid() != Global::real_uid and seteuid(Global::real_uid) != 0) return;
 		std::ofstream cwrite(conf_file, std::ios::trunc);
+		write(cwrite);
+	}
+
+	void write(std::ostream& cwrite) {
 		if (cwrite.good()) {
-			cwrite << "#? Config file for cosmotop v. " << Global::Version << "\n";
+			cwrite << "#? Config file for cosmotop v" << Global::Version << "\n";
 			for (auto [name, description] : descriptions) {
 				cwrite << "\n" << (description.empty() ? "" : description + "\n")
 						<< name << " = ";

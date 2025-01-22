@@ -169,6 +169,8 @@ static void print_help() {
 			"  {0}-p,  --preset <id>   {2}start with preset, integer value between 0-9\n"
 			"  {0}-u,  --update <ms>   {2}set the program update rate in milliseconds\n"
 			"  {0}     --utf-force     {2}force start even if no UTF-8 locale was detected\n"
+			"  {0}     --show-defaults {2}print default configuration values to stdout\n"
+			"  {0}     --show-themes   {2}list all available themes\n"
 			"  {0}     --licenses      {2}display licenses of open-source software used in cosmotop\n"
 			"  {0}     --debug         {2}start in DEBUG mode: shows microsecond timer for information collect\n"
 			"  {0}                     {2}and screen draw functions and sets loglevel to DEBUG",
@@ -281,6 +283,24 @@ static void print_licenses() {
 	}
 }
 
+//* Config dir init
+void init_config_dir() {
+	const auto config_dir = Config::get_config_dir();
+	if (config_dir.has_value()) {
+		Config::conf_dir = config_dir.value();
+		Config::conf_file = Config::conf_dir / "cosmotop.conf";
+		Logger::logfile = Config::conf_dir / "cosmotop.log";
+		Theme::user_theme_dir = Config::conf_dir / "themes";
+
+		// If necessary create the user theme directory
+		std::error_code error;
+		if (not fs::exists(Theme::user_theme_dir, error) and not fs::create_directories(Theme::user_theme_dir, error)) {
+			Theme::user_theme_dir.clear();
+			Logger::warning("Failed to create user theme directory: " + error.message());
+		}
+	}
+}
+
 //* A simple argument parser
 void argumentParser(const int argc, char **argv) {
 	for(int i = 1; i < argc; i++) {
@@ -299,6 +319,41 @@ void argumentParser(const int argc, char **argv) {
 		}
 		else if(is_in(argument, "--licenses")) {
 			print_licenses();
+			exit(0);
+		}
+		else if (is_in(argument, "--show-defaults")) {
+			Config::write(std::cout);
+			exit(0);
+		}
+		else if (is_in(argument, "--show-themes")) {
+			init_config_dir();
+
+			fmt::println("{0}{1}System themes:{2}", "\033[1m", "\033[4m", "\033[0m");
+			for (const auto& theme : Theme::getSystemThemes()) {
+				fmt::println("{}", theme);
+			}
+
+			// Remove paths and extensions so only the theme names are shown
+			auto cleanupThemePaths = [](vector<string>&& themePaths) {
+				std::sort(themePaths.begin(), themePaths.end());
+				for (auto& themePath : themePaths) {
+					fs::path path(themePath);
+					themePath = path.filename().string();
+					themePath = themePath.substr(0, themePath.rfind(".theme"));
+				}
+				return themePaths;
+			};
+
+			fmt::println("\n{0}{1}Bundled themes:{2}", "\033[1m", "\033[4m", "\033[0m");
+			for (const auto& theme : cleanupThemePaths(Theme::getBundledThemes())) {
+				fmt::println("{}", theme);
+			}
+
+			fmt::println("\n{0}{1}User themes:{2}", "\033[1m", "\033[4m", "\033[0m");
+			for (const auto& theme : cleanupThemePaths(Theme::getUserThemes())) {
+				fmt::println("{}", theme);
+			}
+
 			exit(0);
 		}
 		else if (is_in(argument, "-lc", "--low-color")) {
@@ -530,7 +585,7 @@ void _signal_handler(const int sig) {
 }
 
 //* Config init
-void init_config(){
+void init_config() {
 	atomic_lock lck(Global::init_conf);
 	vector<string> load_warnings;
 	Config::load(Config::conf_file, load_warnings);
@@ -1060,22 +1115,8 @@ int main(int argc, char **argv) {
 	//? Call argument parser if launched with arguments
 	if (argc > 1) argumentParser(argc, argv);
 
-	{
-		const auto config_dir = Config::get_config_dir();
-		if (config_dir.has_value()) {
-			Config::conf_dir = config_dir.value();
-			Config::conf_file = Config::conf_dir / "cosmotop.conf";
-			Logger::logfile = Config::conf_dir / "cosmotop.log";
-			Theme::user_theme_dir = Config::conf_dir / "themes";
-
-			// If necessary create the user theme directory
-			std::error_code error;
-			if (not fs::exists(Theme::user_theme_dir, error) and not fs::create_directories(Theme::user_theme_dir, error)) {
-				Theme::user_theme_dir.clear();
-				Logger::warning("Failed to create user theme directory: " + error.message());
-			}
-		}
-	}
+	//? Config dir init
+	init_config_dir();
 
 	//? Config init
 	init_config();
