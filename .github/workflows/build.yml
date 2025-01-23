@@ -80,7 +80,7 @@ jobs:
         run: |
           export CC="${{ github.workspace }}/zigshim/zig cc -target ${{ matrix.arch }}-linux-musl"
           export CXX="${{ github.workspace }}/zigshim/zig c++ -target ${{ matrix.arch }}-linux-musl"
-          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake -B build -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.exe
 
