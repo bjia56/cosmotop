@@ -39,6 +39,7 @@ tab-size = 4
 
 #include <cosmo.h>
 #include <libc/calls/struct/utsname.h>
+#include <libc/runtime/runtime.h>
 
 #include <fmt/core.h>
 #include <fmt/ostream.h>
@@ -77,7 +78,7 @@ namespace Global {
 		{"#062c43", "██████╗ ██████║ ██████║ ██║     ██║ ██████║   ██║   ██████║ ██║"},
 		{"#000000", "╚═════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝   ╚═╝   ╚═════╝ ╚═╝"},
 	};
-	const string Version = "0.1.0";
+	const string Version = "0.4.0";
 
 	int coreCount;
 	string overlay;
@@ -168,6 +169,9 @@ static void print_help() {
 			"  {0}-p,  --preset <id>   {2}start with preset, integer value between 0-9\n"
 			"  {0}-u,  --update <ms>   {2}set the program update rate in milliseconds\n"
 			"  {0}     --utf-force     {2}force start even if no UTF-8 locale was detected\n"
+			"  {0}     --show-defaults {2}print default configuration values to stdout\n"
+			"  {0}     --show-themes   {2}list all available themes\n"
+			"  {0}     --licenses      {2}display licenses of open-source software used in cosmotop\n"
 			"  {0}     --debug         {2}start in DEBUG mode: shows microsecond timer for information collect\n"
 			"  {0}                     {2}and screen draw functions and sets loglevel to DEBUG",
 			"\033[1m", "\033[4m", "\033[0m"
@@ -176,6 +180,125 @@ static void print_help() {
 
 static void print_help_hint() {
 	fmt::println("For more information, try '{0}--help{1}'", "\033[1m", "\033[0m");
+}
+
+static void print_with_pager(const string& text) {
+	auto pager = getenv("PAGER");
+	FILE* pipe;
+	if (pager == nullptr) {
+		// Check if less or more are available
+		pipe = popen("less -R", "w");
+		if (pipe == nullptr) {
+			pipe = popen("more", "w");
+		}
+	} else {
+		pipe = popen(pager, "w");
+	}
+
+	if (pipe == nullptr) {
+		fmt::print("{}\n", text);
+	} else {
+		fmt::print(pipe, "{}\n", text);
+		pclose(pipe);
+	}
+}
+
+static void print_licenses() {
+	auto trimBlankLines = [](const std::string& input) {
+		std::ostringstream result;
+		std::vector<std::string> lines = ssplit(input, '\n', false);
+
+		// Remove blank lines from the front
+		size_t start = 0;
+		while (start < lines.size() && is_blank(lines[start])) {
+			++start;
+		}
+
+		// Remove blank lines from the back
+		size_t end = lines.size();
+		while (end > start && is_blank(lines[end - 1])) {
+			--end;
+		}
+
+		// Collect the trimmed lines
+		for (size_t i = start; i < end; ++i) {
+			result << lines[i];
+			if (i < end - 1) {
+				result << '\n'; // Add newline except after the last line
+			}
+		}
+
+		return result.str();
+	};
+
+	auto licensesPath = fs::path("/zip/licenses");
+	if (fs::exists(licensesPath)) {
+		vector<string> ossNames;
+		for (const auto& entry : fs::directory_iterator(licensesPath)) {
+			if (entry.is_regular_file()) {
+				ossNames.push_back(entry.path().filename().string());
+			}
+		}
+		if (ossNames.empty()) {
+			fmt::print("No licenses found\n");
+			return;
+		}
+
+		std::stringstream licensesText;
+
+		auto cosmotopLicense = find(ossNames.begin(), ossNames.end(), "cosmotop");
+		if (cosmotopLicense != ossNames.end()) {
+			ossNames.erase(cosmotopLicense);
+
+			licensesText << fmt::format("{0}{1}{2}{3}\n\n", "\033[1m", "\033[4m", "cosmotop", "\033[0m");
+			auto licensePath = licensesPath / "cosmotop";
+			std::ifstream licenseFile(licensePath);
+			string license((std::istreambuf_iterator<char>(licenseFile)), std::istreambuf_iterator<char>());
+			if (!license.empty()) {
+				licensesText << fmt::format("{0}\n\n", trimBlankLines(license));
+			}
+		}
+
+		if (ossNames.empty()) {
+			print_with_pager(licensesText.str());
+			return;
+		}
+
+		sort(ossNames.begin(), ossNames.end());
+
+		for (const auto& name : ossNames) {
+			licensesText << fmt::format("{0}{1}{2}{3}\n\n", "\033[1m", "\033[4m", name, "\033[0m");
+
+			auto licensePath = licensesPath / name;
+			std::ifstream licenseFile(licensePath);
+			string license((std::istreambuf_iterator<char>(licenseFile)), std::istreambuf_iterator<char>());
+			if (!license.empty()) {
+				licensesText << fmt::format("{0}\n\n", trimBlankLines(license));
+			}
+		}
+
+		print_with_pager(licensesText.str());
+	} else {
+		fmt::print("No licenses found\n");
+	}
+}
+
+//* Config dir init
+void init_config_dir() {
+	const auto config_dir = Config::get_config_dir();
+	if (config_dir.has_value()) {
+		Config::conf_dir = config_dir.value();
+		Config::conf_file = Config::conf_dir / "cosmotop.conf";
+		Logger::logfile = Config::conf_dir / "cosmotop.log";
+		Theme::user_theme_dir = Config::conf_dir / "themes";
+
+		// If necessary create the user theme directory
+		std::error_code error;
+		if (not fs::exists(Theme::user_theme_dir, error) and not fs::create_directories(Theme::user_theme_dir, error)) {
+			Theme::user_theme_dir.clear();
+			Logger::warning("Failed to create user theme directory: " + error.message());
+		}
+	}
 }
 
 //* A simple argument parser
@@ -192,6 +315,45 @@ void argumentParser(const int argc, char **argv) {
 		}
 		else if (is_in(argument, "--version")) {
 			print_version_with_build_info();
+			exit(0);
+		}
+		else if(is_in(argument, "--licenses")) {
+			print_licenses();
+			exit(0);
+		}
+		else if (is_in(argument, "--show-defaults")) {
+			Config::write(std::cout);
+			exit(0);
+		}
+		else if (is_in(argument, "--show-themes")) {
+			init_config_dir();
+
+			fmt::println("{0}{1}System themes:{2}", "\033[1m", "\033[4m", "\033[0m");
+			for (const auto& theme : Theme::getSystemThemes()) {
+				fmt::println("{}", theme);
+			}
+
+			// Remove paths and extensions so only the theme names are shown
+			auto cleanupThemePaths = [](vector<string>&& themePaths) {
+				std::sort(themePaths.begin(), themePaths.end());
+				for (auto& themePath : themePaths) {
+					fs::path path(themePath);
+					themePath = path.filename().string();
+					themePath = themePath.substr(0, themePath.rfind(".theme"));
+				}
+				return themePaths;
+			};
+
+			fmt::println("\n{0}{1}Bundled themes:{2}", "\033[1m", "\033[4m", "\033[0m");
+			for (const auto& theme : cleanupThemePaths(Theme::getBundledThemes())) {
+				fmt::println("{}", theme);
+			}
+
+			fmt::println("\n{0}{1}User themes:{2}", "\033[1m", "\033[4m", "\033[0m");
+			for (const auto& theme : cleanupThemePaths(Theme::getUserThemes())) {
+				fmt::println("{}", theme);
+			}
+
 			exit(0);
 		}
 		else if (is_in(argument, "-lc", "--low-color")) {
@@ -265,7 +427,7 @@ void term_resize(bool force) {
 		if (force and refreshed) force = false;
 	}
 	else return;
-	static const array<string, 10> all_boxes = {"gpu5", "cpu", "mem", "net", "proc", "gpu0", "gpu1", "gpu2", "gpu3", "gpu4"};
+	static const array<string, 10> all_boxes = {"npu2", "cpu", "mem", "net", "proc", "gpu0", "gpu1", "gpu2", "npu0", "npu1"};
 	Global::resized = true;
 	if (Runner::active) Runner::stop();
 	Term::refresh();
@@ -305,8 +467,14 @@ void term_resize(bool force) {
 					clean_quit(0);
 				else if (key.size() == 1 and isint(key)) {
 					auto intKey = stoi(key);
-					auto gpu_count = Gpu::get_count();
-					if ((intKey == 0 and gpu_count >= 5) or (intKey >= 5 and intKey - 4 <= gpu_count)) {
+					const auto gpu_count = Gpu::get_count();
+					const auto npu_count = Npu::get_count();
+					if ((intKey >= 5 and intKey <= 7 and intKey - 4 <= gpu_count)) {
+						auto box = all_boxes.at(intKey);
+						Config::current_preset = -1;
+						Config::toggle_box(box);
+						boxes = Config::getS("shown_boxes");
+					} else if ((intKey == 0 and npu_count >= 3) or (intKey >= 8 and intKey - 7 <= npu_count)) {
 						auto box = all_boxes.at(intKey);
 						Config::current_preset = -1;
 						Config::toggle_box(box);
@@ -338,8 +506,7 @@ void clean_quit(int sig) {
 		}
 	}
 
-	Gpu::Nvml::shutdown();
-	Gpu::Rsmi::shutdown();
+	Shared::shutdown();
 
 	Config::write();
 
@@ -418,7 +585,7 @@ void _signal_handler(const int sig) {
 }
 
 //* Config init
-void init_config(){
+void init_config() {
 	atomic_lock lck(Global::init_conf);
 	vector<string> load_warnings;
 	Config::load(Config::conf_file, load_warnings);
@@ -632,6 +799,25 @@ namespace Runner {
 				}
 				auto& gpus_ref = gpus;
 
+				//? NPU data collection
+				const bool npu_in_cpu_panel = Npu::get_npu_names().size() > 0 and (
+					Config::getS("cpu_graph_lower").starts_with("npu-") or Config::getS("cpu_graph_upper").starts_with("npu-")
+					or (Npu::shown == 0 and Config::getS("show_npu_info") != "Off")
+				);
+
+				vector<unsigned int> npu_panels = {};
+				for (auto& box : conf.boxes)
+					if (box.starts_with("npu"))
+						npu_panels.push_back(box.back()-'0');
+
+				vector<Npu::npu_info> npus;
+				if (npu_in_cpu_panel or not npu_panels.empty()) {
+					if (Global::debug) debug_timer("npu", collect_begin);
+					npus = Npu::collect(conf.no_update);
+					if (Global::debug) debug_timer("npu", collect_done);
+				}
+				auto& npus_ref = npus;
+
 				//? CPU
 				if (v_contains(conf.boxes, "cpu")) {
 					try {
@@ -651,7 +837,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("cpu", draw_begin);
 
 						//? Draw box
-						if (not pause_output) output += Cpu::draw(cpu, gpus_ref, conf.force_redraw, conf.no_update);
+						if (not pause_output) output += Cpu::draw(cpu, gpus_ref, npus_ref, conf.force_redraw, conf.no_update);
 
 						if (Global::debug) debug_timer("cpu", draw_done);
 					}
@@ -673,7 +859,24 @@ namespace Runner {
 						if (Global::debug) debug_timer("gpu", draw_done);
 					}
 					catch (const std::exception& e) {
-                        throw std::runtime_error("Gpu:: -> " + string{e.what()});
+						throw std::runtime_error("Gpu:: -> " + string{e.what()});
+					}
+				}
+
+				//? NPU
+				if (not npu_panels.empty() and not npus_ref.empty()) {
+					try {
+						if (Global::debug) debug_timer("npu", draw_begin_only);
+
+						//? Draw box
+						if (not pause_output)
+							for (unsigned long i = 0; i < npu_panels.size(); ++i)
+								output += Npu::draw(npus_ref[npu_panels[i]], i, conf.force_redraw, conf.no_update);
+
+						if (Global::debug) debug_timer("npu", draw_done);
+					}
+					catch (const std::exception& e) {
+						throw std::runtime_error("Npu:: -> " + string{e.what()});
 					}
 				}
 
@@ -892,6 +1095,7 @@ namespace Runner {
 
 //* --------------------------------------------- Main starts here! ---------------------------------------------------
 int main(int argc, char **argv) {
+	ShowCrashReports();
 
 	//? ------------------------------------------------ INIT ---------------------------------------------------------
 
@@ -911,22 +1115,8 @@ int main(int argc, char **argv) {
 	//? Call argument parser if launched with arguments
 	if (argc > 1) argumentParser(argc, argv);
 
-	{
-		const auto config_dir = Config::get_config_dir();
-		if (config_dir.has_value()) {
-			Config::conf_dir = config_dir.value();
-			Config::conf_file = Config::conf_dir / "cosmotop.conf";
-			Logger::logfile = Config::conf_dir / "cosmotop.log";
-			Theme::user_theme_dir = Config::conf_dir / "themes";
-
-			// If necessary create the user theme directory
-			std::error_code error;
-			if (not fs::exists(Theme::user_theme_dir, error) and not fs::create_directories(Theme::user_theme_dir, error)) {
-				Theme::user_theme_dir.clear();
-				Logger::warning("Failed to create user theme directory: " + error.message());
-			}
-		}
-	}
+	//? Config dir init
+	init_config_dir();
 
 	//? Config init
 	init_config();

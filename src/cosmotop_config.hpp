@@ -46,10 +46,12 @@ namespace Config {
 	const vector<string> valid_graph_symbols_def = { "default", "braille", "block", "tty" };
 	const vector<string> valid_boxes = {
 		"cpu", "mem", "net", "proc",
-		"gpu0", "gpu1", "gpu2", "gpu3", "gpu4", "gpu5"
+		"gpu0", "gpu1", "gpu2", "gpu3", "gpu4", "gpu5",
+		"npu0", "npu1", "npu2",
 	};
 	const vector<string> temp_scales = { "celsius", "fahrenheit", "kelvin", "rankine" };
 	const vector<string> show_gpu_values = { "Auto", "On", "Off" };
+	const vector<string> show_npu_values = { "Auto", "On", "Off" };
 	extern vector<string> current_boxes;
 	extern vector<string> preset_list;
 	extern vector<string> available_batteries;
@@ -127,4 +129,7 @@ namespace Config {
 
 	//* Write the config file to disk
 	void write();
+
+	//* Write the config file to a stream
+	void write(std::ostream& cwrite);
 }

@@ -34,6 +34,7 @@ tab-size = 4
 #include <dlfcn.h>
 #include <unordered_map>
 #include <utility>
+#include <regex>
 
 #include <range/v3/all.hpp>
 
@@ -244,6 +245,51 @@ namespace Gpu {
 		template <bool is_init> bool collect(gpu_info* gpus_slice);
 		uint32_t device_count = 0;
 	}
+
+	//? Test data collection, for development use only. Set device_count to number of simulated devices.
+	namespace Test {
+		bool initialized = false;
+		bool init();
+		bool shutdown();
+		template <bool is_init> bool collect(gpu_info* gpus_slice);
+		constexpr uint32_t device_count = 0;
+	}
+}
+
+namespace Npu {
+	vector<npu_info> npus;
+	vector<string> npu_names;
+	vector<int> npu_b_height_offsets;
+	std::unordered_map<string, deque<long long>> shared_npu_percent = {
+		{"npu-average", {}},
+	};
+
+	int count = 0;
+
+	namespace Rockchip {
+		bool initialized = false;
+		bool init();
+		bool shutdown();
+		template <bool is_init> bool collect(npu_info* npus_slice);
+		uint32_t device_count = 0;
+	}
+
+	namespace Intel {
+		bool initialized = false;
+		bool init();
+		bool shutdown();
+		template <bool is_init> bool collect(npu_info* npus_slice);
+		uint32_t device_count = 0;
+	}
+
+	//? Test data collection, for development use only. Set device_count to number of simulated devices.
+	namespace Test {
+		bool initialized = false;
+		bool init();
+		bool shutdown();
+		template <bool is_init> bool collect(npu_info* npus_slice);
+		constexpr uint32_t device_count = 0;
+	}
 }
 
 namespace Mem {
@@ -309,6 +355,7 @@ namespace Shared {
 		Gpu::Nvml::init();
 		Gpu::Rsmi::init();
 		Gpu::Intel::init();
+		if constexpr(Gpu::Test::device_count > 0) Gpu::Test::init();
 		if (not Gpu::gpu_names.empty()) {
 			for (auto const& [key, _] : Gpu::gpus[0].gpu_percent)
 				Cpu::available_fields.push_back(key);
@@ -323,6 +370,23 @@ namespace Shared {
 					   + gpus[i].supported_functions.pwr_usage
 					   + (gpus[i].supported_functions.mem_total or gpus[i].supported_functions.mem_used)
 						* (1 + 2*(gpus[i].supported_functions.mem_total and gpus[i].supported_functions.mem_used) + 2*gpus[i].supported_functions.mem_utilization);
+		}
+
+		//? Init for namespace Npu
+		Npu::Rockchip::init();
+		Npu::Intel::init();
+		if constexpr(Npu::Test::device_count > 0) Npu::Test::init();
+		if (not Npu::npu_names.empty()) {
+			for (auto const& [key, _] : Npu::npus[0].npu_percent)
+				Cpu::available_fields.push_back(key);
+			for (auto const& [key, _] : Npu::shared_npu_percent)
+				Cpu::available_fields.push_back(key);
+
+			using namespace Npu;
+			count = npus.size();
+			npu_b_height_offsets.resize(npus.size());
+			for (size_t i = 0; i < npu_b_height_offsets.size(); ++i)
+				npu_b_height_offsets[i] = npus[i].supported_functions.npu_utilization;
 		}
 
 		//? Init for namespace Mem
@@ -370,6 +434,26 @@ namespace Cpu {
 				cpuinfo.ignore(1);
 				getline(cpuinfo, name);
 			}
+#ifdef __aarch64__
+			else if (access("/proc/device-tree/compatible", R_OK | F_OK) != -1) {
+				// https://github.com/fastfetch-cli/fastfetch/blob/5137a9e7a40b086e6ad7c4a21e05ea36ac4c9638/src/detection/cpu/cpu_linux.c#L440
+				// device-vendor,device-model\0soc-vendor,soc-model\0
+				ifstream compatible("/proc/device-tree/compatible");
+				if (compatible.good()) {
+					// read model from the second string
+					compatible.ignore(SSmax, '\0');
+					getline(compatible, name);
+
+					// remove any spaces
+					name = trim(name);
+
+					// split on commas and take the last part
+					auto name_vec = ssplit(name, ',');
+					if (name_vec.size() > 1) name = name_vec.back();
+					name = capitalize(name);
+				}
+			}
+#endif
 			else if (fs::exists("/sys/devices")) {
 				for (const auto& d : fs::directory_iterator("/sys/devices")) {
 					if (string(d.path().filename()).starts_with("arm")) {
@@ -785,7 +869,7 @@ namespace Cpu {
 			}
 		}
 
-		auto battery_sel = Config::getS("selected_battery");
+		const auto battery_sel = Config::getS("selected_battery");
 
 		if (auto_sel.empty()) {
 			for (auto& [name, bat] : batteries) {
@@ -892,7 +976,7 @@ namespace Cpu {
 	auto collect(bool no_update) -> cpu_info& {
 		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
 		auto& cpu = current_cpu;
-		auto width = get_width();
+		const auto width = get_width();
 
 		if (Config::getB("show_cpu_freq"))
 			cpuHz = get_cpuHz();
@@ -1416,7 +1500,7 @@ namespace Gpu {
 
 		bool shutdown() {
 			if (!initialized) return false;
-    		if (rsmi_shut_down() == RSMI_STATUS_SUCCESS) {
+			if (rsmi_shut_down() == RSMI_STATUS_SUCCESS) {
 				initialized = false;
 			#if !defined(RSMI_STATIC)
 				dlclose(rsmi_dl_handle);
@@ -1609,41 +1693,44 @@ namespace Gpu {
 
 	namespace Intel {
 		// Attempts to initialize with Intel PMU, returning the device name if successful
-		static char *init_pmu() {
+		static string init_pmu() {
 			char *gpu_path = find_intel_gpu_dir();
 			if (!gpu_path) {
-				Logger::debug("Failed to find Intel GPU sysfs path, Intel GPUs will not be detected");
-				return nullptr;
+				Logger::info("Failed to find Intel GPU sysfs path, Intel GPUs will not be detected");
+				return "";
 			}
 
 			char *gpu_device_id = get_intel_device_id(gpu_path);
+			free(gpu_path);
 			if (!gpu_device_id) {
-				Logger::debug("Failed to find Intel GPU device ID, Intel GPUs will not be detected");
-				return nullptr;
+				Logger::info("Failed to find Intel GPU device ID, Intel GPUs will not be detected");
+				return "";
 			}
 
-			char *gpu_device_name = get_intel_device_name(gpu_device_id);
-			if (!gpu_device_name) {
-				Logger::warning("Failed to find Intel GPU device name in internal database");
-				gpu_device_name = strdup("Intel GPU");
-			}
-
+			char *dev_name = get_intel_device_name(gpu_device_id);
 			free(gpu_device_id);
+
+			string gpu_device_name;
+			if (dev_name) {
+				gpu_device_name = string(dev_name);
+				free(dev_name);
+			} else {
+				Logger::warning("Failed to find Intel GPU device name in internal database");
+				gpu_device_name = "Intel GPU"s;
+			}
 
 			engines = discover_engines(device);
 			if (!engines) {
-				Logger::debug("Failed to find Intel GPU engines, Intel GPUs will not be detected");
-				free(gpu_device_name);
-				return nullptr;
+				Logger::warning("Failed to find Intel GPU engines, Intel GPUs will not be detected");
+				return "";
 			}
 
 			int ret = pmu_init(engines);
 			if (ret) {
 				Logger::warning("Intel GPU: Failed to initialize PMU");
-				free(gpu_device_name);
 				free_engines(engines);
 				engines = nullptr;
-				return nullptr;
+				return "";
 			}
 
 			return gpu_device_name;
@@ -1675,11 +1762,11 @@ namespace Gpu {
 		}
 
 		// Attempts to initialize with intel_gpu_exporter REST api
-		static char *init_rest() {
-			string rest_endpoint = Config::getS("intel_gpu_exporter");
+		static string init_rest() {
+			const auto rest_endpoint = Config::getS("intel_gpu_exporter");
 			if (rest_endpoint.empty()) {
-				Logger::debug("Fallback Intel GPU exporter not configured, Intel GPUs will not be detected");
-				return nullptr;
+				Logger::info("Fallback Intel GPU exporter not configured, Intel GPUs will not be detected");
+				return "";
 			}
 
 			try {
@@ -1692,7 +1779,7 @@ namespace Gpu {
 					Logger::warning("Failed to get Intel GPU device ID from exporter");
 					delete exporter;
 					exporter = nullptr;
-					return nullptr;
+					return "";
 				}
 
 				// We get the value as a float, so need to convert it to hex string
@@ -1703,25 +1790,28 @@ namespace Gpu {
 				char *gpu_device_name = get_intel_device_name(ss.str().c_str());
 				if (!gpu_device_name) {
 					Logger::warning("Failed to find Intel GPU device name in internal database");
-					gpu_device_name = strdup("Intel GPU");
+					return "Intel GPU"s;
 				}
 
-				return gpu_device_name;
+				string result = string(gpu_device_name);
+				free(gpu_device_name);
+
+				return result;
 			} catch (const std::exception &e) {
 				Logger::warning("Failed to connect to Intel GPU exporter: "s + e.what());
 				if (exporter) delete exporter;
 				exporter = nullptr;
-				return nullptr;
+				return "";
 			}
 		}
 
 		bool init() {
 			if (initialized) return false;
 
-			char *gpu_device_name = init_pmu();
-			if (!gpu_device_name) {
+			string gpu_device_name = init_pmu();
+			if (gpu_device_name.empty()) {
 				gpu_device_name = init_rest();
-				if (!gpu_device_name) return false;
+				if (gpu_device_name.empty()) return false;
 			}
 
 			if (engines) {
@@ -1733,8 +1823,7 @@ namespace Gpu {
 			gpus.resize(gpus.size() + device_count);
 			gpu_names.resize(gpus.size() + device_count);
 
-			gpu_names[Nvml::device_count + Rsmi::device_count] = string(gpu_device_name);
-			free(gpu_device_name);
+			gpu_names[Nvml::device_count + Rsmi::device_count] = gpu_device_name;
 
 			initialized = true;
 			Intel::collect<1>(gpus.data() + Nvml::device_count + Rsmi::device_count);
@@ -1803,6 +1892,89 @@ namespace Gpu {
 		}
 	}
 
+	//? Test
+	namespace Test {
+		bool init() {
+			if (initialized) return false;
+
+			const size_t previous_size = gpus.size();
+			gpus.resize(previous_size + device_count);
+			gpu_names.resize(previous_size + device_count);
+
+			for (int i = 0; i < device_count; ++i) {
+				gpu_names[previous_size + i] = "Test GPU" + std::to_string(i);
+			}
+
+			initialized = true;
+			Test::collect<1>(gpus.data() + previous_size);
+
+			return true;
+		}
+
+		bool shutdown() {
+			if (!initialized) return false;
+			initialized = false;
+			return true;
+		}
+
+		template <bool is_init> bool collect(gpu_info* gpus_slice) {
+			if (!initialized) return false;
+
+			for (int i = 0; i < device_count; ++i) {
+				if constexpr(is_init) {
+					gpus_slice[i].supported_functions = {
+						.gpu_utilization = true,
+						.mem_utilization = true,
+						.gpu_clock = true,
+						.mem_clock = true,
+						.pwr_usage = true,
+						.pwr_state = true,
+						.temp_info = true,
+						.mem_total = true,
+						.mem_used = true,
+						.pcie_txrx = true
+					};
+
+					gpus_slice[i].pwr_max_usage = 10'000; //? 10W
+					gpus_slice[i].temp_max = 100;
+					gpus_slice[i].mem_total = 8'589'934'592; //? 8GB
+				}
+
+				//? GPU utilization
+				gpus_slice[i].gpu_percent.at("gpu-totals").push_back(rand() % 101);
+
+				//? Memory utilization
+				gpus_slice[i].mem_utilization_percent.push_back(rand() % 101);
+
+				//? Clock speeds
+				gpus_slice[i].gpu_clock_speed = rand() % 2000 + 1000;
+				gpus_slice[i].mem_clock_speed = rand() % 2000 + 1000;
+
+				//? Power usage
+				gpus_slice[i].pwr_usage = rand() % 10000;
+				if (gpus_slice[i].pwr_usage > gpus_slice[i].pwr_max_usage)
+					gpus_slice[i].pwr_max_usage = gpus_slice[i].pwr_usage;
+				gpus_slice[i].gpu_percent.at("gpu-pwr-totals").push_back(clamp((long long)round((double)gpus_slice[i].pwr_usage * 100.0 / (double)gpus_slice[i].pwr_max_usage), 0ll, 100ll));
+
+				//? Power state
+				gpus_slice[i].pwr_state = rand() % 8;
+
+				//? Temperature
+				gpus_slice[i].temp.push_back(rand() % 100);
+
+				//? Memory usage
+				gpus_slice[i].mem_used = rand() % gpus_slice[i].mem_total;
+				gpus_slice[i].gpu_percent.at("gpu-vram-totals").push_back((long long)round((double)gpus_slice[i].mem_used * 100.0 / (double)gpus_slice[i].mem_total));
+
+				//? PCIe link speeds
+				gpus_slice[i].pcie_tx = rand() % 1000;
+				gpus_slice[i].pcie_rx = rand() % 1000;
+			}
+
+			return true;
+		}
+	}
+
 	//? Collect data from GPU-specific libraries
 	auto collect(bool no_update) -> vector<gpu_info>& {
 		if (Runner::get_stopping() or (no_update and not gpus.empty())) return gpus;
@@ -1813,8 +1985,9 @@ namespace Gpu {
 		Nvml::collect<0>(gpus.data()); // raw pointer to vector data, size == Nvml::device_count
 		Rsmi::collect<0>(gpus.data() + Nvml::device_count); // size = Rsmi::device_count
 		Intel::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count); // size = Intel::device_count
+		if constexpr(Test::device_count > 0) Test::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count + Intel::device_count); // size = Test::device_count
 
-		auto width = get_width();
+		const auto width = get_width();
 
 		//* Calculate average usage
 		long long avg = 0;
@@ -1863,6 +2036,308 @@ namespace Gpu {
 	}
 }
 
+namespace Npu {
+	//? Rockchip
+	namespace Rockchip {
+		/*
+		 * Sample contents:
+		 * NPU load:  Core0:  0%, Core1:  0%, Core2:  0%,
+		 */
+		const fs::path rknpu_load_path = "/sys/kernel/debug/rknpu/load";
+
+		bool init() {
+			if (initialized) return false;
+
+			// Wrap in try-catch to prevent crashes if the file is missing
+			// or if the user cannot access it
+			try {
+				// Does the load file exist?
+				if (!fs::exists(rknpu_load_path)) {
+					Logger::debug("Rockchip NPU not found, Rockchip NPUs will not be detected");
+					return false;
+				}
+
+				// Read the load file
+				std::ifstream load_file(rknpu_load_path);
+				if (!load_file.is_open()) {
+					Logger::warning("Failed to open Rockchip NPU load file");
+					return false;
+				}
+
+				// Extract the number of NPUs
+				std::stringstream buffer;
+				buffer << load_file.rdbuf();
+				std::regex npu_count_regex("Core([0-9]+):\\s*[0-9]+%");
+				std::string data = buffer.str();
+				for (std::smatch match; std::regex_search(data, match, npu_count_regex); data = match.suffix()) {
+					device_count++;
+				}
+			} catch (const std::exception& e) {
+				Logger::info("Failed to load Rockchip NPU: "s + e.what());
+				return false;
+			}
+
+			if (!device_count) {
+				Logger::info("Rockchip NPU not found, Rockchip NPUs will not be detected");
+				return false;
+			}
+
+			size_t previous_size = npus.size();
+			npus.resize(previous_size + device_count);
+			npu_names.resize(previous_size + device_count);
+
+			for (int i = 0; i < device_count; i++) {
+				npu_names[previous_size + i] = "Rockchip NPU" + std::to_string(i);
+			}
+
+			initialized = true;
+			Rockchip::collect<1>(npus.data() + previous_size);
+
+			return true;
+		}
+
+		bool shutdown() {
+			if (!initialized) return false;
+			initialized = false;
+			return true;
+		}
+
+		template <bool is_init> bool collect(npu_info* npus_slice) {
+			if (!initialized) return false;
+
+			std::ifstream load_file(rknpu_load_path);
+
+			// Read all lines
+			std::stringstream buffer;
+			if (load_file.is_open()) {
+				buffer << load_file.rdbuf();
+			} else {
+				Logger::info("Failed to read Rockchip NPU load file");
+			}
+
+			for (int i = 0; i < device_count; i++) {
+				if constexpr(is_init) {
+					npus_slice[i].supported_functions = {
+						.npu_utilization = true
+					};
+				}
+
+				//? NPU utilization
+				std::regex npu_count_regex("Core" + std::to_string(i) + ":\\s*([0-9]+)%");
+				std::smatch match;
+				std::string data = buffer.str();
+				if (std::regex_search(data, match, npu_count_regex) && match.size() > 1) {
+					npus_slice[i].npu_percent.at("npu-totals").push_back(std::stoi(match[1].str()));
+				} else {
+					npus_slice[i].npu_percent.at("npu-totals").push_back(0);
+				}
+			}
+
+			return true;
+		}
+	}
+
+	//? Intel
+	namespace Intel {
+		// https://github.com/nokyan/resources/issues/302#issuecomment-2284297338
+		// https://github.com/chromium/chromium/blob/884f7b1b2fd5a110f628860aef806f7291620644/chrome/browser/ui/webui/ash/sys_internals/sys_internals_message_handler.cc#L268
+		const fs::path intel_npu_busy_path = "/sys/devices/pci0000:00/0000:00:0b.0/npu_busy_time_us";
+
+		// https://github.com/DMontgomery40/intel-npu-top/blob/b1328afe5469e5d0a8256cde9c002b240b6f4470/intel-npu-top.py#L10
+		// https://github.com/ZoLArk173/nputop/blob/bfb22a49f15bee1d054a5d4e9ce98f1dd4da0021/src/main.rs#L61
+		const fs::path intel_npu_power_path = "/sys/devices/pci0000:00/0000:00:0b.0/power/runtime_active_time";
+
+		enum class MetricsMethod {
+			BUSY, POWER
+		};
+
+		MetricsMethod detected_method;
+
+		static bool detectBusy() {
+			// Wrap in try-catch to prevent crashes if the file is missing
+			// or if the user cannot access it
+			try {
+				if (fs::exists(intel_npu_busy_path)) {
+					std::ifstream busy_file(intel_npu_busy_path);
+					if (busy_file.is_open()) {
+						detected_method = MetricsMethod::BUSY;
+						return true;
+					}
+				}
+			} catch (const std::exception& e) {
+			}
+			return false;
+		}
+
+		static bool detectPower() {
+			try {
+				if (fs::exists(intel_npu_power_path)) {
+					std::ifstream power_file(intel_npu_power_path);
+					if (power_file.is_open()) {
+						detected_method = MetricsMethod::POWER;
+						return true;
+					}
+				}
+			} catch (const std::exception& e) {
+			}
+			return false;
+		}
+
+		bool init() {
+			if (initialized) return false;
+
+			// Detect the method to use
+			if (!detectBusy() && !detectPower()) {
+				Logger::info("Intel NPU not found, Intel NPUs will not be detected");
+				return false;
+			}
+
+			// Assume there is only one on the system
+			device_count = 1;
+
+			size_t previous_size = npus.size();
+			npus.resize(previous_size + device_count);
+			npu_names.resize(previous_size + device_count);
+
+			npu_names[previous_size] = "Intel NPU";
+
+			initialized = true;
+			Intel::collect<1>(npus.data() + previous_size);
+
+			return true;
+		}
+
+		bool shutdown() {
+			if (!initialized) return false;
+			initialized = false;
+			return true;
+		}
+
+		template <bool is_init> bool collect(npu_info* npus_slice) {
+			if (!initialized) return false;
+
+			std::ifstream metrics_file(detected_method == MetricsMethod::BUSY ? intel_npu_busy_path : intel_npu_power_path);
+
+			// Read all lines
+			std::stringstream buffer;
+			if (metrics_file.is_open()) {
+				buffer << metrics_file.rdbuf();
+			} else {
+				Logger::info("Failed to read Intel NPU busy file");
+			}
+
+			// Initialized once and will be updated every subsequent sample
+			static auto last_sample_time = std::chrono::system_clock::now();
+			static double last_sample = 0;
+
+			if constexpr(is_init) {
+				npus_slice[0].supported_functions = {
+					.npu_utilization = true
+				};
+				last_sample = std::stod(buffer.str());
+
+				npus_slice[0].npu_percent.at("npu-totals").push_back(0);
+			} else {
+				auto current_sample_time = std::chrono::system_clock::now();
+				auto current_sample = std::stod(buffer.str());
+
+				auto time_diff = (
+					detected_method == MetricsMethod::BUSY ?
+					std::chrono::duration_cast<std::chrono::microseconds>(current_sample_time - last_sample_time).count() :
+					std::chrono::duration_cast<std::chrono::milliseconds>(current_sample_time - last_sample_time).count()
+				);
+				auto sample_diff = current_sample - last_sample;
+
+				npus_slice[0].npu_percent.at("npu-totals").push_back(clamp((long long)round((double)sample_diff * 100.0 / (double)time_diff), 0ll, 100ll));
+
+				last_sample_time = current_sample_time;
+				last_sample = current_sample;
+			}
+
+			return true;
+		}
+	}
+
+	//? Test
+	namespace Test {
+		bool init() {
+			if (initialized) return false;
+
+			size_t previous_size = npus.size();
+			npus.resize(previous_size + device_count);
+			npu_names.resize(previous_size + device_count);
+
+			for (int i = 0; i < device_count; i++) {
+				npu_names[previous_size + i] = "Test NPU" + std::to_string(i);
+			}
+
+			initialized = true;
+			Test::collect<1>(npus.data() + previous_size);
+
+			return true;
+		}
+
+		bool shutdown() {
+			if (!initialized) return false;
+			initialized = false;
+			return true;
+		}
+
+		template <bool is_init> bool collect(npu_info* npus_slice) {
+			if (!initialized) return false;
+
+			for (int i = 0; i < device_count; i++) {
+				if constexpr(is_init) {
+					npus_slice[i].supported_functions = {
+						.npu_utilization = true
+					};
+				}
+
+				//? NPU utilization
+				if (npus_slice[i].supported_functions.npu_utilization) {
+					npus_slice[i].npu_percent.at("npu-totals").push_back(rand() % 101);
+				}
+			}
+
+			return true;
+		}
+	}
+
+	auto collect(bool no_update) -> vector<npu_info>& {
+		if (Runner::get_stopping() or (no_update and not npus.empty())) return npus;
+
+		//* Collect data
+		Rockchip::collect<0>(npus.data());
+		Intel::collect<0>(npus.data() + Rockchip::device_count);
+		if constexpr(Test::device_count > 0) Test::collect<0>(npus.data() + Rockchip::device_count + Intel::device_count);
+
+		const auto width = get_width();
+
+		//* Calculate average usage
+		long long avg = 0;
+		for (auto& npu : npus) {
+			if (npu.supported_functions.npu_utilization)
+				avg += npu.npu_percent.at("npu-totals").back();
+
+			//* Trim vectors if there are more values than needed for graphs
+			if (width != 0) {
+				//? NPU utilization
+				while (cmp_greater(npu.npu_percent.at("npu-totals").size(), width * 2)) npu.npu_percent.at("npu-totals").pop_front();
+			}
+		}
+
+		shared_npu_percent.at("npu-average").push_back(avg / npus.size());
+
+		if (width != 0) {
+			while (cmp_greater(shared_npu_percent.at("npu-average").size(), width * 2)) shared_npu_percent.at("npu-average").pop_front();
+		}
+
+		count = npus.size();
+
+		return npus;
+	}
+}
+
 namespace Mem {
 	bool has_swap{};
 	vector<string> fstab;
@@ -1894,13 +2369,13 @@ namespace Mem {
 
 	auto collect(bool no_update) -> mem_info& {
 		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty())) return current_mem;
-		auto show_swap = Config::getB("show_swap");
-		auto swap_disk = Config::getB("swap_disk");
-		auto show_disks = Config::getB("show_disks");
-		auto zfs_arc_cached = Config::getB("zfs_arc_cached");
+		const auto show_swap = Config::getB("show_swap");
+		const auto swap_disk = Config::getB("swap_disk");
+		const auto show_disks = Config::getB("show_disks");
+		const auto zfs_arc_cached = Config::getB("zfs_arc_cached");
 		auto totalMem = get_totalMem();
 		auto& mem = current_mem;
-		auto width = get_width();
+		const auto width = get_width();
 
 		mem.stats.at("swap_total") = 0;
 
@@ -1988,13 +2463,13 @@ namespace Mem {
 		if (show_disks) {
 			static vector<string> ignore_list;
 			double uptime = system_uptime();
-			auto free_priv = Config::getB("disk_free_priv");
+			const auto free_priv = Config::getB("disk_free_priv");
 			try {
-				auto disks_filter = Config::getS("disks_filter");
+				const auto disks_filter = Config::getS("disks_filter");
 				bool filter_exclude = false;
-				auto use_fstab = Config::getB("use_fstab");
-				auto only_physical = Config::getB("only_physical");
-				auto zfs_hide_datasets = Config::getB("zfs_hide_datasets");
+				const auto use_fstab = Config::getB("use_fstab");
+				const auto only_physical = Config::getB("only_physical");
+				const auto zfs_hide_datasets = Config::getB("zfs_hide_datasets");
 				auto& disks = mem.disks;
 				static std::unordered_map<string, future<pair<disk_info, int>>> disks_stats_promises;
 				ifstream diskread;
@@ -2163,7 +2638,7 @@ namespace Mem {
 						disk.used_percent = updated_stats.used_percent;
 						disk.free_percent = updated_stats.free_percent;
 					}
-					disks_stats_promises[mountpoint] = async(std::launch::async, [mountpoint, &free_priv]() -> pair<disk_info, int> {
+					disks_stats_promises[mountpoint] = async(std::launch::async, [mountpoint, free_priv]() -> pair<disk_info, int> {
 						struct statvfs vfs;
 						disk_info disk;
 						if (statvfs(mountpoint.c_str(), &vfs) < 0) {
@@ -2366,7 +2841,7 @@ namespace Mem {
 		int64_t io_ticks_total{};
 		int64_t objects_read{};
 
-		auto width = get_width();
+		const auto width = get_width();
 
 		// looking through all files that start with 'objset'
 		for (const auto& file: fs::directory_iterator(disk.stat)) {
@@ -2451,11 +2926,11 @@ namespace Net {
 	auto collect(bool no_update) -> net_info& {
 		if (Runner::get_stopping()) return empty_net;
 		auto& net = current_net;
-		auto config_iface = Config::getS("net_iface");
-		auto net_sync = Config::getB("net_sync");
-		auto net_auto = Config::getB("net_auto");
+		const auto config_iface = Config::getS("net_iface");
+		const auto net_sync = Config::getB("net_sync");
+		const auto net_auto = Config::getB("net_auto");
 		auto new_timestamp = time_ms();
-		auto width = get_width();
+		const auto width = get_width();
 
 		if (not no_update and errors < 3) {
 			//? Get interface list using getifaddrs() wrapper
@@ -2663,7 +3138,7 @@ namespace Proc {
 	//* Get detailed info for selected process
 	void _collect_details(const size_t pid, const uint64_t uptime, vector<proc_info>& procs) {
 		fs::path pid_path = Shared::procPath / std::to_string(pid);
-		auto width = get_width();
+		const auto width = get_width();
 
 		if (pid != detailed.last_pid) {
 			detailed = {};
@@ -2762,12 +3237,12 @@ namespace Proc {
 	auto collect(bool no_update) -> vector<proc_info>& {
 		if (Runner::get_stopping()) return current_procs;
 		const auto sorting = Config::getS("proc_sorting");
-		auto reverse = Config::getB("proc_reversed");
+		const auto reverse = Config::getB("proc_reversed");
 		const auto filter = Config::getS("proc_filter");
-		auto per_core = Config::getB("proc_per_core");
-		auto should_filter_kernel = Config::getB("proc_filter_kernel");
-		auto tree = Config::getB("proc_tree");
-		auto show_detailed = Config::getB("show_detailed");
+		const auto per_core = Config::getB("proc_per_core");
+		const auto should_filter_kernel = Config::getB("proc_filter_kernel");
+		const auto tree = Config::getB("proc_tree");
+		const auto show_detailed = Config::getB("show_detailed");
 		const size_t detailed_pid = Config::getI("detailed_pid");
 		bool should_filter = current_filter != filter;
 		if (should_filter) current_filter = filter;
@@ -2872,7 +3347,9 @@ namespace Proc {
 				auto& new_proc = *find_old;
 
 				//? Get program name, command and username
-				if (no_cache) {
+				// weirdly enough, sometimes the proc entry exists but the name disappears,
+				// so we need to check if the name is empty and re-read from /proc
+				if (no_cache or new_proc.name.empty()) {
 					pread.open(d.path() / "comm");
 					if (not pread.good()) continue;
 					getline(pread, new_proc.name);

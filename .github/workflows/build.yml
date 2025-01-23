@@ -11,6 +11,9 @@ on:
         required: true
         type: string
 
+env:
+  zig_version: 0.13.0
+
 jobs:
   build:
     name: Build cosmotop.com
@@ -45,6 +48,14 @@ jobs:
           name: cosmotop.com
           path: ./build/cosmotop.com
 
+      - name: Upload debug artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop.debug
+          path: |
+            ./build/cosmotop.com.dbg
+            ./build/cosmotop.aarch64.elf
+
   build_linux_plugin:
     name: Build plugin Linux ${{ matrix.arch }}
     runs-on: ubuntu-latest
@@ -62,7 +73,7 @@ jobs:
       - name: Set up zig
         uses: mlugg/setup-zig@v1
         with:
-          version: 0.13.0
+          version: ${{ env.zig_version }}
 
       - name: Build plugin
         shell: bash
@@ -282,6 +293,11 @@ jobs:
         with:
           version: ${{ env.cosmocc_version }}
 
+      - name: Set up zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: ${{ env.zig_version }}
+
       - name: Download cosmotop.com
         uses: actions/download-artifact@v4
         with:
@@ -301,6 +317,7 @@ jobs:
 
           sudo mkdir -p /zip/
           sudo cp -r ${{ github.workspace }}/themes /zip/
+          sudo cp ${{ github.workspace }}/third_party/catppuccin/themes/* /zip/themes/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
@@ -310,6 +327,38 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-openbsd-x86_64.exe /zip/
+
+          cd ${{ github.workspace }}
+          mkdir LHM
+          cd LHM
+          wget https://github.com/bjia56/LHM-CppExport/releases/download/v0.1.0/LHM-CppExport.zip
+          unzip LHM-CppExport.zip
+          sudo mkdir -p /zip/windows/
+          sudo cp *.dll /zip/windows/
+          sudo cp *.exe /zip/windows/
+
+          cd ${{ github.workspace }}
+          mkdir licenses
+          cd licenses
+          cp ${{ github.workspace }}/LICENSE cosmotop
+          curl -L -o LibreHardwareMonitor https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE-LibreHardwareMonitor.txt
+          curl -L -o LHM-CppExport https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE.txt
+          curl -L -o HIDSharp https://raw.githubusercontent.com/IntergatedCircuits/HidSharp/refs/tags/2.1.0/License.txt
+          cp ${{ github.workspace }}//third_party/catppuccin/LICENSE "Catppuccin themes"
+          cp ${{ github.workspace }}/third_party/range-v3/LICENSE.txt range-v3
+          cp ${{ github.workspace }}/third_party/fmt/LICENSE fmt
+          cp ${{ github.workspace }}/third_party/libcosmo_plugin/LICENSE libcosmo_plugin
+          cp ${{ github.workspace }}/third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE reflect-cpp
+          curl -L -o yyjson https://raw.githubusercontent.com/ibireme/yyjson/refs/tags/0.10.0/LICENSE
+          curl -L -o compile-time-regular-expressions https://raw.githubusercontent.com/hanickadot/compile-time-regular-expressions/068c6269caa0600021bbe93ca784bb819f3a8273/LICENSE
+          cp ${{ github.workspace }}/third_party/cpp-httplib/LICENSE cpp-httplib
+          cp ${{ github.workspace }}/third_party/widecharwidth/LICENSE widecharwidth
+          cp $(dirname $(dirname $(which cosmocc)))/LICENSE "Cosmopolitan Libc"
+          cp $(dirname $(which zig))/LICENSE "Zig Programming Language"
+          cp $(dirname $(which zig))/lib/libc/musl/COPYRIGHT "musl libc"
+          cp $(dirname $(which zig))/lib/libcxx/LICENSE.TXT "LLVM Project"
+          sudo mkdir -p /zip/licenses/
+          sudo cp * /zip/licenses/
 
           cd /zip
           zip -r ${{ github.workspace }}/cosmotop.com *
@@ -343,6 +392,9 @@ jobs:
             os: MacOS
           - runner: ubuntu-latest
             arch: x86_64
+            os: Linux
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
             os: Linux
           - runner: windows-latest
             arch: x86_64

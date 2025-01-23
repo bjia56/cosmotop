@@ -412,20 +412,43 @@ namespace Theme {
 		}
 	}
 
-	void updateThemes() {
-		themes.clear();
+	static void getThemesFrom(vector<string>& themes, const string& path) {
+		if (not path.empty()) {
+			for (auto& file : fs::directory_iterator(path)) {
+				if (file.path().extension() == ".theme" and access(file.path().c_str(), R_OK) != -1)
+					themes.push_back(file.path().c_str());
+			}
+		}
+	}
+
+	vector<string> getSystemThemes() {
+		vector<string> themes;
 		themes.push_back("Default");
 		themes.push_back("TTY");
+		return themes;
+	}
 
-		for (const auto& path : { user_theme_dir, theme_dir } ) {
-			if (path.empty()) continue;
-			for (auto& file : fs::directory_iterator(path)) {
-				if (file.path().extension() == ".theme" and access(file.path().c_str(), R_OK) != -1 and not v_contains(themes, file.path().c_str())) {
-					themes.push_back(file.path().c_str());
+	vector<string> getBundledThemes() {
+		vector<string> themes;
+		getThemesFrom(themes, theme_dir);
+		return themes;
+	}
+
+	vector<string> getUserThemes() {
+		vector<string> themes;
+		getThemesFrom(themes, user_theme_dir);
+		return themes;
+	}
+
+	void updateThemes() {
+		themes = getSystemThemes();
+		for (const auto tv : { getUserThemes(), getBundledThemes() } ) {
+			for (auto& t : tv) {
+				if (not v_contains(themes, t)) {
+					themes.push_back(t);
 				}
 			}
 		}
-
 	}
 
 	void setTheme() {

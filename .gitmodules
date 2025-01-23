@@ -16,3 +16,6 @@
 [submodule "third_party/rocm_smi_lib"]
 	path = third_party/rocm_smi_lib
 	url = https://github.com/ROCm/rocm_smi_lib.git
+[submodule "third_party/catppuccin"]
+	path = third_party/catppuccin
+	url = https://github.com/catppuccin/btop.git

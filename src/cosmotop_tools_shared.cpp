@@ -178,13 +178,14 @@ namespace Tools {
 		return string{str_v};
 	}
 
-	auto ssplit(const string& str, const char& delim) -> vector<string> {
+	auto ssplit(const string& str, const char& delim, bool discard_empty) -> vector<string> {
 		vector<string> out;
 		for (const auto& s : str 	| rng::views::split(delim)
 									| rng::views::transform([](auto &&rng) {
+										if (rng.begin() == rng.end()) return std::string_view();
 										return std::string_view(&*rng.begin(), rng::distance(rng));
 		})) {
-			if (not s.empty()) out.emplace_back(s);
+			if (not s.empty() or not discard_empty) out.emplace_back(s);
 		}
 		return out;
 	}

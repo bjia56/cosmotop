@@ -22,7 +22,7 @@ sudo sh -c "echo ':APE:M::MZqFpD::/usr/bin/ape:' >/proc/sys/fs/binfmt_misc/regis
 sudo sh -c "echo ':APE-jart:M::jartsr::/usr/bin/ape:' >/proc/sys/fs/binfmt_misc/register"
 ```
 
-## Usage
+## Usage and features
 
 ```
 Usage: cosmotop [OPTIONS]
@@ -36,18 +36,36 @@ Options:
   -p,  --preset <id>   start with preset, integer value between 0-9
   -u,  --update <ms>   set the program update rate in milliseconds
        --utf-force     force start even if no UTF-8 locale was detected
+       --show-defaults print default configuration values to stdout
+       --show-themes   list all available themes
+       --licenses      display licenses of open-source software used in cosmotop
        --debug         start in DEBUG mode: shows microsecond timer for information collect
                        and screen draw functions and sets loglevel to DEBUG
 ```
+
+### GPU monitoring
+
+Monitoring of GPUs is supported on Linux and Windows.
+- Windows: LibreHardwareMonitor is included with `cosmotop` and automatically used to fetch GPU information.
+- Linux: Intel, AMD, and NVIDIA GPUs are supported, provided the appropriate driver is installed, and the following:
+  - Intel: Root privileges are required to access metrics directly. Alternatively, run [intel-gpu-exporter](https://github.com/bjia56/intel-gpu-exporter) in a privileged Docker container, then set the `intel_gpu_exporter` configuration option in `cosmotop` to the exporter's HTTP endpoint.
+  - AMD: `librocm_smi64.so` must be available.
+  - NVIDIA: `libnvidia-ml.so` must be available.
+
+### NPU monitoring
+
+Utilization monitoring of Intel and Rockchip NPUs is supported on Linux, provided the following:
+- Intel: The path `/sys/devices/pci0000:00/0000:00:0b.0` must be readable.
+- Rockchip: The path `/sys/kernel/debug/rknpu` must be readable.
 
 ### Configuration
 
 The configuration file for `cosmotop` is stored at `~/.config/cosmotop/cosmotop.conf`, populated with defaults
 the first time the program runs.
 
-### GPU monitoring
+### Themes
 
-Documentation coming soon!
+A number of themes are available within `cosmotop`. Place custom themes at `~/.config/cosmotop/themes`.
 
 ## Supported platforms
 
@@ -144,3 +162,4 @@ Unless otherwise stated, the code in this repository is licensed under Apache-2.
 - [**widecharwidth**](https://github.com/ridiculousfish/widecharwidth/): CC0-1.0
 - [**range-v3**](https://github.com/ericniebler/range-v3): Boost Software License, MIT, etc.
 - [**cpp-httplib**](https://github.com/yhirose/cpp-httplib): MIT
+- [**LibreHardwareMonitor**](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor), [**CppExport**](https://github.com/bjia56/LHM-CppExport), and dependencies: MPL-2.0, Apache-2.0

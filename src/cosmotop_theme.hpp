@@ -48,6 +48,15 @@ namespace Theme {
 	//* 		depth: ["fg"|"bg"] for either a foreground color or a background color
 	string dec_to_color(int r, int g, int b, bool t_to_256=false, const string& depth="fg");
 
+	//* List of system themes
+	vector<string> getSystemThemes();
+
+	//* List of themes bundled within zipos
+	vector<string> getBundledThemes();
+
+	//* List of user themes
+	vector<string> getUserThemes();
+
 	//* Update list of paths for available themes
 	void updateThemes();
 

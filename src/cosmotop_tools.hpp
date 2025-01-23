@@ -27,6 +27,7 @@ tab-size = 4
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cctype>
 #include <filesystem>
 #include <regex>
 #include <string>
@@ -330,7 +331,7 @@ namespace Tools {
 	}
 
 	//* Split <string> at all occurrences of <delim> and return as vector of strings
-	auto ssplit(const string& str, const char& delim = ' ') -> vector<string>;
+	auto ssplit(const string& str, const char& delim = ' ', bool discard_empty = true) -> vector<string>;
 
 	//* Put current thread to sleep for <ms> milliseconds
 	inline void sleep_ms(const size_t& ms) {
@@ -365,6 +366,29 @@ namespace Tools {
 
 	//* Add std::string operator * : Repeat string <str> <n> number of times
 	std::string operator*(const string& str, int64_t n);
+
+	inline bool is_blank(const string &s) {
+		for (const auto &c : s) {
+			if (!std::isspace(c)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	inline int safe_stoi(const string &s) {
+		if (is_blank(s) || s.starts_with("NaN")) {
+			return 0;
+		}
+		return std::stoi(s);
+	}
+
+	inline long long safe_stoll(const string &s) {
+		if (is_blank(s) || s.starts_with("NaN")) {
+			return 0;
+		}
+		return std::stoll(s);
+	}
 
 	template <typename K, typename T>
 #ifdef COSMOTOP_DEBUG

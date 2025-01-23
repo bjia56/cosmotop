@@ -174,6 +174,7 @@ namespace Menu {
 		{"3", "Toggle NET box."},
 		{"4", "Toggle PROC box."},
 		{"5", "Toggle GPU box."},
+		{"6", "Toggle NPU box."},
 		{"d", "Toggle disks view in MEM box."},
 		{"F2, o", "Shows options."},
 		{"F1, ?, h", "Shows this window."},
@@ -208,6 +209,7 @@ namespace Menu {
 	};
 
 	const vector<vector<vector<string>>> categories = {
+		// general
 		{
 			{"color_theme",
 				"Set color theme.",
@@ -273,6 +275,7 @@ namespace Menu {
 				"",
 				"Available values are \"cpu mem net proc\".",
 				"Or \"gpu0\" through \"gpu5\" for GPU boxes.",
+				"Or \"npu0\" through \"npu2\" for NPU boxes.",
 				"Separate values with whitespace.",
 				"",
 				"Toggle between presets with key \"p\"."},
@@ -365,6 +368,7 @@ namespace Menu {
 				"The level set includes all lower levels,",
 				"i.e. \"DEBUG\" will show all logging info."}
 		},
+		// cpu
 		{
 			{"cpu_bottom",
 				"Cpu box location.",
@@ -396,6 +400,11 @@ namespace Menu {
 				"\"gpu-average\" = Avg usage of all GPUs.",
 				"\"gpu-vram-total\" = VRAM usage of all GPUs.",
 				"\"gpu-pwr-total\" = Power usage of all GPUs.",
+				"",
+				"NPU:",
+				"\"npu-totals\" = NPU usage split by device.",
+				"\"npu-average\" = Avg usage of all NPUs.",
+				"",
 				"Not all stats are supported on all devices."
 				},
 			{"cpu_graph_lower",
@@ -417,6 +426,11 @@ namespace Menu {
 				"\"gpu-average\" = Avg usage of all GPUs.",
 				"\"gpu-vram-total\" = VRAM usage of all GPUs.",
 				"\"gpu-pwr-total\" = Power usage of all GPUs.",
+				"",
+				"NPU:",
+				"\"npu-totals\" = NPU usage split by device.",
+				"\"npu-average\" = Avg usage of all NPUs.",
+				"",
 				"Not all stats are supported on all devices."
 				},
 			{"cpu_invert_lower",
@@ -438,6 +452,16 @@ namespace Menu {
 					"\"Auto\").",
 					"",
 					"\"Auto\" to show when no gpu box is shown.",
+					"\"On\" to always show.",
+					"\"Off\" to never show."},
+			{"show_npu_info",
+					"Show npu info in cpu box.",
+					"",
+					"Toggles npu stats in cpu box and the",
+					"npu graph (if \"cpu_graph_lower\" is set to",
+					"\"Auto\" when no gpus are present).",
+					"",
+					"\"Auto\" to show when no npu box is shown.",
 					"\"On\" to always show.",
 					"\"Off\" to never show."},
 			{"check_temp",
@@ -501,6 +525,7 @@ namespace Menu {
 				"",
 				"True or False."},
 		},
+		// gpu
 		{
 			{"nvml_measure_pcie_speeds",
 				"Measure PCIe throughput on NVIDIA cards.",
@@ -559,6 +584,26 @@ namespace Menu {
 				"",
 				"Empty string to disable."},
 		},
+		// npu
+		{
+			{"npu_mirror_graph",
+				"Horizontally mirror the NPU graph.",
+				"",
+				"True or False."},
+			{"custom_npu_name0",
+				"Custom npu0 model name in npu stats box.",
+				"",
+				"Empty string to disable."},
+			{"custom_npu_name1",
+				"Custom npu1 model name in npu stats box.",
+				"",
+				"Empty string to disable."},
+			{"custom_npu_name2",
+				"Custom npu2 model name in npu stats box.",
+				"",
+				"Empty string to disable."},
+		},
+		// mem
 		{
 			{"mem_below_net",
 				"Mem box location.",
@@ -574,6 +619,18 @@ namespace Menu {
 				"Show graphs for memory values.",
 				"",
 				"True or False."},
+			{"show_swap",
+				"If swap memory should be shown in memory box.",
+				"",
+				"True or False."},
+			{"swap_disk",
+				"Show swap as a disk.",
+				"",
+				"Ignores show_swap value above.",
+				"Inserts itself after first disk."},
+		},
+		// disk
+		{
 			{"show_disks",
 				"Split memory box to also show disks.",
 				"",
@@ -609,15 +666,6 @@ namespace Menu {
 				"whitespace \" \".",
 				"",
 				"Example: \"/dev/sda:100, /dev/sdb:20\"."},
-			{"show_swap",
-				"If swap memory should be shown in memory box.",
-				"",
-				"True or False."},
-			{"swap_disk",
-				"Show swap as a disk.",
-				"",
-				"Ignores show_swap value above.",
-				"Inserts itself after first disk."},
 			{"only_physical",
 				"Filter out non physical disks.",
 				"",
@@ -671,6 +719,7 @@ namespace Menu {
 				"",
 				"True or False."},
 		},
+		// net
 		{
 			{"graph_symbol_net",
 				"Graph symbol to use for graphs in net box.",
@@ -712,6 +761,7 @@ namespace Menu {
 				"Will otherwise automatically choose the NIC",
 				"with the highest total download since boot."},
 		},
+		// proc
 		{
 			{"proc_left",
 				"Proc box location.",
@@ -888,10 +938,12 @@ namespace Menu {
 		auto& out = Global::overlay;
 		int retval = Changed;
 
+		const auto menubox_width = 78;
+
 		if (redraw) {
 			x = Term::width/2 - 40;
 			y = Term::height/2 - 9;
-			bg = Draw::createBox(x + 2, y, 78, 19, Theme::c("hi_fg"), true, "signals");
+			bg = Draw::createBox(x + 2, y, menubox_width, 19, Theme::c("hi_fg"), true, "signals");
 			bg += Mv::to(y+2, x+3) + Theme::c("title") + Fx::b + cjust("Send signal to PID " + to_string(s_pid) + " ("
 				+ uresize((s_pid == Config::getI("detailed_pid") ? Proc::get_detailed().entry.name : Config::getS("selected_name")), 30) + ")", 76);
 		}
@@ -1191,6 +1243,7 @@ namespace Menu {
 			{"cpu_sensor", std::cref(Cpu::get_available_sensors())},
 			{"selected_battery", std::cref(Config::available_batteries)},
 			{"show_gpu_info", std::cref(Config::show_gpu_values)},
+			{"show_npu_info", std::cref(Config::show_npu_values)},
 			{"graph_symbol_gpu", std::cref(Config::valid_graph_symbols_def)},
 		};
 
@@ -1215,6 +1268,8 @@ namespace Menu {
 		bool screen_redraw{};
 		bool theme_refresh{};
 
+		const auto menubox_width = 78;
+
 		//? Draw background if needed else process input
 		if (redraw) {
 			mouse_mappings.clear();
@@ -1224,9 +1279,9 @@ namespace Menu {
 			height = min(Term::height - 7, max_items * 2 + 4);
 			if (height % 2 != 0) height--;
 			bg 	= Draw::banner_gen(y, 0, true)
-				+ Draw::createBox(x, y + 6, 78, height, Theme::c("hi_fg"), true, "tab" + Symbols::right)
+				+ Draw::createBox(x, y + 6, menubox_width, height, Theme::c("hi_fg"), true, "tab" + Symbols::right)
 				+ Mv::to(y+8, x) + Theme::c("hi_fg") + Symbols::div_left + Theme::c("div_line") + Symbols::h_line * 29
-				+ Symbols::div_up + Symbols::h_line * (78 - 32) + Theme::c("hi_fg") + Symbols::div_right
+				+ Symbols::div_up + Symbols::h_line * (menubox_width - 32) + Theme::c("hi_fg") + Symbols::div_right
 				+ Mv::to(y+6+height - 1, x+30) + Symbols::div_down + Theme::c("div_line");
 			for (const auto& i : iota(0, height - 4)) {
 				bg += Mv::to(y+9 + i, x + 30) + Symbols::v_line;
@@ -1427,20 +1482,45 @@ namespace Menu {
 			}
 
 			//? Category buttons
-			out += Mv::to(y+7, x+4);
-			for (int i = 0; const auto& m : {"general", "cpu", "gpu", "mem", "net", "proc"}) {
-				out += Fx::b + (i == selected_cat
+			out += Mv::to(y+7, x+2);
+
+			static const array titles = {"general"s, "cpu"s, "gpu"s, "npu"s, "mem"s, "disk"s, "net"s, "proc"s};
+
+			// Get expected size of each category title, allow 2 spaces on each side next to the border
+			const int title_width = (menubox_width - 4) / titles.size();
+
+			// Account for rounding errors
+			const int diff = menubox_width - 4 - title_width * titles.size();
+			out += string(diff / 2, ' ');
+
+			// Draw category titles
+			for (int i = 0; const auto& m : titles) {
+				assert(m.length() <= title_width - 2); // sanity check
+
+				// calculate padding to center title with brackets/number
+				// we cannot use cjust because of the themes
+				const int paddingl_len = (title_width - 2 - m.length()) / 2;
+				const int paddingr_len = title_width - 2 - m.length() - paddingl_len;
+				const string paddingl = paddingl_len > 0 ? Mv::r(paddingl_len) : "";
+				const string paddingr = paddingr_len > 0 ? Mv::r(paddingr_len) : "";
+
+				out += paddingl + Fx::b + (
+						i == selected_cat
 						? Theme::c("hi_fg") + '[' + Theme::c("title") + m + Theme::c("hi_fg") + ']'
-						: Theme::c("hi_fg") + to_string(i + 1) + Theme::c("title") + m + ' ')
-					+ Mv::r(7);
-				if (string button_name = "select_cat_" + to_string(i + 1); not editing and not mouse_mappings.contains(button_name))
-					mouse_mappings[button_name] = {y+6, x+2 + 15*i, 3, 15};
+						: Theme::c("hi_fg") + to_string(i + 1) + Theme::c("title") + m + ' '
+					) + paddingr;
+				if (string button_name = "select_cat_" + to_string(i + 1); not editing and not mouse_mappings.contains(button_name)) {
+					mouse_mappings[button_name] = {y+6, x+2 + title_width*i, 3, title_width};
+				}
 				i++;
 			}
+
+			// Draw page indicator in lower left
 			if (pages > 1) {
 				out += Mv::to(y+6 + height - 1, x+2) + Theme::c("hi_fg") + Symbols::title_left_down + Fx::b + Symbols::up + Theme::c("title") + " page "
 					+ to_string(page+1) + '/' + to_string(pages) + ' ' + Theme::c("hi_fg") + Symbols::down + Fx::ub + Symbols::title_right_down;
 			}
+
 			//? Option name and value
 			auto cy = y+9;
 			for (int c = 0, i = max(0, item_height * page); c++ < item_height and i < (int)categories[selected_cat].size(); i++) {
@@ -1476,7 +1556,7 @@ namespace Menu {
 			}
 
 			if (not warnings.empty()) {
-				messageBox = msgBox{min(78, (int)ulen(warnings) + 10), msgBox::BoxTypes::OK, {uresize(warnings, 74)}, "warning"};
+				messageBox = msgBox{min(menubox_width, (int)ulen(warnings) + 10), msgBox::BoxTypes::OK, {uresize(warnings, 74)}, "warning"};
 				out += messageBox();
 			}
 
@@ -1516,6 +1596,8 @@ namespace Menu {
 		if (bg.empty()) page = 0;
 		int retval = Changed;
 
+		const auto menubox_width = 78;
+
 		if (redraw) {
 			y = max(1, Term::height/2 - 4 - (int)(help_text.size() / 2));
 			x = Term::width/2 - 39;
@@ -1523,7 +1605,7 @@ namespace Menu {
 			pages = ceil((double)help_text.size() / (height - 3));
 			page = 0;
 			bg = Draw::banner_gen(y, 0, true);
-			bg += Draw::createBox(x, y + 6, 78, height, Theme::c("hi_fg"), true, "help");
+			bg += Draw::createBox(x, y + 6, menubox_width, height, Theme::c("hi_fg"), true, "help");
 		}
 		else if (is_in(key, "escape", "q", "h", "backspace", "space", "enter", "mouse_click")) {
 			return Closed;

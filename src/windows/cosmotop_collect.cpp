@@ -27,6 +27,9 @@ tab-size = 4
 #include <semaphore>
 #include <iostream>
 #include <ranges>
+#include <string>
+#include <sstream>
+#include <stdexcept>
 
 #define _WIN32_DCOM
 #define _WIN32_WINNT 0x0600
@@ -63,12 +66,6 @@ tab-size = 4
 #include "../cosmotop_config.hpp"
 #include "../cosmotop_tools.hpp"
 
-#ifdef LHM_Enabled
-	#pragma comment(lib, "external\\CPPdll.lib")
-	_declspec(dllexport) std::string FetchLHMValues();
-	_declspec(dllexport) std::string FetchLHMReport();
-#endif
-
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
 namespace fs = std::filesystem;
@@ -76,6 +73,90 @@ namespace rng = std::ranges;
 using namespace Tools;
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
+
+std::filesystem::path cosmotop_dir;
+
+std::string RunExecutableAndCaptureOutput(const std::string& executablePath) {
+    // Create pipes for standard output redirection
+    HANDLE hStdOutRead, hStdOutWrite;
+    SECURITY_ATTRIBUTES saAttr;
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;  // Allow the child process to inherit the handle
+    saAttr.lpSecurityDescriptor = NULL;
+
+    // Create the pipe
+    if (!CreatePipe(&hStdOutRead, &hStdOutWrite, &saAttr, 0)) {
+        throw std::runtime_error("Failed to create pipe for stdout.");
+    }
+
+    // Ensure the read handle is not inherited
+    if (!SetHandleInformation(hStdOutRead, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(hStdOutRead);
+        CloseHandle(hStdOutWrite);
+        throw std::runtime_error("Failed to set pipe handle information.");
+    }
+
+    // Set up the process start-up information
+    STARTUPINFOA si = { sizeof(STARTUPINFOA) };
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = hStdOutWrite;
+    si.hStdError = hStdOutWrite; // Redirect stderr to the same pipe
+    si.hStdInput = NULL;         // No input
+
+    PROCESS_INFORMATION pi = { 0 };
+
+    // Create the child process
+    if (!CreateProcessA(
+            NULL,                               // Application name
+            const_cast<char*>(executablePath.c_str()), // Command line
+            NULL,                               // Process security attributes
+            NULL,                               // Thread security attributes
+            TRUE,                               // Inherit handles
+            0,                                  // Creation flags
+            NULL,                               // Environment block
+            NULL,                               // Current directory
+            &si,                                // Startup information
+            &pi                                 // Process information
+    )) {
+        CloseHandle(hStdOutRead);
+        CloseHandle(hStdOutWrite);
+        throw std::runtime_error("Failed to create process.");
+    }
+
+    // Close the write end of the pipe in the parent process
+    CloseHandle(hStdOutWrite);
+
+    // Read the output from the pipe
+    std::ostringstream output;
+    char buffer[4096];
+    DWORD bytesRead;
+    while (ReadFile(hStdOutRead, buffer, sizeof(buffer) - 1, &bytesRead, NULL) && bytesRead > 0) {
+        buffer[bytesRead] = '\0'; // Null-terminate the string
+        output << buffer;
+    }
+
+    // Close the read end of the pipe and clean up
+    CloseHandle(hStdOutRead);
+
+    // Wait for the child process to finish
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    // Close process and thread handles
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return output.str();
+}
+
+std::string FetchLHMValues() {
+	static std::string path = (cosmotop_dir / "FetchLHMValues.exe").string();
+	return RunExecutableAndCaptureOutput(path);
+}
+
+std::string FetchLHMReport() {
+	static std::string path = (cosmotop_dir / "FetchLHMReport.exe").string();
+	return RunExecutableAndCaptureOutput(path);
+}
 
 namespace Tools {
 	//! Set security mode for better chance of collecting process information
@@ -132,7 +213,21 @@ namespace Tools {
 namespace Shared {
 	IWbemServices* WbemServices;
 
+	namespace WMI {
+		std::mutex guard;
+		std::condition_variable signal;
+		bool running;
+
+		bool shutdown() {
+			running = false;
+			signal.notify_all();
+			return true;
+		}
+	}
+
 	void WMI_init() {
+		WMI::running = true;
+
 		volatile bool done = false;
 		std::thread([&] {
 			// Perform initialization in a separate thread to ensure loaded dlls
@@ -150,8 +245,11 @@ namespace Shared {
 			if (auto hr = CoSetProxyBlanket(WbemServices, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE); FAILED(hr))
 				Logger::warning("Shared::WMI_init() -> CoSetProxyBlanket() failed with code: " + to_string(hr));
 			done = true;
-			while (not Global::get_quitting()) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+			std::unique_lock<std::mutex> lock(WMI::guard);
+			while (WMI::running) WMI::signal.wait(lock);
 		}).detach();
+
 		while (!done) busy_wait();
 	}
 
@@ -270,46 +368,15 @@ namespace Cpu {
 		}
 	}
 
-	//bool NvSMI_init() {
-	//	//return false;
-	//	array<char, 1024> sysdir;
-	//
-	//	if (not GetSystemDirectoryA(sysdir.data(), 1024))
-	//		return false;
-
-	//	smi_path = sysdir.data();
-	//	if (smi_path.empty())
-	//		return false;
-
-	//	smi_path += "\\nvidia-smi.exe";
-	//	if (not fs::exists(smi_path)) {
-	//		Logger::debug("Nvidia SMI not found. Disabling GPU monitoring.");
-	//		return false;
-	//	}
-
-	//	string name;
-	//	if (not ExecCMD(smi_path + " --query-gpu=gpu_name --format=csv,noheader", name)) {
-	//		Logger::error("Error running Nvidia SMI. Disabling GPU monitoring. Output from nvidia-smi:");
-	//		Logger::error(name);
-	//		return false;
-	//	}
-
-	//	name = rtrim2(name);
-
-	//	name = s_replace(name, "NVIDIA ", "");
-	//	name = s_replace(name, "GeForce ", "");
-	//	gpu_name = name;
-
-	//	return true;
-	//}
-
 	double ohmr_shared_mem = 0;
 
 	//* Collects Cpu, Motherboard and Gpu information from Libre Hardware Monitor using LHM-CPPdll (https://github.com/aristocratos/LHM-CppExport)
 	void OHMR_collect() {
-	#ifdef LHM_Enabled
 		static bool ohmr_init = true;
+
 		while (not Global::get_quitting() and has_OHMR) {
+			using namespace Tools;
+
 			if (not OHMR_wait()) continue;
 			if (OHMRTimer > 0) sleep_ms(Config::getI("update_ms") - (OHMRTimer / 750));
 			auto timeStart = time_micros();
@@ -322,8 +389,6 @@ namespace Cpu {
 				has_OHMR = false;
 				return;
 			}
-
-
 
 			bool isGPU = false;
 			bool hasPackage = false;
@@ -350,7 +415,7 @@ namespace Cpu {
 					//? New sensor section
 					if (linevec.front() == "Hardware") {
 						cur_id = linevec.at(2);
-						if (cur_id.contains("Gpu")) {
+						if (cur_id.find("Gpu") != string::npos) {
 							gpu_name = linevec.at(1);
 							if (gpu_name.empty()) gpu_name = cur_id;
 							isGPU = true;
@@ -364,52 +429,52 @@ namespace Cpu {
 						if (linevec.front().starts_with("GPU Core")) {
 							//? Gpu clock
 							if (linevec.at(1) == "Clock") {
-								gpus[gpu_name].clock_mhz = linevec.at(2) + " Mhz";
+								gpus[gpu_name].clock_mhz = safe_stoi(linevec.at(2));
 							}
 							//? Gpu temp
 							else if (linevec.at(1) == "Temperature") {
-								gpus[gpu_name].temp = std::stoi(linevec.at(2));
+								gpus[gpu_name].temp = safe_stoi(linevec.at(2));
 							}
 							//? Gpu load
 							else if (linevec.at(1) == "Load") {
-								gpus[gpu_name].usage = std::stoi(linevec.at(2));
+								gpus[gpu_name].usage = safe_stoi(linevec.at(2));
 								hasGPUload = true;
 								gpus[gpu_name].cpu_gpu = false;
 							}
 						}
 						else if (not hasGPUload and linevec.front().starts_with("D3D 3D") and linevec.at(1) == "Load") {
-							gpus[gpu_name].usage = std::stoi(linevec.at(2));
+							gpus[gpu_name].usage = safe_stoi(linevec.at(2));
 							gpus[gpu_name].cpu_gpu = true;
 						}
 						//? Gpu mem used
 						else if (linevec.front().starts_with("GPU Memory Used") or linevec.front() == "D3D Shared Memory Used") {
-							gpus[gpu_name].mem_used = std::stoll(linevec.at(2)) << 20ll;
+							gpus[gpu_name].mem_used = safe_stoll(linevec.at(2)) << 20ll;
 						}
 						//? Gpu mem total
-						else if (linevec.front().starts_with("GPU Memory Total")) {
-							gpus[gpu_name].mem_total = std::stoll(linevec.at(2)) << 20ll;
+						else if (linevec.front().starts_with("GPU Memory Total") or linevec.front() == "D3D Shared Memory Total") {
+							gpus[gpu_name].mem_total = safe_stoll(linevec.at(2)) << 20ll;
 						}
 					}
 					else {
 						//? Cpu clock - using highest found value because an average of all cores doesn't do well on systems with efficiency cores
 						if ((linevec.front().starts_with("CPU Core") or linevec.front().starts_with("Core #")) and linevec.at(1) == "Clock") {
-							int clock = std::stoi(linevec.at(2));
+							int clock = safe_stoi(linevec.at(2));
 							if (clock > cpu_clock) cpu_clock = clock;
 						}
 						//? Cpu core and package temp
 						else if (linevec.at(1) == "Temperature") {
-							if (linevec.front().starts_with("CPU Core #") and not linevec.front().contains("TjMax")) {
-								cpu_temps.push_back(std::stoi(linevec.at(2)));
+							if (linevec.front().starts_with("CPU Core #") and linevec.front().find("TjMax") == string::npos) {
+								cpu_temps.push_back(safe_stoi(linevec.at(2)));
 							}
 							else if (not hasPackage and (linevec.front().starts_with("CPU Package") or linevec.front() == "Core (Tctl/Tdie)")) {
-								cpu_temps.insert(cpu_temps.begin(), std::stoi(linevec.at(2)));
+								cpu_temps.insert(cpu_temps.begin(), safe_stoi(linevec.at(2)));
 								hasPackage = true;
 							}
 							else if (not hasPackage and linevec.front() == "CPU") {
-								mb_cpu = std::stoi(linevec.at(2));
+								mb_cpu = safe_stoi(linevec.at(2));
 							}
 							else if (not hasPackage and linevec.front() == "System") {
-								mb_system = std::stoi(linevec.at(2));
+								mb_system = safe_stoi(linevec.at(2));
 							}
 						}
 					}
@@ -419,7 +484,6 @@ namespace Cpu {
 					has_gpu = false;
 					got_sensors = false;
 					has_OHMR = false;
-					Global::resized = true;
 					return;
 				}
 			}
@@ -453,39 +517,19 @@ namespace Cpu {
 
 			if (has_gpu == gpus.empty()) {
 				Runner::active_atomic_wait();
-				Config::available_gpus = { "Auto" };
-				for (auto& gpu : gpu_order) {
-					Config::available_gpus.push_back(gpu);
-				}
-				if (auto it = rng::find(available_fields, "gpu"s); it != available_fields.end()) {
-					available_fields.erase(it);
-				}
-				else {
-					available_fields.push_back("gpu");
-				}
-
 				has_gpu = not has_gpu;
-				if (not ohmr_init) Global::resized = true;
 			}
 			if (got_sensors == cpu_temps.empty()) {
 				Runner::active_atomic_wait();
 				got_sensors = not got_sensors;
 				if (OHMRrawStats.CPU.size() == 1) cpu_temp_only = true;
-				if (not ohmr_init) Global::resized = true;
 			}
 
 			if (ohmr_init) { ohmr_init = false; return; }
 		}
-	#else
-		has_OHMR = false;
-		has_gpu = false;
-		got_sensors = false;
-		return;
-	#endif
 	}
 
 	void OHMR_init() {
-	#ifdef LHM_Enabled
 		string output = FetchLHMReport();
 		if (output.empty()) {
 			has_OHMR = false;
@@ -518,14 +562,14 @@ namespace Cpu {
 			auto lines = ssplit(output.substr(output.find("Parameters")), '\n');
 			bool hit = false;
 			for (auto& instr : lines) {
-				if (instr.contains("CPU Core") or instr.contains("CPU Package")) {
+				if (instr.find("CPU Core") != string::npos or instr.find("CPU Package") != string::npos) {
 					hit = true;
 				}
-				else if (instr.contains("TjMax") and hit) {
+				else if (instr.find("TjMax") != string::npos and hit) {
 					current_cpu.temp_max = std::stoi(instr.substr(instr.find_last_of(':') + 1));
 					break;
 				}
-				else if (not instr.contains("+"))
+				else if (instr.find("+") == string::npos)
 					hit = false;
 				else if (instr.starts_with("-----"))
 					break;
@@ -583,64 +627,130 @@ namespace Cpu {
 		}
 
 		Cpu::core_mapping = core_map;
+	}
+}
 
+namespace Gpu {
+	vector<gpu_info> gpus;
+	vector<string> gpu_names;
+	vector<int> gpu_b_height_offsets;
+	std::unordered_map<string, deque<long long>> shared_gpu_percent = {
+		{"gpu-average", {}},
+		{"gpu-vram-total", {}},
+		{"gpu-pwr-total", {}},
+	};
+	long long gpu_pwr_total_max = 0;
 
+	int count = 0;
 
-#else
-		has_OHMR = false;
-		has_gpu = false;
-		got_sensors = false;
-		return;
-#endif
+	void init() {
+		collect(false);
 	}
 
-	////* Background thread for Nvidia SMI
-	//void NvSMI_runner() {
-	//	while (not Global::get_quitting() and has_gpu) {
-	//		if (not SMI_wait()) continue;
-	//		if (smiTimer > 0) sleep_ms(Config::getI("update_ms") - (smiTimer / 750));
-	//		auto timeStart = time_micros();
-	//		GpuRaw stats{};
-	//		static string output;
-	//		output.clear();
+	auto collect(bool no_update) -> vector<gpu_info>& {
+		if (no_update or not Cpu::has_OHMR) return gpus;
 
-	//		if (ExecCMD(smi_path + " --query-gpu=utilization.gpu,clocks.gr,temperature.gpu,memory.total,memory.used --format=csv,noheader,nounits", output)) {
-	//			try {
-	//				auto outVec = ssplit(output, ',');
-	//				if (outVec.size() < 5)
-	//					throw std::runtime_error("Invalid number of return values.");
+		const auto width = get_width();
+		long long avg = 0;
+		long long mem_usage_total = 0;
+		long long mem_total = 0;
+		long long pwr_total = 0;
 
-	//				stats.usage = stoull(outVec.at(0));
-	//				stats.clock_mhz = ltrim(outVec.at(1)) + " Mhz";
-	//				stats.temp = stoull(outVec.at(2));
-	//				stats.mem_total = stoull(outVec.at(3));
-	//				stats.mem_used = stoull(outVec.at(4));
+		// GPU information is collected by Libre Hardware Monitor
+		// See Cpu::OHMR_collect() for more information
+		{
+			std::lock_guard lck(Cpu::OHMRmutex);
+			if (Cpu::OHMRrawStats.GPUS.empty()) return gpus;
 
-	//			}
-	//			catch (const std::exception& e) {
-	//				Logger::error("Error running Nvidia SMI. Malformatted output. Disabling GPU monitoring.");
-	//				Logger::error("NvSMi_runner() -> "s + e.what());
-	//				has_gpu = false;
-	//			}
-	//		}
-	//		else {
-	//			Logger::error("Error running Nvidia SMI. Disabling GPU monitoring. Output from nvidia-smi:");
-	//			Logger::error(output);
-	//			has_gpu = false;
-	//		}
+			for (auto& [name, gpu] : Cpu::OHMRrawStats.GPUS) {
+				size_t gpu_idx = gpu_names.size();
+				for (size_t i = 0; i < gpu_names.size(); i++) {
+					if (gpu_names[i] == name) {
+						gpu_idx = i;
+						break;
+					}
+				}
+				if (gpu_idx == gpu_names.size()) {
+					gpu_info new_gpu = {
+						.gpu_clock_speed = static_cast<unsigned int>(gpu.clock_mhz),
+						.mem_total = static_cast<long long>(gpu.mem_total),
+						.mem_used = static_cast<long long>(gpu.mem_used),
+						.supported_functions = {
+							.gpu_utilization = true,
+							.mem_utilization = false,
+							.gpu_clock = true,
+							.mem_clock = false,
+							.pwr_usage = false,
+							.pwr_state = false,
+							.temp_info = true,
+							.mem_total = true,
+							.mem_used = true,
+							.pcie_txrx = false,
+						},
+					};
+					new_gpu.temp.push_back(gpu.temp);
+					new_gpu.gpu_percent.at("gpu-totals").push_back(gpu.usage);
+					new_gpu.gpu_percent.at("gpu-vram-totals").push_back((long long)round((double)gpu.mem_used * 100.0 / (double)gpu.mem_total));
+					gpus.push_back(new_gpu);
+					gpu_names.push_back(name);
+					gpu_b_height_offsets.push_back(new_gpu.supported_functions.gpu_utilization
+						+ new_gpu.supported_functions.pwr_usage
+						+ (new_gpu.supported_functions.mem_total or new_gpu.supported_functions.mem_used)
+							* (1 + 2*(new_gpu.supported_functions.mem_total and new_gpu.supported_functions.mem_used) + 2*new_gpu.supported_functions.mem_utilization)
+					);
+				}
+				else {
+					auto& info = gpus[gpu_idx];
+					info.temp.push_back(gpu.temp);
+					info.gpu_percent.at("gpu-totals").push_back(gpu.usage);
+					info.gpu_percent.at("gpu-vram-totals").push_back((long long)round((double)gpu.mem_used * 100.0 / (double)gpu.mem_total));
+				}
+			}
+		}
 
-	//		if (has_gpu) {
-	//			std::lock_guard lck(SMImutex);
-	//			//GpuRawStats = stats;
-	//		}
-	//		else {
-	//			Global::resized = true;
-	//		}
-	//
-	//		smiTimer = time_micros() - timeStart;
-	//	}
-	//}
+
+		for (auto& gpu : gpus) {
+			if (gpu.supported_functions.gpu_utilization)
+				avg += gpu.gpu_percent.at("gpu-totals").back();
+			if (gpu.supported_functions.mem_used)
+				mem_usage_total += gpu.mem_used;
+			if (gpu.supported_functions.mem_total)
+				mem_total += gpu.mem_total;
+			if (gpu.supported_functions.pwr_usage)
+				mem_total += gpu.pwr_usage;
+
+			//* Trim vectors if there are more values than needed for graphs
+			if (width != 0) {
+				//? GPU & memory utilization
+				while (cmp_greater(gpu.gpu_percent.at("gpu-totals").size(), width * 2)) gpu.gpu_percent.at("gpu-totals").pop_front();
+				while (cmp_greater(gpu.mem_utilization_percent.size(), width)) gpu.mem_utilization_percent.pop_front();
+				//? Power usage
+				while (cmp_greater(gpu.gpu_percent.at("gpu-pwr-totals").size(), width)) gpu.gpu_percent.at("gpu-pwr-totals").pop_front();
+				//? Temperature
+				while (cmp_greater(gpu.temp.size(), 18)) gpu.temp.pop_front();
+				//? Memory usage
+				while (cmp_greater(gpu.gpu_percent.at("gpu-vram-totals").size(), width/2)) gpu.gpu_percent.at("gpu-vram-totals").pop_front();
+			}
+		}
+
+		shared_gpu_percent.at("gpu-average").push_back(avg / gpus.size());
+		if (mem_total != 0)
+			shared_gpu_percent.at("gpu-vram-total").push_back(mem_usage_total / mem_total);
+		if (gpu_pwr_total_max != 0)
+			shared_gpu_percent.at("gpu-pwr-total").push_back(pwr_total / gpu_pwr_total_max);
+
+		if (width != 0) {
+			while (cmp_greater(shared_gpu_percent.at("gpu-average").size(), width * 2)) shared_gpu_percent.at("gpu-average").pop_front();
+			while (cmp_greater(shared_gpu_percent.at("gpu-pwr-total").size(), width * 2)) shared_gpu_percent.at("gpu-pwr-total").pop_front();
+			while (cmp_greater(shared_gpu_percent.at("gpu-vram-total").size(), width * 2)) shared_gpu_percent.at("gpu-vram-total").pop_front();
+		}
+
+		count = gpus.size();
+
+		return gpus;
+	}
 }
+
 
 namespace Proc {
 
@@ -919,16 +1029,6 @@ namespace Shared {
 	fs::path procPath, passwd_path;
 	long pageSize, clkTck, coreCount;
 
-	void init_status(const string status) {
-	#ifdef LHM_Enabled
-		static bool enabled = true;
-	#else
-		static bool enabled = false;
-	#endif
-		if (not enabled) return;
-		Logger::debug(status);
-	}
-
 	void init() {
 
 		//? Shared global variables init
@@ -936,7 +1036,7 @@ namespace Shared {
 		passwd_path = "";
 
 		//? Set SE DEBUG mode
-		init_status("Setting SE Debug Mode");
+		Logger::debug("Setting SE Debug Mode");
 		try {
 			setWinDebug();
 		}
@@ -945,7 +1045,7 @@ namespace Shared {
 			Logger::debug(e.what());
 		}
 
-		init_status("Getting system info");
+		Logger::debug("Getting system info");
 		SYSTEM_INFO sysinfo;
 		GetSystemInfo(&sysinfo);
 
@@ -962,21 +1062,12 @@ namespace Shared {
 
 		clkTck = 100;
 
-	#ifdef LHM_Enabled
-		init_status("Libre Hardware Monitor Init");
+		Logger::debug("Libre Hardware Monitor Init");
 		//? Start up background thread for Libre Hardware Monitor
-		if (Config::bools.at("enable_ohmr")) {
-			Cpu::OHMR_init();
-			if (Cpu::has_OHMR) std::thread(Cpu::OHMR_collect).detach();
-		}
-		else {
-			Cpu::has_OHMR = false;
-		}
-	#else
-		Cpu::has_OHMR = false;
-	#endif
+		Cpu::OHMR_init();
+		if (Cpu::has_OHMR) std::thread(Cpu::OHMR_collect).detach();
 
-		init_status("CPU Init");
+		Logger::debug("CPU Init");
 		//? Init for namespace Cpu
 		Cpu::current_cpu.core_percent.insert(Cpu::current_cpu.core_percent.begin(), Shared::coreCount, {});
 		Cpu::current_cpu.temp.insert(Cpu::current_cpu.temp.begin(), Shared::coreCount + 1, {});
@@ -989,19 +1080,38 @@ namespace Shared {
 		}
 		Cpu::cpuName = Cpu::get_cpuName();
 
+		Logger::debug("GPU Init");
+		//? Init for namespace Gpu
+		Gpu::init();
+		if (not Gpu::gpu_names.empty()) {
+			for (auto const& [key, _] : Gpu::gpus[0].gpu_percent)
+				Cpu::available_fields.push_back(key);
+			for (auto const& [key, _] : Gpu::shared_gpu_percent)
+				Cpu::available_fields.push_back(key);
+
+			using namespace Gpu;
+			count = gpus.size();
+			gpu_b_height_offsets.resize(gpus.size());
+			for (size_t i = 0; i < gpu_b_height_offsets.size(); ++i)
+				gpu_b_height_offsets[i] = gpus[i].supported_functions.gpu_utilization
+					   + gpus[i].supported_functions.pwr_usage
+					   + (gpus[i].supported_functions.mem_total or gpus[i].supported_functions.mem_used)
+						* (1 + 2*(gpus[i].supported_functions.mem_total and gpus[i].supported_functions.mem_used) + 2*gpus[i].supported_functions.mem_utilization);
+		}
+
 		//? Start up loadAVG counter in background
 		std::thread(Cpu::loadAVG_init).detach();
 
-		init_status("MEM Init");
+		Logger::debug("MEM Init");
 		//? Init for namespace Mem
 		Mem::old_systime = GetTickCount64();
 		Mem::collect();
 
-		init_status("Connecting to WMI");
+		Logger::debug("Connecting to WMI");
 		//? Set up connection to WMI
 		Shared::WMI_init();
 
-		init_status("Starting WMI monitor");
+		Logger::debug("Starting WMI monitor");
 		//? Start up WMI system info collector in background
 		std::thread(Proc::WMICollect).detach();
 		Proc::WMI_trigger();
@@ -1011,7 +1121,7 @@ namespace Shared {
 			atomic_wait_for(Proc::WMI_running, true, 1000);
 		}
 
-		init_status("Drawing to screen");
+		Logger::debug("Drawing to screen");
 	}
 
 }
@@ -1203,39 +1313,6 @@ namespace Cpu {
 					}
 				}
 			}
-
-			/*
-			if (has_gpu) {
-				if (current_gpu != Config::getS("selected_gpu")) {
-					current_gpu = Config::getS("selected_gpu");
-					cpu.gpu_temp.clear();
-					cpu.cpu_percent.at("gpu").clear();
-
-					if (current_gpu != "Auto" and not OHMRrawStats.GPUS.contains(current_gpu)) {
-						current_gpu = "Auto";
-						Config::set("selected_gpu", current_gpu);
-					}
-
-					if (current_gpu == "Auto")
-						gpu_name = Config::available_gpus.at(1);
-					else
-						gpu_name = current_gpu;
-
-					for (const auto& s : { "NVIDIA", "Nvidia", "AMD", "Amd", "Intel", "(R)", "(TM)"}) {
-						gpu_name = s_replace(gpu_name, s, "");
-					}
-					gpu_name = trim(gpu_name);
-
-					Cpu::set_redraw(true);
-				}
-				const auto& gpu = OHMRrawStats.GPUS.contains(current_gpu) ? OHMRrawStats.GPUS.at(current_gpu) : OHMRrawStats.GPUS.at(Config::available_gpus.at(1));
-				gpu_clock = gpu.clock_mhz;
-				cpu.gpu_temp.push_back(gpu.temp);
-				if (cpu.gpu_temp.size() > 40) cpu.gpu_temp.pop_front();
-				cpu.cpu_percent.at("gpu").push_back(gpu.usage);
-				while (cmp_greater(cpu.cpu_percent.at("gpu").size(), width * 2)) cpu.cpu_percent.at("gpu").pop_front();
-			}
-			*/
 		}
 		else {
 			cpuHz = get_cpuHz();
@@ -1346,41 +1423,6 @@ namespace Mem {
 		const auto show_disks = Config::getB("show_disks");
 		auto& mem = current_mem;
 		auto width = get_width();
-
-		/*
-		if (Cpu::has_OHMR and Cpu::has_gpu and Config::getB("show_gpu")) {
-			std::lock_guard lck(Cpu::OHMRmutex);
-			if (not Cpu::shown) {
-				Cpu::OHMR_trigger();
-				if (Cpu::current_gpu != Config::getS("selected_gpu")) {
-					Cpu::current_gpu = Config::getS("selected_gpu");
-					if (Cpu::current_gpu != "Auto" and not Cpu::OHMRrawStats.GPUS.contains(Cpu::current_gpu)) {
-						Cpu::current_gpu = "Auto";
-						Config::set("selected_gpu", Cpu::current_gpu);
-					}
-					set_redraw(true);
-				}
-			}
-			const auto& gpu = Cpu::OHMRrawStats.GPUS.contains(Cpu::current_gpu) ? Cpu::OHMRrawStats.GPUS.at(Cpu::current_gpu) : Cpu::OHMRrawStats.GPUS.at(Config::available_gpus.at(1));
-			const uint64_t conf_gpu_total = (int64_t)Config::getI("gpu_mem_override") << 20;
-			if (conf_gpu_total > 0 and conf_gpu_total > gpu.mem_used) {
-				mem.stats.at("gpu_total") = conf_gpu_total;
-			}
-			else if (gpu.mem_total < 1) {
-				if (mem.stats.at("gpu_total") < gpu.mem_used) mem.stats.at("gpu_total") = gpu.mem_used;
-			}
-			else {
-				mem.stats.at("gpu_total") = gpu.mem_total;
-			}
-			mem.stats.at("gpu_used") = gpu.mem_used;
-			mem.stats.at("gpu_free") = mem.stats.at("gpu_total") - mem.stats.at("gpu_used");
-			cpu_gpu = gpu.cpu_gpu;
-			for (const auto name : { "gpu_used", "gpu_free" }) {
-				mem.percent.at(name).push_back(round((double)mem.stats.at(name) * 100 / mem.stats.at("gpu_total")));
-				while (cmp_greater(mem.percent.at(name).size(), width * 2)) mem.percent.at(name).pop_front();
-			}
-		}
-		*/
 
 		MEMORYSTATUSEX memstat;
 		memstat.dwLength = sizeof(MEMORYSTATUSEX);

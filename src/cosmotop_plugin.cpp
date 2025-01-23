@@ -30,6 +30,21 @@ using std::unordered_map;
 
 #include "config.h"
 
+namespace Gpu {
+	namespace Nvml {
+		bool shutdown();
+	}
+	namespace Rsmi {
+		bool shutdown();
+	}
+}
+
+namespace Shared {
+	namespace WMI {
+		bool shutdown();
+	}
+}
+
 Plugin* plugin = nullptr;
 
 void plugin_initializer(Plugin* plugin) {
@@ -41,50 +56,80 @@ void plugin_initializer(Plugin* plugin) {
 		return ss.str();
 	}));
 
-	plugin->registerHandler<bool>("Gpu::Nvml::shutdown", std::function([]() {
-#ifdef __linux__
-		return Gpu::Nvml::shutdown();
-#else
+	plugin->registerHandler<bool>("register_cosmotop_directory", std::function([](std::string dir) {
+#ifdef _WIN32
+		extern std::filesystem::path cosmotop_dir;
+		cosmotop_dir = dir;
+#endif
 		return true;
+	}));
+
+	plugin->registerHandler<vector<Npu::npu_info>, bool>("Npu::collect", std::function([](bool no_update) {
+#ifdef __linux__
+		return Npu::collect(no_update);
+#else
+		return vector<Npu::npu_info>();
 #endif
 	}));
-	plugin->registerHandler<bool>("Gpu::Rsmi::shutdown", std::function([]() {
+	plugin->registerHandler<int>("Npu::get_count", std::function([]() {
 #ifdef __linux__
-		return Gpu::Rsmi::shutdown();
+		return Npu::count;
 #else
-		return true;
+		return 0;
 #endif
 	}));
+	plugin->registerHandler<vector<string>>("Npu::get_npu_names", std::function([]() {
+#ifdef __linux__
+		return Npu::npu_names;
+#else
+		return vector<string>();
+#endif
+	}));
+	plugin->registerHandler<vector<int>>("Npu::get_npu_b_height_offsets", std::function([]() {
+#ifdef __linux__
+		return Npu::npu_b_height_offsets;
+#else
+		return vector<int>();
+#endif
+	}));
+	plugin->registerHandler<unordered_map<string, deque<long long>>>("Npu::get_shared_npu_percent", std::function([]() {
+#ifdef __linux__
+		return Npu::shared_npu_percent;
+#else
+		return unordered_map<string, deque<long long>>();
+#endif
+	}));
+
 	plugin->registerHandler<vector<Gpu::gpu_info>, bool>("Gpu::collect", std::function([](bool no_update) {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::collect(no_update);
 #else
 		return vector<Gpu::gpu_info>();
 #endif
 	}));
 	plugin->registerHandler<int>("Gpu::get_count", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::count;
 #else
 		return 0;
 #endif
 	}));
 	plugin->registerHandler<vector<string>>("Gpu::get_gpu_names", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::gpu_names;
 #else
 		return vector<string>();
 #endif
 	}));
 	plugin->registerHandler<vector<int>>("Gpu::get_gpu_b_height_offsets", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::gpu_b_height_offsets;
 #else
 		return vector<int>();
 #endif
 	}));
 	plugin->registerHandler<unordered_map<string, deque<long long>>>("Gpu::get_shared_gpu_percent", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 		return Gpu::shared_gpu_percent;
 #else
 		return unordered_map<string, deque<long long>>();
@@ -191,6 +236,15 @@ void plugin_initializer(Plugin* plugin) {
 	plugin->registerHandler<long>("Shared::get_coreCount", std::function([]() {
 		return Shared::coreCount;
 	}));
+	plugin->registerHandler<bool>("Shared::shutdown", std::function([]() {
+#if defined(_WIN32)
+		Shared::WMI::shutdown();
+#elif defined(__linux__)
+		Gpu::Nvml::shutdown();
+		Gpu::Rsmi::shutdown();
+#endif
+		return true;
+	}));
 
 	plugin->registerHandler<double>("Tools::system_uptime", std::function([]() {
 		return Tools::system_uptime();
@@ -266,6 +320,12 @@ namespace Gpu {
 	}
 }
 
+namespace Npu {
+	int get_width() {
+		return plugin->call<int>("Npu::get_width");
+	}
+}
+
 namespace Net{
 	int get_width() {
 		return plugin->call<int>("Net::get_width");
@@ -301,6 +361,9 @@ namespace Global {
 #include <cosmo.h>
 #include <filesystem>
 #include <sys/stat.h>
+
+#include <libc/nt/runtime.h>
+#include <libc/proc/ntspawn.h>
 
 PluginHost* pluginHost = nullptr;
 
@@ -403,7 +466,26 @@ void create_plugin_host() {
 			std::filesystem::remove(pluginPath);
 		}
 		std::filesystem::copy_file(ziposPath, pluginPath);
-		chmod(pluginPath.c_str(), 0500);
+		if (!IsWindows()) {
+			chmod(pluginPath.c_str(), 0500);
+		}
+	}
+
+	// On Windows, extract extras
+	if (IsWindows()) {
+		auto ziposDir = std::filesystem::path("/zip/windows");
+		if (!std::filesystem::exists(ziposDir)) {
+			throw std::runtime_error("Windows dll directory not found in zipos: " + ziposDir.string());
+		}
+		for (const auto& entry : std::filesystem::directory_iterator(ziposDir)) {
+			auto entryPath = outdir / entry.path().filename();
+			if (!std::filesystem::exists(entryPath) || !compareFiles(entry.path(), entryPath)) {
+				if (std::filesystem::exists(entryPath)) {
+					std::filesystem::remove(entryPath);
+				}
+				std::filesystem::copy_file(entry.path(), entryPath);
+			}
+		}
 	}
 
 	auto launchMethod = PluginHost::DLOPEN;
@@ -474,6 +556,10 @@ void create_plugin_host() {
 		return Gpu::width;
 	}));
 
+	pluginHost->registerHandler<int>("Npu::get_width", std::function([]() {
+		return Npu::width;
+	}));
+
 	pluginHost->registerHandler<int>("Net::get_width", std::function([]() {
 		return Net::width;
 	}));
@@ -501,7 +587,26 @@ void create_plugin_host() {
 		return Global::quitting.load();
 	}));
 
-	pluginHost->initialize();
+	try {
+		pluginHost->initialize();
+	} catch (const std::exception& e) {
+		delete pluginHost;
+		pluginHost = nullptr;
+		if (IsWindows()) {
+			throw std::runtime_error("Failed to initialize plugin: " + string(e.what()) + " (" + to_string(GetLastError()) + ")");
+		} else {
+			throw;
+		}
+	}
+
+	if (IsWindows()) {
+		char *ntpath = strdup(outdir.c_str());
+		mungentpath(ntpath);
+		pluginHost->call<bool>("register_cosmotop_directory", string(ntpath));
+		free(ntpath);
+	} else {
+		pluginHost->call<bool>("register_cosmotop_directory", outdir.string());
+	}
 }
 
 bool is_plugin_loaded() {
@@ -519,13 +624,33 @@ string plugin_build_info() {
 	return pluginHost->call<string>("build_info");
 }
 
+namespace Npu {
+	vector<npu_info>& collect(bool no_update) {
+		static vector<npu_info> result;
+		result = pluginHost->call<vector<npu_info>, bool>("Npu::collect", std::move(no_update));
+		return result;
+	}
+	int get_count() {
+		return pluginHost->call<int>("Npu::get_count");
+	}
+	vector<string>& get_npu_names() {
+		static vector<string> result;
+		result = pluginHost->call<vector<string>>("Npu::get_npu_names");
+		return result;
+	}
+	vector<int>& get_npu_b_height_offsets() {
+		static vector<int> result;
+		result = pluginHost->call<vector<int>>("Npu::get_npu_b_height_offsets");
+		return result;
+	}
+	unordered_map<string, deque<long long>>& get_shared_npu_percent() {
+		static unordered_map<string, deque<long long>> result;
+		result = pluginHost->call<unordered_map<string, deque<long long>>>("Npu::get_shared_npu_percent");
+		return result;
+	}
+}
+
 namespace Gpu {
-	bool Nvml::shutdown() {
-		return pluginHost->call<bool>("Gpu::Nvml::shutdown");
-	}
-	bool Rsmi::shutdown() {
-		return pluginHost->call<bool>("Gpu::Rsmi::shutdown");
-	}
 	vector<gpu_info>& collect(bool no_update) {
 		static vector<gpu_info> result;
 		result = pluginHost->call<vector<gpu_info>, bool>("Gpu::collect", std::move(no_update));
@@ -670,6 +795,9 @@ namespace Shared {
 	}
 	long get_coreCount() {
 		return pluginHost->call<long>("Shared::get_coreCount");
+	}
+	bool shutdown() {
+		return pluginHost->call<bool>("Shared::shutdown");
 	}
 }
 
