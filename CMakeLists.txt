@@ -102,7 +102,7 @@ elseif(${TARGET} STREQUAL "plugin")
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     set(BUILD_EXE ON)
 
-    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    if(RSMI_STATIC)
       # ROCm doesn't properly add it's folders to the module path if `CMAKE_MODULE_PATH` is already
       # set
       # We could also manually append ROCm's path here
@@ -193,9 +193,6 @@ elseif(${TARGET} STREQUAL "plugin")
     target_compile_definitions(${BINARY_NAME} PRIVATE COSMO_PLUGIN_WANT_MAIN)
     if(CMAKE_SYSTEM MATCHES "Linux")
       target_compile_options(${BINARY_NAME} PRIVATE -static)
-      if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-        target_compile_definitions(${BINARY_NAME} PRIVATE RSMI_STATIC)
-      endif()
     endif()
   else()
     set(BINARY_NAME "cosmotop-plugin")
@@ -213,7 +210,7 @@ elseif(${TARGET} STREQUAL "plugin")
   find_package(Threads REQUIRED)
 
   target_link_libraries(${BINARY_NAME} PRIVATE Threads::Threads)
-  if(CMAKE_SYSTEM MATCHES "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  if(CMAKE_SYSTEM MATCHES "Linux" AND RSMI_STATIC)
     target_link_libraries(${BINARY_NAME} PRIVATE ROCm)
   elseif(CMAKE_SYSTEM MATCHES "Darwin")
     target_link_libraries(${BINARY_NAME} PRIVATE $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit>)
