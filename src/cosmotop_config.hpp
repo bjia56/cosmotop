@@ -131,5 +131,5 @@ namespace Config {
 	void write();
 
 	//* Write the config file to a stream
-	void write(std::ostream& stream);
+	void write(std::ostream& cwrite);
 }
