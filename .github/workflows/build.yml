@@ -353,6 +353,8 @@ jobs:
           curl -L -o compile-time-regular-expressions https://raw.githubusercontent.com/hanickadot/compile-time-regular-expressions/068c6269caa0600021bbe93ca784bb819f3a8273/LICENSE
           cp ${{ github.workspace }}/third_party/cpp-httplib/LICENSE cpp-httplib
           cp ${{ github.workspace }}/third_party/widecharwidth/LICENSE widecharwidth
+          cp ${{ github.workspace }}/third_party/rocm_smi_lib/License.txt "ROCm SMI"
+          cp ${{ github.workspace }}/third_party/rocm_smi_lib/third_party/shared_mutex/LICENSE shared_mutex
           cp $(dirname $(dirname $(which cosmocc)))/LICENSE "Cosmopolitan Libc"
           cp $(dirname $(which zig))/LICENSE "Zig Programming Language"
           cp $(dirname $(which zig))/lib/libc/musl/COPYRIGHT "musl libc"
