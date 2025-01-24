@@ -2182,6 +2182,9 @@ namespace Npu {
 
 	//? Intel
 	namespace Intel {
+		const fs::path intel_vendor_path = "/sys/devices/pci0000:00/0000:00:0b.0/vendor";
+		const string intel_vendor_id = "0x8086";
+
 		// https://github.com/nokyan/resources/issues/302#issuecomment-2284297338
 		// https://github.com/chromium/chromium/blob/884f7b1b2fd5a110f628860aef806f7291620644/chrome/browser/ui/webui/ash/sys_internals/sys_internals_message_handler.cc#L268
 		const fs::path intel_npu_busy_path = "/sys/devices/pci0000:00/0000:00:0b.0/npu_busy_time_us";
@@ -2228,6 +2231,26 @@ namespace Npu {
 
 		bool init() {
 			if (initialized) return false;
+
+			// Check if vendor is Intel
+			try {
+				std::ifstream vendor_file(intel_vendor_path);
+				std::stringstream buffer;
+				if (vendor_file.is_open()) {
+					buffer << vendor_file.rdbuf();
+				} else {
+					Logger::info("Failed to read Intel NPU vendor file, Intel NPUs will not be detected");
+					return false;
+				}
+				if (buffer.str() != intel_vendor_id) {
+					Logger::info("Intel NPU not found, Intel NPUs will not be detected");
+					return false;
+				}
+			} catch (const std::exception& e) {
+				Logger::info("Failed to read Intel NPU vendor file, Intel NPUs will not be detected");
+				return false;
+			}
+
 
 			// Detect the method to use
 			if (!detectBusy() && !detectPower()) {
