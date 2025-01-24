@@ -1772,7 +1772,15 @@ namespace Gpu {
 			try {
 				exporter = new httplib::Client(rest_endpoint);
 
-				const auto response = exporter->Get("/").value();
+				const auto http_result = exporter->Get("/");
+				if (http_result.error() != httplib::Error::Success) {
+					Logger::warning("Failed to connect to Intel GPU exporter: "s + to_string(http_result.error()));
+					delete exporter;
+					exporter = nullptr;
+					return "";
+				}
+
+				const auto response = http_result.value();
 				string device_id = extract_exporter_field(response.body, "igpu_device_id");
 
 				if (device_id.empty()) {
