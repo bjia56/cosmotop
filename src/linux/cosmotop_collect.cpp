@@ -1865,28 +1865,63 @@ namespace Gpu {
 				gpus_slice->pwr_max_usage = 10'000; //? 10W
 			}
 
-			pmu_sample(engines);
-			double t = (double)(engines->ts.cur - engines->ts.prev) / 1e9;
+			if (engines) {
+				// local PMU sampling
 
-			double max_util = 0;
-			for (unsigned int i = 0; i < engines->num_engines; i++) {
-				struct engine *engine = &(&engines->engine)[i];
-				double util = pmu_calc(&engine->busy.val, 1e9, t, 100);
-				if (util > max_util) {
-					max_util = util;
+				pmu_sample(engines);
+				double t = (double)(engines->ts.cur - engines->ts.prev) / 1e9;
+
+				double max_util = 0;
+				for (unsigned int i = 0; i < engines->num_engines; i++) {
+					struct engine *engine = &(&engines->engine)[i];
+					double util = pmu_calc(&engine->busy.val, 1e9, t, 100);
+					if (util > max_util) {
+						max_util = util;
+					}
+				}
+				gpus_slice->gpu_percent.at("gpu-totals").push_back((long long)round(max_util));
+
+				double pwr = pmu_calc(&engines->r_gpu.val, 1, t, engines->r_gpu.scale); // in Watts
+				gpus_slice->pwr_usage = (long long)round(pwr * 1000);
+				if (gpus_slice->pwr_usage > 0) {
+					gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(100);
+				} else {
+					gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(0);
+				}
+
+				double freq = pmu_calc(&engines->freq_act.val, 1, t, 1); // in MHz
+				gpus_slice->gpu_clock_speed = (unsigned int)round(freq);
+			} else {
+				// remote REST sampling
+
+				try {
+					const auto response = exporter->Get("/").value();
+
+					string blitter_busy = extract_exporter_field(response.body, "igpu_engines_blitter_0_busy");
+					string render_3d_busy = extract_exporter_field(response.body, "igpu_engines_render_3d_0_busy");
+					string video_0_busy = extract_exporter_field(response.body, "igpu_engines_video_0_busy");
+					string video_enhance_0_busy = extract_exporter_field(response.body, "igpu_engines_video_enhance_0_busy");
+					string frequency_actual = extract_exporter_field(response.body, "igpu_frequency_actual");
+					string power_gpu = extract_exporter_field(response.body, "igpu_power_gpu");
+
+					double max_util = std::max({std::stod(blitter_busy), std::stod(render_3d_busy), std::stod(video_0_busy), std::stod(video_enhance_0_busy)});
+					gpus_slice->gpu_percent.at("gpu-totals").push_back((long long)round(max_util));
+
+					double pwr = std::stod(power_gpu);
+					gpus_slice->pwr_usage = (long long)round(pwr * 1000);
+					if (gpus_slice->pwr_usage > 0) {
+						gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(100);
+					} else {
+						gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(0);
+					}
+
+					double freq = std::stod(frequency_actual); // in MHz
+					gpus_slice->gpu_clock_speed = (unsigned int)round(freq);
+				} catch (const std::exception &e) {
+					Logger::warning("Failed to connect to Intel GPU exporter: "s + e.what());
+					return false;
 				}
 			}
-			gpus_slice->gpu_percent.at("gpu-totals").push_back((long long)round(max_util));
-
-			double pwr = pmu_calc(&engines->r_gpu.val, 1, t, engines->r_gpu.scale); // in Watts
-			gpus_slice->pwr_usage = (long long)round(pwr * 1000);
-			if (gpus_slice->pwr_usage > gpus_slice->pwr_max_usage)
-				gpus_slice->pwr_max_usage = gpus_slice->pwr_usage;
-
-			gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(clamp((long long)round((double)gpus_slice->pwr_usage * 100.0 / (double)gpus_slice->pwr_max_usage), 0ll, 100ll));
-
-			double freq = pmu_calc(&engines->freq_act.val, 1, t, 1); // in MHz
-			gpus_slice->gpu_clock_speed = (unsigned int)round(freq);
 
 			return true;
 		}
