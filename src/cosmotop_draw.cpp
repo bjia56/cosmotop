@@ -2143,7 +2143,7 @@ namespace Proc {
 
 		//? Draw scrollbar if needed
 		if (numpids > select_max) {
-			const int scroll_pos = clamp((int)round((height - 5) * (double)start / numpids), 0, height - 5);
+			const int scroll_pos = clamp((int)round((height - 5) * (double)start / (numpids - select_max)), 0, height - 5);
 			out += Mv::to(y + 1, x + width - 2) + Fx::b + Theme::c("main_fg") + Symbols::up
 				+ Mv::to(y + height - 2, x + width - 2) + Symbols::down;
 
