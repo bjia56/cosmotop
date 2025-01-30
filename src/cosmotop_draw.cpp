@@ -1715,11 +1715,11 @@ namespace Proc {
 		else if (cmd_key.starts_with("mousey")) {
 			const int mouse_y = std::stoi(cmd_key.substr(6));
 			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
-			const int target_height = (int)round(all_proc_height * (double)mouse_y / (height - 5));
+			const int target_height = (int)floor(all_proc_height * (double)mouse_y / (height - 5));
 			for (int i = 0, acc = 0; i < all_proc_heights.size(); i++) {
 				acc += all_proc_heights.at(i);
 				if (acc >= target_height) {
-					start = max(0, i - 1);
+					start = min(i + 1, numpids);
 					selected = 1;
 					break;
 				}
@@ -2166,9 +2166,8 @@ namespace Proc {
 		//? Draw scrollbar if needed
 		if (numpids > select_max) {
 			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
-			const int rendered_proc_height = accumulate(rendered_proc_heights.begin(), rendered_proc_heights.end(), 0);
 			const int up_to_start = accumulate(all_proc_heights.begin(), all_proc_heights.begin() + start, 0);
-			const int scroll_pos = clamp((int)round((height - 5) * (double)up_to_start / (all_proc_height - rendered_proc_height)), 0, height - 5);
+			const int scroll_pos = clamp((int)round((height - 5) * (double)up_to_start / all_proc_height), 0, height - 5);
 			out += Mv::to(y + 1, x + width - 2) + Fx::b + Theme::c("main_fg") + Symbols::up
 				+ Mv::to(y + height - 2, x + width - 2) + Symbols::down;
 
