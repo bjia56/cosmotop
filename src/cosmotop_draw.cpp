@@ -1650,6 +1650,9 @@ namespace Proc {
 	// when rendering multiline procs
 	vector<int> rendered_proc_heights;
 
+	// List of all procs and their heights
+	vector<int> all_proc_heights;
+
 	int selected_to_true_selected(int selected) {
 		if (rendered_proc_heights.empty()) return selected;
 		int true_selected = 0;
@@ -1668,8 +1671,10 @@ namespace Proc {
 		auto start = Config::getI("proc_start");
 		auto selected = Config::getI("proc_selected");
 		auto last_selected = Config::getI("proc_last_selected");
-		const int select_max = selected_to_true_selected(Config::getB("show_detailed") ? Proc::select_max_rows - 8 : Proc::select_max_rows);
+		auto show_detailed = Config::getB("show_detailed");
+		const int select_max = selected_to_true_selected(show_detailed ? Proc::select_max_rows - 8 : Proc::select_max_rows);
 		auto vim_keys = Config::getB("vim_keys");
+		const int height = show_detailed ? Proc::height - 8 : Proc::height;
 
 		int numpids = Proc::get_numpids();
 		if ((cmd_key == "up" or (vim_keys and cmd_key == "k")) and selected > 0) {
@@ -1708,8 +1713,17 @@ namespace Proc {
 			if (selected > 0) selected = select_max;
 		}
 		else if (cmd_key.starts_with("mousey")) {
-			int mouse_y = std::stoi(cmd_key.substr(6));
-			start = clamp((int)round((double)mouse_y * (numpids - select_max - 2) / (select_max - 2)), 0, max(0, numpids - select_max));
+			const int mouse_y = std::stoi(cmd_key.substr(6));
+			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
+			const int target_height = (int)round(all_proc_height * (double)mouse_y / (height - 5));
+			for (int i = 0, acc = 0; i < all_proc_heights.size(); i++) {
+				acc += all_proc_heights.at(i);
+				if (acc >= target_height) {
+					start = max(0, i - 1);
+					selected = 1;
+					break;
+				}
+			}
 		}
 
 		bool changed = false;
@@ -1973,6 +1987,24 @@ namespace Proc {
 		if (selected > numpids)
 			selected = numpids;
 
+		//* Compute cmdline rows for all proc rows
+		std::unordered_map<size_t, vector<string>> p_cmdlines;
+		all_proc_heights.clear();
+		if (!proc_tree) {
+			for (const auto& p : plist) {
+				vector<string> cmd_lines;
+				// Split command into multiple lines
+				string remaining = p.cmd;
+				while (!remaining.empty() && cmd_lines.size() < static_cast<size_t>(max_rows)) {
+					string line = uresize(remaining, cmd_size, true);
+					cmd_lines.push_back(line);
+					remaining = luresize(remaining, ulen(remaining) - ulen(line), true);
+				}
+				all_proc_heights.push_back(min(static_cast<int>(cmd_lines.size()), max_rows));
+				p_cmdlines[p.pid] = cmd_lines;
+			}
+		}
+
 		//* Iteration over processes
 		int current_line = 0;
 		int process_count = 0;
@@ -2038,18 +2070,8 @@ namespace Proc {
 			if (not p_wide_cmd.contains(p.pid)) p_wide_cmd[p.pid] = ulen(p.cmd) != ulen(p.cmd, true);
 
 			//? Prepare multi-line content for normal view
-			vector<string> cmd_lines;
-			int lines_used = 1;
-			if (!proc_tree) {
-				// Split command into multiple lines
-				string remaining = p.cmd;
-				while (!remaining.empty() && cmd_lines.size() < static_cast<size_t>(max_rows)) {
-					string line = uresize(remaining, cmd_size, true);
-					cmd_lines.push_back(line);
-					remaining = luresize(remaining, ulen(remaining) - ulen(line), true);
-				}
-				lines_used = min(static_cast<int>(cmd_lines.size()), max_rows);
-			}
+			const vector<string>& cmd_lines = p_cmdlines[p.pid];
+			int lines_used = cmd_lines.size();
 
 			//? Account for available space
 			lines_used = min(lines_used, height - 5 - current_line);
@@ -2143,7 +2165,10 @@ namespace Proc {
 
 		//? Draw scrollbar if needed
 		if (numpids > select_max) {
-			const int scroll_pos = clamp((int)round((height - 5) * (double)start / (numpids - select_max)), 0, height - 5);
+			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
+			const int rendered_proc_height = accumulate(rendered_proc_heights.begin(), rendered_proc_heights.end(), 0);
+			const int up_to_start = accumulate(all_proc_heights.begin(), all_proc_heights.begin() + start, 0);
+			const int scroll_pos = clamp((int)round((height - 5) * (double)up_to_start / (all_proc_height - rendered_proc_height)), 0, height - 5);
 			out += Mv::to(y + 1, x + width - 2) + Fx::b + Theme::c("main_fg") + Symbols::up
 				+ Mv::to(y + height - 2, x + width - 2) + Symbols::down;
 
