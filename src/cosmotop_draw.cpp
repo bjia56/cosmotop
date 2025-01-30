@@ -543,12 +543,14 @@ namespace Cpu {
 		const bool gpu_always = show_gpu_info == "On";
 		const bool gpu_auto = show_gpu_info == "Auto";
 		const bool show_gpu = (gpu_count > 0 and (gpu_always or (gpu_auto and Gpu::shown < gpu_count)));
+		const bool can_show_gpu = (show_gpu and gpus[0].supported_functions.gpu_utilization);
 
 		const auto npu_count = npus.size();
 		const auto& show_npu_info = Config::getS("show_npu_info");
 		const bool npu_always = show_npu_info == "On";
 		const bool npu_auto = show_npu_info == "Auto";
 		const bool show_npu = (npu_count > 0 and (npu_always or (npu_auto and Npu::shown < npu_count)));
+		const bool can_show_npu = (show_npu and npus[0].supported_functions.npu_utilization);
 
 		auto available_fields = Cpu::get_available_fields();
 		auto graph_up_field = Config::getS("cpu_graph_upper");
@@ -556,8 +558,8 @@ namespace Cpu {
 			graph_up_field = "total";
 		auto graph_lo_field = Config::getS("cpu_graph_lower");
 		if (graph_lo_field == "Auto" or not v_contains(available_fields, graph_lo_field)) {
-			graph_lo_field = show_gpu ? "gpu-totals" : (
-				show_npu ? "npu-totals" : graph_up_field
+			graph_lo_field = can_show_gpu ? "gpu-totals" : (
+				can_show_npu ? "npu-totals" : graph_up_field
 			);
 		}
 		auto tty_mode = Config::getB("tty_mode");
