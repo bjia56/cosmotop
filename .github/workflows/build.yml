@@ -160,8 +160,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        #arch: [x86_64, aarch64]
-        arch: [x86_64]
+        arch: [x86_64, aarch64]
 
     steps:
       - name: Checkout
@@ -325,7 +324,7 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.dylib /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-windows-x86_64.dll /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-x86_64.so /zip/
-          #sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-openbsd-x86_64.exe /zip/
 
