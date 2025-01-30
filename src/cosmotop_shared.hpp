@@ -436,7 +436,7 @@ namespace Proc {
 	extern string box;
 	extern int x, y, width, height, min_width, min_height;
 	extern bool shown, redraw;
-	extern int select_max;
+	extern int select_max_rows;
 	extern atomic<int> detailed_pid;
 	extern int selected_pid, start, selected, collapse, expand, filter_found, selected_depth;
 	extern string selected_name;

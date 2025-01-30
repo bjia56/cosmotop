@@ -1772,7 +1772,15 @@ namespace Gpu {
 			try {
 				exporter = new httplib::Client(rest_endpoint);
 
-				const auto response = exporter->Get("/").value();
+				const auto http_result = exporter->Get("/");
+				if (http_result.error() != httplib::Error::Success) {
+					Logger::warning("Failed to connect to Intel GPU exporter: "s + to_string(http_result.error()));
+					delete exporter;
+					exporter = nullptr;
+					return "";
+				}
+
+				const auto response = http_result.value();
 				string device_id = extract_exporter_field(response.body, "igpu_device_id");
 
 				if (device_id.empty()) {
@@ -1865,28 +1873,63 @@ namespace Gpu {
 				gpus_slice->pwr_max_usage = 10'000; //? 10W
 			}
 
-			pmu_sample(engines);
-			double t = (double)(engines->ts.cur - engines->ts.prev) / 1e9;
+			if (engines) {
+				// local PMU sampling
 
-			double max_util = 0;
-			for (unsigned int i = 0; i < engines->num_engines; i++) {
-				struct engine *engine = &(&engines->engine)[i];
-				double util = pmu_calc(&engine->busy.val, 1e9, t, 100);
-				if (util > max_util) {
-					max_util = util;
+				pmu_sample(engines);
+				double t = (double)(engines->ts.cur - engines->ts.prev) / 1e9;
+
+				double max_util = 0;
+				for (unsigned int i = 0; i < engines->num_engines; i++) {
+					struct engine *engine = &(&engines->engine)[i];
+					double util = pmu_calc(&engine->busy.val, 1e9, t, 100);
+					if (util > max_util) {
+						max_util = util;
+					}
+				}
+				gpus_slice->gpu_percent.at("gpu-totals").push_back((long long)round(max_util));
+
+				double pwr = pmu_calc(&engines->r_gpu.val, 1, t, engines->r_gpu.scale); // in Watts
+				gpus_slice->pwr_usage = (long long)round(pwr * 1000);
+				if (gpus_slice->pwr_usage > 0) {
+					gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(100);
+				} else {
+					gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(0);
+				}
+
+				double freq = pmu_calc(&engines->freq_act.val, 1, t, 1); // in MHz
+				gpus_slice->gpu_clock_speed = (unsigned int)round(freq);
+			} else {
+				// remote REST sampling
+
+				try {
+					const auto response = exporter->Get("/").value();
+
+					string blitter_busy = extract_exporter_field(response.body, "igpu_engines_blitter_0_busy");
+					string render_3d_busy = extract_exporter_field(response.body, "igpu_engines_render_3d_0_busy");
+					string video_0_busy = extract_exporter_field(response.body, "igpu_engines_video_0_busy");
+					string video_enhance_0_busy = extract_exporter_field(response.body, "igpu_engines_video_enhance_0_busy");
+					string frequency_actual = extract_exporter_field(response.body, "igpu_frequency_actual");
+					string power_gpu = extract_exporter_field(response.body, "igpu_power_gpu");
+
+					double max_util = std::max({std::stod(blitter_busy), std::stod(render_3d_busy), std::stod(video_0_busy), std::stod(video_enhance_0_busy)});
+					gpus_slice->gpu_percent.at("gpu-totals").push_back((long long)round(max_util));
+
+					double pwr = std::stod(power_gpu);
+					gpus_slice->pwr_usage = (long long)round(pwr * 1000);
+					if (gpus_slice->pwr_usage > 0) {
+						gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(100);
+					} else {
+						gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(0);
+					}
+
+					double freq = std::stod(frequency_actual); // in MHz
+					gpus_slice->gpu_clock_speed = (unsigned int)round(freq);
+				} catch (const std::exception &e) {
+					Logger::warning("Failed to connect to Intel GPU exporter: "s + e.what());
+					return false;
 				}
 			}
-			gpus_slice->gpu_percent.at("gpu-totals").push_back((long long)round(max_util));
-
-			double pwr = pmu_calc(&engines->r_gpu.val, 1, t, engines->r_gpu.scale); // in Watts
-			gpus_slice->pwr_usage = (long long)round(pwr * 1000);
-			if (gpus_slice->pwr_usage > gpus_slice->pwr_max_usage)
-				gpus_slice->pwr_max_usage = gpus_slice->pwr_usage;
-
-			gpus_slice->gpu_percent.at("gpu-pwr-totals").push_back(clamp((long long)round((double)gpus_slice->pwr_usage * 100.0 / (double)gpus_slice->pwr_max_usage), 0ll, 100ll));
-
-			double freq = pmu_calc(&engines->freq_act.val, 1, t, 1); // in MHz
-			gpus_slice->gpu_clock_speed = (unsigned int)round(freq);
 
 			return true;
 		}
@@ -2139,6 +2182,9 @@ namespace Npu {
 
 	//? Intel
 	namespace Intel {
+		const fs::path intel_vendor_path = "/sys/devices/pci0000:00/0000:00:0b.0/vendor";
+		const string intel_vendor_id = "0x8086";
+
 		// https://github.com/nokyan/resources/issues/302#issuecomment-2284297338
 		// https://github.com/chromium/chromium/blob/884f7b1b2fd5a110f628860aef806f7291620644/chrome/browser/ui/webui/ash/sys_internals/sys_internals_message_handler.cc#L268
 		const fs::path intel_npu_busy_path = "/sys/devices/pci0000:00/0000:00:0b.0/npu_busy_time_us";
@@ -2185,6 +2231,26 @@ namespace Npu {
 
 		bool init() {
 			if (initialized) return false;
+
+			// Check if vendor is Intel
+			try {
+				std::ifstream vendor_file(intel_vendor_path);
+				std::stringstream buffer;
+				if (vendor_file.is_open()) {
+					buffer << vendor_file.rdbuf();
+				} else {
+					Logger::info("Failed to read Intel NPU vendor file, Intel NPUs will not be detected");
+					return false;
+				}
+				if (buffer.str() != intel_vendor_id) {
+					Logger::info("Intel NPU not found, Intel NPUs will not be detected");
+					return false;
+				}
+			} catch (const std::exception& e) {
+				Logger::info("Failed to read Intel NPU vendor file, Intel NPUs will not be detected");
+				return false;
+			}
+
 
 			// Detect the method to use
 			if (!detectBusy() && !detectPower()) {

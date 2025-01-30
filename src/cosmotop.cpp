@@ -78,7 +78,7 @@ namespace Global {
 		{"#062c43", "██████╗ ██████║ ██████║ ██║     ██║ ██████║   ██║   ██████║ ██║"},
 		{"#000000", "╚═════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝   ╚═╝   ╚═════╝ ╚═╝"},
 	};
-	const string Version = "0.4.0";
+	const string Version = "0.4.1";
 
 	int coreCount;
 	string overlay;
@@ -182,25 +182,56 @@ static void print_help_hint() {
 	fmt::println("For more information, try '{0}--help{1}'", "\033[1m", "\033[0m");
 }
 
-static void print_with_pager(const string& text) {
-	auto pager = getenv("PAGER");
-	FILE* pipe;
-	if (pager == nullptr) {
-		// Check if less or more are available
-		pipe = popen("less -R", "w");
-		if (pipe == nullptr) {
-			pipe = popen("more", "w");
-		}
-	} else {
-		pipe = popen(pager, "w");
-	}
+static std::string find_in_path(const std::string& command) {
+    const char* path_env = getenv("PATH");
+    if (!path_env) return "";
 
-	if (pipe == nullptr) {
-		fmt::print("{}\n", text);
-	} else {
-		fmt::print(pipe, "{}\n", text);
-		pclose(pipe);
-	}
+    std::istringstream path_stream(path_env);
+    std::string path;
+    while (std::getline(path_stream, path, ':')) {
+        std::filesystem::path full_path = std::filesystem::path(path) / command;
+        if (std::filesystem::exists(full_path) && access(full_path.c_str(), X_OK) == 0) {
+            return full_path.string();
+        }
+    }
+    return "";
+}
+
+static void print_with_pager(const std::string& text) {
+    const char* pager_env = getenv("PAGER");
+    std::string pager_cmd;
+
+    if (pager_env == nullptr || *pager_env == '\0') {
+        // Check for "less" or "more" in the system PATH
+        std::string less_path = find_in_path("less");
+        if (!less_path.empty()) {
+            pager_cmd = less_path + " -R";
+        } else {
+            std::string more_path = find_in_path("more");
+            if (!more_path.empty()) {
+                pager_cmd = more_path;
+            }
+        }
+    } else {
+        pager_cmd = pager_env; // Use the PAGER environment variable
+    }
+
+    if (pager_cmd.empty()) {
+        // No pager found, fallback to direct output
+        fmt::print("{}\n", text);
+        return;
+    }
+
+    // Open the pager as a pipe
+    FILE* pipe = popen(pager_cmd.c_str(), "w");
+    if (pipe == nullptr) {
+        // If pipe fails, fallback to direct output
+        fmt::print("{}\n", text);
+    } else {
+        // Write the text to the pager
+        fmt::print(pipe, "{}\n", text);
+        pclose(pipe);
+    }
 }
 
 static void print_licenses() {

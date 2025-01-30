@@ -545,7 +545,7 @@ void create_plugin_host() {
 		return Proc::selected_pid;
 	}));
 	pluginHost->registerHandler<int>("Proc::get_select_max", std::function([]() {
-		return Proc::select_max;
+		return Proc::select_max_rows;
 	}));
 
 	pluginHost->registerHandler<int>("Cpu::get_width", std::function([]() {

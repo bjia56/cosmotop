@@ -362,7 +362,7 @@ namespace Input {
 								}
 								else if (current_selection == 0 or line - y - 1 == 0)
 									redraw = true;
-								Config::set("proc_selected", line - y - 1);
+								Config::set("proc_selected", Proc::selected_to_true_selected(line - y - 1));
 							}
 							else if (line == y + 1) {
 								if (Proc::selection("page_up") == -1) return;

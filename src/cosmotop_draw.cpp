@@ -1632,7 +1632,7 @@ namespace Proc {
 	int width_p = 55, height_p = 68;
 	int min_width = 44, min_height = 16;
 	int x, y, width = 20, height;
-	int start, selected, select_max;
+	int start, selected, select_max_rows;
 	bool shown = true, redraw = true;
 	int selected_pid = 0, selected_depth = 0;
 	string selected_name;
@@ -1646,14 +1646,35 @@ namespace Proc {
 	int user_size, thread_size, prog_size, cmd_size, tree_size;
 	int dgraph_x, dgraph_width, d_width, d_x, d_y;
 
+	// List of currently rendered procs and the heights they use
+	// when rendering multiline procs
+	vector<int> rendered_proc_heights;
+
+	// List of all procs and their heights
+	vector<int> all_proc_heights;
+
+	int selected_to_true_selected(int selected) {
+		if (rendered_proc_heights.empty()) return selected;
+		int true_selected = 0;
+		for (int i = 0; i < selected; i++) {
+			if (rendered_proc_heights.size() > i) {
+				true_selected++;
+				selected -= rendered_proc_heights.at(i) - 1;
+			}
+		}
+		return true_selected;
+	}
+
 	string box;
 
 	int selection(const string& cmd_key) {
 		auto start = Config::getI("proc_start");
 		auto selected = Config::getI("proc_selected");
 		auto last_selected = Config::getI("proc_last_selected");
-		const int select_max = (Config::getB("show_detailed") ? Proc::select_max - 8 : Proc::select_max);
+		auto show_detailed = Config::getB("show_detailed");
+		const int select_max = selected_to_true_selected(show_detailed ? Proc::select_max_rows - 8 : Proc::select_max_rows);
 		auto vim_keys = Config::getB("vim_keys");
+		const int height = show_detailed ? Proc::height - 8 : Proc::height;
 
 		int numpids = Proc::get_numpids();
 		if ((cmd_key == "up" or (vim_keys and cmd_key == "k")) and selected > 0) {
@@ -1692,8 +1713,17 @@ namespace Proc {
 			if (selected > 0) selected = select_max;
 		}
 		else if (cmd_key.starts_with("mousey")) {
-			int mouse_y = std::stoi(cmd_key.substr(6));
-			start = clamp((int)round((double)mouse_y * (numpids - select_max - 2) / (select_max - 2)), 0, max(0, numpids - select_max));
+			const int mouse_y = std::stoi(cmd_key.substr(6));
+			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
+			const int target_height = (int)floor(all_proc_height * (double)mouse_y / (height - 5));
+			for (int i = 0, acc = 0; i < all_proc_heights.size(); i++) {
+				acc += all_proc_heights.at(i);
+				if (acc >= target_height) {
+					start = min(i + 1, numpids);
+					selected = 1;
+					break;
+				}
+			}
 		}
 
 		bool changed = false;
@@ -1721,11 +1751,13 @@ namespace Proc {
 		auto mem_bytes = Config::getB("proc_mem_bytes");
 		auto vim_keys = Config::getB("vim_keys");
 		auto show_graphs = Config::getB("proc_cpu_graphs");
+		auto max_rows = Config::getI("proc_max_rows");
 		start = Config::getI("proc_start");
 		selected = Config::getI("proc_selected");
 		const int y = show_detailed ? Proc::y + 8 : Proc::y;
 		const int height = show_detailed ? Proc::height - 8 : Proc::height;
-		const int select_max = show_detailed ? Proc::select_max - 8 : Proc::select_max;
+		const int select_max_rows = show_detailed ? Proc::select_max_rows - 8 : Proc::select_max_rows;
+		const int select_max = selected_to_true_selected(select_max_rows);
 		auto totalMem = Mem::get_totalMem();
 		int numpids = Proc::get_numpids();
 		if (force_redraw) redraw = true;
@@ -1955,11 +1987,31 @@ namespace Proc {
 		if (selected > numpids)
 			selected = numpids;
 
+		//* Compute cmdline rows for all proc rows
+		std::unordered_map<size_t, vector<string>> p_cmdlines;
+		all_proc_heights.clear();
+		if (!proc_tree) {
+			for (const auto& p : plist) {
+				vector<string> cmd_lines;
+				// Split command into multiple lines
+				string remaining = p.cmd;
+				while (!remaining.empty() && cmd_lines.size() < static_cast<size_t>(max_rows)) {
+					string line = uresize(remaining, cmd_size, true);
+					cmd_lines.push_back(line);
+					remaining = luresize(remaining, ulen(remaining) - ulen(line), true);
+				}
+				all_proc_heights.push_back(min(static_cast<int>(cmd_lines.size()), max_rows));
+				p_cmdlines[p.pid] = cmd_lines;
+			}
+		}
+
 		//* Iteration over processes
-		int lc = 0;
+		int current_line = 0;
+		int process_count = 0;
+		rendered_proc_heights.clear();
 		for (int n=0; auto& p : plist) {
 			if (p.filtered or (proc_tree and p.tree_index == plist.size()) or n++ < start) continue;
-			bool is_selected = (lc + 1 == selected);
+			bool is_selected = (process_count + 1 == selected);
 			if (is_selected) {
 				selected_pid = (int)p.pid;
 				selected_name = p.name;
@@ -1991,7 +2043,7 @@ namespace Proc {
 				out += Theme::c("selected_bg") + Theme::c("selected_fg") + Fx::b;
 			}
 			else {
-				int calc = (selected > lc) ? selected - lc : lc - selected;
+				int calc = (selected > process_count) ? selected - process_count : process_count - selected;
 				if (proc_colors) {
 					end = Theme::c("main_fg") + Fx::ub;
 					array<string, 3> colors;
@@ -2017,74 +2069,107 @@ namespace Proc {
 
 			if (not p_wide_cmd.contains(p.pid)) p_wide_cmd[p.pid] = ulen(p.cmd) != ulen(p.cmd, true);
 
-			//? Normal view line
-			if (not proc_tree) {
-				out += Mv::to(y+2+lc, x+1)
-					+ g_color + rjust(to_string(p.pid), 8) + ' '
-					+ c_color + ljust(p.name, prog_size, true) + ' ' + end
-					+ (cmd_size > 0 ? g_color + ljust(p.cmd, cmd_size, true, p_wide_cmd[p.pid]) + Mv::to(y+2+lc, x+11+prog_size+cmd_size) + ' ' : "");
-			}
-			//? Tree view line
-			else {
-				const string prefix_pid = p.prefix + to_string(p.pid);
-				int width_left = tree_size;
-				out += Mv::to(y+2+lc, x+1) + g_color + uresize(prefix_pid, width_left) + ' ';
-				width_left -= ulen(prefix_pid);
-				if (width_left > 0) {
-					out += c_color + uresize(p.name, width_left - 1) + end + ' ';
-					width_left -= (ulen(p.name) + 1);
-				}
-				if (width_left > 7) {
-					const string& cmd = width_left > 40 ? rtrim(p.cmd) : p.short_cmd;
-					if (not cmd.empty() and cmd != p.name) {
-						out += g_color + '(' + uresize(cmd, width_left - 3, p_wide_cmd[p.pid]) + ") ";
-						width_left -= (ulen(cmd, true) + 3);
-					}
-				}
-				out += string(max(0, width_left), ' ') + Mv::to(y+2+lc, x+2+tree_size);
-			}
-			//? Common end of line
+			//? Prepare multi-line content for normal view
+			const vector<string>& cmd_lines = p_cmdlines[p.pid];
+			int lines_used = cmd_lines.size();
+
+			//? Account for available space
+			lines_used = min(lines_used, height - 5 - current_line);
+			if (lines_used <= 0) break;
+
+			//? Store the height of this row
+			rendered_proc_heights.push_back(lines_used);
+
+			//? Precompute common values
 			string cpu_str = to_string(p.cpu_p);
-			if (p.cpu_p < 10 or (p.cpu_p >= 100 and p.cpu_p < 1000)) cpu_str.resize(3);
+			if (p.cpu_p < 10 || (p.cpu_p >= 100 && p.cpu_p < 1000)) cpu_str.resize(3);
 			else if (p.cpu_p >= 10'000) {
 				cpu_str = to_string(p.cpu_p / 1000);
 				cpu_str.resize(3);
 				if (cpu_str.ends_with('.')) cpu_str.pop_back();
 				cpu_str += "k";
 			}
-			string mem_str = (mem_bytes ? floating_humanizer(p.mem, true) : "");
-			if (not mem_bytes) {
-				double mem_p = clamp((double)p.mem * 100 / totalMem, 0.0, 100.0);
+			string mem_str = mem_bytes ? floating_humanizer(p.mem, true) : "";
+			if (!mem_bytes) {
+				double mem_p = clamp(static_cast<double>(p.mem) * 100 / totalMem, 0.0, 100.0);
 				mem_str = to_string(mem_p);
-				if (mem_str.size() < 4)	mem_str = "0";
-				else mem_str.resize((mem_p < 10 or mem_p >= 100 ? 3 : 4));
+				if (mem_str.size() < 4) mem_str = "0";
+				else mem_str.resize((mem_p < 10 || mem_p >= 100 ? 3 : 4));
 				mem_str += '%';
 			}
 
 			// Shorten process thread representation when larger than 5 digits: 10000 -> 10K ...
-			const std::string proc_threads_string = [&] {
-				if (p.threads > 9999) {
-					return std::to_string(p.threads / 1000) + 'K';
-				} else {
-					return std::to_string(p.threads);
-				}
+			const string proc_threads_string = [&] {
+				return (p.threads > 9999) ? to_string(p.threads / 1000) + "K" : to_string(p.threads);
 			}();
 
-			out += (thread_size > 0 ? t_color + rjust(proc_threads_string, thread_size) + ' ' + end : "" )
-				+ g_color + ljust((cmp_greater(p.user.size(), user_size) ? p.user.substr(0, user_size - 1) + '+' : p.user), user_size) + ' '
-				+ m_color + rjust(mem_str, 5) + end + ' '
-				+ (is_selected ? "" : Theme::c("inactive_fg")) + (show_graphs ? graph_bg * 5: "")
-				+ (p_graphs.contains(p.pid) ? Mv::l(5) + c_color + p_graphs.at(p.pid)({(p.cpu_p >= 0.1 and p.cpu_p < 5 ? 5ll : (long long)round(p.cpu_p))}, data_same) : "") + end + ' '
-				+ c_color + rjust(cpu_str, 4) + "  " + end;
-			if (lc++ > height - 5) break;
+			//? Render each line
+			for (int i = 0; i < lines_used; ++i) {
+				if (current_line >= height - 5) break;
+				const int line_y = y + 2 + current_line;
+				string line_content;
+
+				if (proc_tree) { // Tree view (single line)
+					const string prefix_pid = p.prefix + to_string(p.pid);
+					int width_left = tree_size;
+					line_content = g_color + uresize(prefix_pid, width_left) + ' ';
+					width_left -= ulen(prefix_pid);
+
+					if (width_left > 0) {
+						line_content += c_color + uresize(p.name, width_left - 1) + end + ' ';
+						width_left -= (ulen(p.name) + 1);
+					}
+					if (width_left > 7) {
+						const string& cmd = width_left > 40 ? rtrim(p.cmd) : p.short_cmd;
+						if (!cmd.empty() && cmd != p.name) {
+							line_content += g_color + '(' + uresize(cmd, width_left - 3, p_wide_cmd[p.pid]) + ") ";
+							width_left -= (ulen(cmd, true) + 3);
+						}
+					}
+					line_content += string(max(0, width_left), ' ');
+				}
+				else { // Normal view (multi-line)
+					if (i == 0) { // First line with full info
+						line_content = g_color + rjust(to_string(p.pid), 8) + ' '
+									+ c_color + ljust(p.name, prog_size, true) + ' ' + end
+									+ (cmd_size > 0 ? g_color + ljust(cmd_lines[i], cmd_size, true, p_wide_cmd[p.pid]) + ' ' : "")
+									+ (thread_size > 0 ? t_color + rjust(proc_threads_string, thread_size) + ' ' + end : "")
+									+ g_color + ljust((cmp_greater(p.user.size(), user_size) ? p.user.substr(0, user_size - 1) + '+' : p.user), user_size) + ' '
+									+ m_color + rjust(mem_str, 5) + end + ' '
+									+ (is_selected ? "" : Theme::c("inactive_fg")) + (show_graphs ? graph_bg * 5 : "")
+									+ (p_graphs.contains(p.pid) ? Mv::l(5) + c_color + p_graphs.at(p.pid)({(p.cpu_p >= 0.1 && p.cpu_p < 5 ? 5ll : static_cast<long long>(round(p.cpu_p)))}, data_same) : "") + end + ' '
+									+ c_color + rjust(cpu_str, 4) + "  " + end;
+					}
+					else { // Additional command lines
+						const string cmd_part = i < cmd_lines.size() ? cmd_lines[i] : "";
+						line_content = string(8, ' ') + ' ' // PID space
+									+ string(prog_size, ' ') + ' ' // Name space
+									+ g_color + ljust(cmd_part, cmd_size, true, p_wide_cmd[p.pid])
+									+ string(width - 2 - 8 - 1 - prog_size - 1 - cmd_size, ' ');
+					}
+				}
+
+				//? Apply selection highlighting
+				if (is_selected) {
+					line_content = Theme::c("selected_bg") + Theme::c("selected_fg") + Fx::b + line_content + Fx::ub;
+				}
+
+				out += Mv::to(line_y, x + 1) + line_content;
+				current_line++;
+			}
+
+			process_count++;
+			if (current_line >= height - 5) break;
 		}
 
 		out += Fx::reset;
-		while (lc++ < height - 5) out += Mv::to(y+lc+1, x+1) + string(width - 2, ' ');
+		while (current_line++ < height - 5) out += Mv::to(y+current_line+1, x+1) + string(width - 2, ' ');
 
 		//? Draw scrollbar if needed
 		if (numpids > select_max) {
-			const int scroll_pos = clamp((int)round((double)start * select_max / (numpids - select_max)), 0, height - 5);
+			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
+			const int up_to_start = accumulate(all_proc_heights.begin(), all_proc_heights.begin() + start, 0);
+			const int scroll_pos = clamp((int)round((height - 5) * (double)up_to_start / all_proc_height), 0, height - 5);
 			out += Mv::to(y + 1, x + width - 2) + Fx::b + Theme::c("main_fg") + Symbols::up
 				+ Mv::to(y + height - 2, x + width - 2) + Symbols::down;
 
@@ -2432,7 +2517,7 @@ namespace Draw {
 			height = Term::height - Cpu::height - Gpu::height*Gpu::shown;
 			x = proc_left ? 1 : Term::width - width + 1;
 			y = (cpu_bottom and Cpu::shown) ? 1 : Cpu::height + Gpu::height*Gpu::shown + 1;
-			select_max = height - 3;
+			select_max_rows = height - 3;
 			box = createBox(x, y, width, height, Theme::c("proc_box"), true, "proc", "", 4);
 		}
 	}
