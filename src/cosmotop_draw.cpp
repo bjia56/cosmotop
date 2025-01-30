@@ -2097,6 +2097,8 @@ namespace Proc {
 				else mem_str.resize((mem_p < 10 || mem_p >= 100 ? 3 : 4));
 				mem_str += '%';
 			}
+
+			// Shorten process thread representation when larger than 5 digits: 10000 -> 10K ...
 			const string proc_threads_string = [&] {
 				return (p.threads > 9999) ? to_string(p.threads / 1000) + "K" : to_string(p.threads);
 			}();
