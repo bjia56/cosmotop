@@ -103,6 +103,8 @@ namespace Config {
 
 		{"proc_tree",			"#* Show processes as a tree."},
 
+		{"proc_max_rows",		"#* Maximum number of rows to use when displaying process command lines when tree view is disabled."},
+
 		{"proc_colors", 		"#* Use the cpu graph colors in the process list."},
 
 		{"proc_gradient", 		"#* Use a darkening gradient in the process list."},
@@ -343,7 +345,8 @@ namespace Config {
 		{"selected_depth", 0},
 		{"proc_start", 0},
 		{"proc_selected", 0},
-		{"proc_last_selected", 0}
+		{"proc_last_selected", 0},
+		{"proc_max_rows", 1}
 	};
 	std::unordered_map<std::string_view, int> intsTmp;
 
