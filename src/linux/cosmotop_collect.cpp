@@ -219,6 +219,7 @@ namespace Gpu {
 		rsmi_status_t (*rsmi_dev_memory_total_get)(uint32_t, rsmi_memory_type_t, uint64_t*);
 		rsmi_status_t (*rsmi_dev_memory_usage_get)(uint32_t, rsmi_memory_type_t, uint64_t*);
 		rsmi_status_t (*rsmi_dev_pci_throughput_get)(uint32_t, uint64_t*, uint64_t*, uint64_t*);
+		rsmi_status_t (*rsmi_status_string)(rsmi_status_t, const char**);
 
 		uint32_t version_major = 0;
 
@@ -1395,6 +1396,12 @@ namespace Gpu {
 
 	//? AMD
 	namespace Rsmi {
+		string rsmiErrorString(rsmi_status_t r) {
+			const char *err_str;
+			rsmi_status_string(r, &err_str);
+			return string(err_str);
+		}
+
 		bool init() {
 			if (initialized) return false;
 
@@ -1446,6 +1453,7 @@ namespace Gpu {
 		    LOAD_SYM(rsmi_dev_memory_total_get);
 		    LOAD_SYM(rsmi_dev_memory_usage_get);
 		    LOAD_SYM(rsmi_dev_pci_throughput_get);
+			LOAD_SYM(rsmi_status_string);
 
             #undef LOAD_SYM
         #endif
@@ -1453,7 +1461,7 @@ namespace Gpu {
 			//? Function calls
 			rsmi_status_t result = rsmi_init(0);
 			if (result != RSMI_STATUS_SUCCESS) {
-				Logger::debug("Failed to initialize ROCm SMI, AMD GPUs will not be detected");
+				Logger::debug("Failed to initialize ROCm SMI, AMD GPUs will not be detected: "s + rsmiErrorString(result));
 				return false;
 			}
 
@@ -1462,7 +1470,7 @@ namespace Gpu {
 			rsmi_version_t version;
 			result = rsmi_version_get(&version);
 			if (result != RSMI_STATUS_SUCCESS) {
-				Logger::warning("ROCm SMI: Failed to get version");
+				Logger::warning("ROCm SMI: Failed to get version: "s + rsmiErrorString(result));
 				return false;
 			} else if (version.major == 5) {
 				if ((rsmi_dev_gpu_clk_freq_get_v5 = (decltype(rsmi_dev_gpu_clk_freq_get_v5))load_rsmi_sym("rsmi_dev_gpu_clk_freq_get")) == nullptr)
@@ -1481,7 +1489,7 @@ namespace Gpu {
 			//? Device count
 			result = rsmi_num_monitor_devices(&device_count);
 			if (result != RSMI_STATUS_SUCCESS) {
-				Logger::warning("ROCm SMI: Failed to fetch number of devices");
+				Logger::warning("ROCm SMI: Failed to fetch number of devices: "s + rsmiErrorString(result));
 				return false;
 			}
 
@@ -1500,12 +1508,13 @@ namespace Gpu {
 
 		bool shutdown() {
 			if (!initialized) return false;
-			if (rsmi_shut_down() == RSMI_STATUS_SUCCESS) {
+			rsmi_status_t result = rsmi_shut_down();
+			if (result == RSMI_STATUS_SUCCESS) {
 				initialized = false;
 			#if !defined(RSMI_STATIC)
 				dlclose(rsmi_dl_handle);
 			#endif
-			} else Logger::warning("Failed to shutdown ROCm SMI");
+			} else Logger::warning("Failed to shutdown ROCm SMI: "s + rsmiErrorString(result));
 
 			return true;
 		}
@@ -1521,14 +1530,14 @@ namespace Gpu {
 					char name[RSMI_DEVICE_NAME_BUFFER_SIZE];
     				result = rsmi_dev_name_get(i, name, RSMI_DEVICE_NAME_BUFFER_SIZE);
         			if (result != RSMI_STATUS_SUCCESS)
-    					Logger::warning("ROCm SMI: Failed to get device name");
+    					Logger::warning("ROCm SMI: Failed to get device name: "s + rsmiErrorString(result));
         			else gpu_names[Nvml::device_count + i] = string(name);
 
     				//? Power usage
     				uint64_t max_power;
     				result = rsmi_dev_power_cap_get(i, 0, &max_power);
     				if (result != RSMI_STATUS_SUCCESS)
-						Logger::warning("ROCm SMI: Failed to get maximum GPU power draw, defaulting to 225W");
+						Logger::warning("ROCm SMI: Failed to get maximum GPU power draw, defaulting to 225W: "s + rsmiErrorString(result));
 					else {
 						gpus_slice[i].pwr_max_usage = (long long)(max_power/1000); // RSMI reports power in microWatts
 						gpu_pwr_total_max += gpus_slice[i].pwr_max_usage;
@@ -1538,7 +1547,7 @@ namespace Gpu {
 					int64_t temp_max;
     				result = rsmi_dev_temp_metric_get(i, RSMI_TEMP_TYPE_EDGE, RSMI_TEMP_MAX, &temp_max);
         			if (result != RSMI_STATUS_SUCCESS)
-    					Logger::warning("ROCm SMI: Failed to get maximum GPU temperature, defaulting to 110°C");
+    					Logger::warning("ROCm SMI: Failed to get maximum GPU temperature, defaulting to 110°C: "s + rsmiErrorString(result));
     				else gpus_slice[i].temp_max = (long long)temp_max;
     			}
 
@@ -1547,7 +1556,7 @@ namespace Gpu {
 					uint32_t utilization;
 					result = rsmi_dev_busy_percent_get(i, &utilization);
     				if (result != RSMI_STATUS_SUCCESS) {
-						Logger::warning("ROCm SMI: Failed to get GPU utilization");
+						Logger::warning("ROCm SMI: Failed to get GPU utilization: "s + rsmiErrorString(result));
 						if constexpr(is_init) gpus_slice[i].supported_functions.gpu_utilization = false;
     				} else gpus_slice[i].gpu_percent.at("gpu-totals").push_back((long long)utilization);
 				}
@@ -1557,7 +1566,7 @@ namespace Gpu {
 					uint32_t utilization;
 					result = rsmi_dev_memory_busy_percent_get(i, &utilization);
     				if (result != RSMI_STATUS_SUCCESS) {
-						Logger::warning("ROCm SMI: Failed to get VRAM utilization");
+						Logger::warning("ROCm SMI: Failed to get VRAM utilization: "s + rsmiErrorString(result));
 						if constexpr(is_init) gpus_slice[i].supported_functions.mem_utilization = false;
     				} else gpus_slice[i].mem_utilization_percent.push_back((long long)utilization);
 				}
@@ -1568,7 +1577,7 @@ namespace Gpu {
 						rsmi_frequencies_t_v5 frequencies;
 						result = rsmi_dev_gpu_clk_freq_get_v5(i, RSMI_CLK_TYPE_SYS, &frequencies);
 						if (result != RSMI_STATUS_SUCCESS) {
-							Logger::warning("ROCm SMI: Failed to get GPU clock speed: ");
+							Logger::warning("ROCm SMI: Failed to get GPU clock speed: "s + rsmiErrorString(result));
 							if constexpr(is_init) gpus_slice[i].supported_functions.gpu_clock = false;
 						} else gpus_slice[i].gpu_clock_speed = (long long)frequencies.frequency[frequencies.current]/1000000; // Hz to MHz
 					}
@@ -1576,7 +1585,7 @@ namespace Gpu {
 						rsmi_frequencies_t_v6 frequencies;
 						result = rsmi_dev_gpu_clk_freq_get_v6(i, RSMI_CLK_TYPE_SYS, &frequencies);
 						if (result != RSMI_STATUS_SUCCESS) {
-							Logger::warning("ROCm SMI: Failed to get GPU clock speed: ");
+							Logger::warning("ROCm SMI: Failed to get GPU clock speed: "s + rsmiErrorString(result));
 							if constexpr(is_init) gpus_slice[i].supported_functions.gpu_clock = false;
 						} else gpus_slice[i].gpu_clock_speed = (long long)frequencies.frequency[frequencies.current]/1000000; // Hz to MHz
 					}
@@ -1587,7 +1596,7 @@ namespace Gpu {
 						rsmi_frequencies_t_v5 frequencies;
 						result = rsmi_dev_gpu_clk_freq_get_v5(i, RSMI_CLK_TYPE_MEM, &frequencies);
 						if (result != RSMI_STATUS_SUCCESS) {
-							Logger::warning("ROCm SMI: Failed to get VRAM clock speed: ");
+							Logger::warning("ROCm SMI: Failed to get VRAM clock speed: "s + rsmiErrorString(result));
 							if constexpr(is_init) gpus_slice[i].supported_functions.mem_clock = false;
 						} else gpus_slice[i].mem_clock_speed = (long long)frequencies.frequency[frequencies.current]/1000000; // Hz to MHz
 					}
@@ -1595,7 +1604,7 @@ namespace Gpu {
 						rsmi_frequencies_t_v6 frequencies;
 						result = rsmi_dev_gpu_clk_freq_get_v6(i, RSMI_CLK_TYPE_MEM, &frequencies);
 						if (result != RSMI_STATUS_SUCCESS) {
-							Logger::warning("ROCm SMI: Failed to get VRAM clock speed: ");
+							Logger::warning("ROCm SMI: Failed to get VRAM clock speed: "s + rsmiErrorString(result));
 							if constexpr(is_init) gpus_slice[i].supported_functions.mem_clock = false;
 						} else gpus_slice[i].mem_clock_speed = (long long)frequencies.frequency[frequencies.current]/1000000; // Hz to MHz
 					}
@@ -1606,7 +1615,7 @@ namespace Gpu {
 					rsmi_frequencies_t frequencies;
 					result = rsmi_dev_gpu_clk_freq_get(i, RSMI_CLK_TYPE_SYS, &frequencies);
     				if (result != RSMI_STATUS_SUCCESS) {
-						Logger::warning("ROCm SMI: Failed to get GPU clock speed: ");
+						Logger::warning("ROCm SMI: Failed to get GPU clock speed: "s + rsmiErrorString(result));
 						if constexpr(is_init) gpus_slice[i].supported_functions.gpu_clock = false;
     				} else gpus_slice[i].gpu_clock_speed = (long long)frequencies.frequency[frequencies.current]/1000000; // Hz to MHz
 				}
@@ -1615,7 +1624,7 @@ namespace Gpu {
 					rsmi_frequencies_t frequencies;
 					result = rsmi_dev_gpu_clk_freq_get(i, RSMI_CLK_TYPE_MEM, &frequencies);
     				if (result != RSMI_STATUS_SUCCESS) {
-						Logger::warning("ROCm SMI: Failed to get VRAM clock speed: ");
+						Logger::warning("ROCm SMI: Failed to get VRAM clock speed: "s + rsmiErrorString(result));
 						if constexpr(is_init) gpus_slice[i].supported_functions.mem_clock = false;
     				} else gpus_slice[i].mem_clock_speed = (long long)frequencies.frequency[frequencies.current]/1000000; // Hz to MHz
 				}
@@ -1626,7 +1635,7 @@ namespace Gpu {
     				uint64_t power;
     				result = rsmi_dev_power_ave_get(i, 0, &power);
     				if (result != RSMI_STATUS_SUCCESS) {
-						Logger::warning("ROCm SMI: Failed to get GPU power usage");
+						Logger::warning("ROCm SMI: Failed to get GPU power usage: "s + rsmiErrorString(result));
 						if constexpr(is_init) gpus_slice[i].supported_functions.pwr_usage = false;
     				} else {
 							gpus_slice[i].pwr_usage = (long long)power / 1000;
@@ -1644,7 +1653,7 @@ namespace Gpu {
 						int64_t temp;
     					result = rsmi_dev_temp_metric_get(i, RSMI_TEMP_TYPE_EDGE, RSMI_TEMP_CURRENT, &temp);
         				if (result != RSMI_STATUS_SUCCESS) {
-    						Logger::warning("ROCm SMI: Failed to get GPU temperature");
+    						Logger::warning("ROCm SMI: Failed to get GPU temperature: "s + rsmiErrorString(result));
 							if constexpr(is_init) gpus_slice[i].supported_functions.temp_info = false;
     					} else gpus_slice[i].temp.push_back((long long)temp/1000);
     				}
@@ -1655,7 +1664,7 @@ namespace Gpu {
 					uint64_t total;
 					result = rsmi_dev_memory_total_get(i, RSMI_MEM_TYPE_VRAM, &total);
     				if (result != RSMI_STATUS_SUCCESS) {
-						Logger::warning("ROCm SMI: Failed to get total VRAM");
+						Logger::warning("ROCm SMI: Failed to get total VRAM: "s + rsmiErrorString(result));
 						if constexpr(is_init) gpus_slice[i].supported_functions.mem_total = false;
 					} else gpus_slice[i].mem_total = total;
 				}
@@ -1664,7 +1673,7 @@ namespace Gpu {
 					uint64_t used;
 					result = rsmi_dev_memory_usage_get(i, RSMI_MEM_TYPE_VRAM, &used);
     				if (result != RSMI_STATUS_SUCCESS) {
-						Logger::warning("ROCm SMI: Failed to get VRAM usage");
+						Logger::warning("ROCm SMI: Failed to get VRAM usage: "s + rsmiErrorString(result));
 						if constexpr(is_init) gpus_slice[i].supported_functions.mem_used = false;
 					} else {
 						gpus_slice[i].mem_used = used;
@@ -1678,7 +1687,7 @@ namespace Gpu {
 					uint64_t tx, rx;
 					result = rsmi_dev_pci_throughput_get(i, &tx, &rx, 0);
     				if (result != RSMI_STATUS_SUCCESS) {
-						Logger::warning("ROCm SMI: Failed to get PCIe throughput");
+						Logger::warning("ROCm SMI: Failed to get PCIe throughput: "s + rsmiErrorString(result));
 						if constexpr(is_init) gpus_slice[i].supported_functions.pcie_txrx = false;
 					} else {
 						gpus_slice[i].pcie_tx = (long long)tx;
