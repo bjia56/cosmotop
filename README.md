@@ -49,7 +49,7 @@ Monitoring of GPUs is supported on Linux and Windows.
 - Windows: LibreHardwareMonitor is included with `cosmotop` and automatically used to fetch GPU information.
 - Linux: Intel, AMD, and NVIDIA GPUs are supported, provided the appropriate driver is installed, and the following:
   - Intel: Root privileges are required to access metrics directly. Alternatively, run [intel-gpu-exporter](https://github.com/bjia56/intel-gpu-exporter) in a privileged Docker container, then set the `intel_gpu_exporter` configuration option in `cosmotop` to the exporter's HTTP endpoint.
-  - AMD: `librocm_smi64.so` must be available.
+  - AMD: `rocm_smi_lib` is statically linked and should work out of the box.
   - NVIDIA: `libnvidia-ml.so` must be available.
 
 ### NPU monitoring
