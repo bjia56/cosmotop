@@ -131,12 +131,13 @@ namespace Cpu {
 
 	SMCConnection::SMCConnection() {
 		CFMutableDictionaryRef matchingDictionary = IOServiceMatching("AppleSMC");
-		result = IOServiceGetMatchingServices(0, matchingDictionary, &iterator);
+		io_iterator_t iterator;
+		kern_return_t result = IOServiceGetMatchingServices(0, matchingDictionary, &iterator);
 		if (result != kIOReturnSuccess) {
 			throw std::runtime_error("failed to get AppleSMC");
 		}
 
-		device = IOIteratorNext(iterator);
+		io_object_t device = IOIteratorNext(iterator);
 		IOObjectRelease(iterator);
 		if (device == 0) {
 			throw std::runtime_error("failed to get SMC device");
@@ -150,6 +151,28 @@ namespace Cpu {
 	}
 	SMCConnection::~SMCConnection() {
 		IOServiceClose(conn);
+	}
+
+	// core means physical core in SMC, while in core map it's cpu threads :-/ Only an issue on hackintosh?
+	// this means we can only get the T per physical core
+	// another issue with the SMC API is that the key is always 4 chars -> what with systems with more than 9 physical cores?
+	// no Mac models with more than 18 threads are released, so no problem so far
+	// according to VirtualSMC docs (hackintosh fake SMC) the enumeration follows with alphabetic chars - not implemented yet here (nor in VirtualSMC)
+	long long SMCConnection::getTemp(int core) {
+		char key[] = SMC_KEY_CPU_TEMP;
+		if (core >= 0) {
+			if ((size_t)core > MaxIndexCount) {
+				return -1;
+			}
+			snprintf(key, 5, "TC%1cc", KeyIndexes[core]);
+		}
+		long long result = static_cast<long long>(getValue(key));
+		if (result == -1) {
+			// try again with C
+			snprintf(key, 5, "TC%1dC", KeyIndexes[core]);
+			result = static_cast<long long>(getValue(key));
+		}
+		return result;
 	}
 
 	std::vector<std::string> SMCConnection::listKeys() {
@@ -189,39 +212,6 @@ namespace Cpu {
 				}
 			}
 		}
-		return -1;
-	}
-
-	// core means physical core in SMC, while in core map it's cpu threads :-/ Only an issue on hackintosh?
-	// this means we can only get the T per physical core
-	// another issue with the SMC API is that the key is always 4 chars -> what with systems with more than 9 physical cores?
-	// no Mac models with more than 18 threads are released, so no problem so far
-	// according to VirtualSMC docs (hackintosh fake SMC) the enumeration follows with alphabetic chars - not implemented yet here (nor in VirtualSMC)
-	long long SMCConnection::getTemp(int core) {
-		char key[] = SMC_KEY_CPU_TEMP;
-		if (core >= 0) {
-			if ((size_t)core > MaxIndexCount) {
-				return -1;
-			}
-			snprintf(key, 5, "TC%1cc", KeyIndexes[core]);
-		}
-		long long result = static_cast<long long>(getValue(key));
-		if (result == -1) {
-			// try again with C
-			snprintf(key, 5, "TC%1dC", KeyIndexes[core]);
-			result = static_cast<long long>(getValue(key));
-		}
-		return result;
-	}
-
-	long long SMCConnection::getANEPower() {
-		static std::ofstream debugOut("ane.txt");
-
-		auto keys = listKeys();
-		for (const auto &key : keys) {
-			debugOut << key << std::endl;
-		}
-
 		return -1;
 	}
 

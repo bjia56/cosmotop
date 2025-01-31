@@ -46,8 +46,6 @@ tab-size = 4
 #define SMC_KEY_CPU1_TEMP "TC1C"
 #define SMC_KEY_CPU2_TEMP "TC2C"  // etc
 #define SMC_KEY_FAN0_RPM_CUR "F0Ac"
-#define SMC_KEY_ANE_PWR "ANE"
-#define SMC_KEY_ANE_PWR2 "ANE0" // fallback?
 
 typedef struct {
 	char major;
@@ -96,23 +94,19 @@ typedef struct {
 
 namespace Cpu {
 	class SMCConnection {
-	   public:
+	public:
 		SMCConnection();
 		virtual ~SMCConnection();
 
 		long long getTemp(int core);
-		long long getANEPower();
 
-	   private:
+	private:
 		std::vector<std::string> listKeys();
 		double getValue(char *key);
 		kern_return_t SMCReadKey(UInt32Char_t key, SMCVal_t *val);
 		kern_return_t SMCCall(int index, SMCKeyData_t *inputStructure, SMCKeyData_t *outputStructure);
 
+		// Connection to the SMC service
 		io_connect_t conn;
-		kern_return_t result;
-		mach_port_t masterPort;
-		io_iterator_t iterator;
-		io_object_t device;
 	};
 }  // namespace Cpu
