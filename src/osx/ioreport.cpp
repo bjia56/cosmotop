@@ -2,11 +2,9 @@
 
 #include "ioreport.hpp"
 
-#include <fstream>
-#include <thread>
 #include <vector>
 
-std::string CFStringRefToString(CFStringRef str, UInt32 encoding = kCFStringEncodingASCII) {
+static std::string CFStringRefToString(CFStringRef str, UInt32 encoding = kCFStringEncodingUTF8) {
 	if (str == nullptr) {
 		return "";
 	}
@@ -23,27 +21,19 @@ std::string CFStringRefToString(CFStringRef str, UInt32 encoding = kCFStringEnco
 	return std::string(buffer.data());
 }
 
-namespace Cpu {
+namespace Npu {
 	IOReportSubscription::IOReportSubscription() {
-		energy_model_channel = IOReportCopyChannelsInGroup(CFSTR("Energy Model"), nullptr, 0, 0, 0);
 		pmp_channel = IOReportCopyChannelsInGroup(CFSTR("PMP"), nullptr, 0, 0, 0);
 
-		IOReportMergeChannels(energy_model_channel, pmp_channel, nullptr);
-
 		power_subchannel = nullptr;
-		power_subscription = IOReportCreateSubscription(nullptr, energy_model_channel, &power_subchannel, 0, nullptr);
+		power_subscription = IOReportCreateSubscription(nullptr, pmp_channel, &power_subchannel, 0, nullptr);
 
 		previous_power_sample = nullptr;
 		current_power_sample = nullptr;
 		sample();
-
-		std::this_thread::sleep_for(std::chrono::seconds(2));
 	}
 
 	IOReportSubscription::~IOReportSubscription() {
-		if (energy_model_channel != nullptr) {
-			CFRelease(energy_model_channel);
-		}
 		if (pmp_channel != nullptr) {
 			CFRelease(pmp_channel);
 		}
@@ -58,7 +48,7 @@ namespace Cpu {
 		}
 	}
 
-	void sample() {
+	void IOReportSubscription::sample() {
 		if (previous_power_sample != nullptr) {
 			delete previous_power_sample;
 		}
@@ -72,42 +62,26 @@ namespace Cpu {
 			return 0;
 		}
 
-		auto delta = IOReportCreateSamplesDelta(previous_power_sample->sample, current_power_sample->sample, nullptr);
+		double power = 0;
+
+		CFDictionaryRef delta = IOReportCreateSamplesDelta(previous_power_sample->sample, current_power_sample->sample, nullptr);
 		IOReportIterate(delta, ^int (IOReportSampleRef sample) {
-			static std::ofstream debugOut("ane.txt");
-			debugOut << "--- Sample ---" << std::endl;
-			//static std::vector<std::string> names = {"CPU Stats", "GPU Stats", "AMC Stats", "CLPC Stats", "PMP", "Energy Model"};
+			CFStringRef cf_group = IOReportChannelGetGroup(sample);
+			CFStringRef cf_name = IOReportChannelGetChannelName(sample);
+			int  value = IOReportSimpleGetIntegerValue(sample, nullptr);
 
-			auto group = IOReportChannelGetGroup(sample);
-			auto subgroup = IOReportChannelGetSubGroup(sample);
-			auto name = IOReportChannelGetChannelName(sample);
-			auto format = IOReportChannelGetFormat(sample);
-			if (group == nullptr || subgroup == nullptr || name == nullptr) {
-				return kIOReportIterFailed;
+			std::string group = CFStringRefToString(cf_group);
+			std::string name = CFStringRefToString(cf_name);
+			if (group == "PMP" and name == "ANE") {
+				power = value;
 			}
 
-			debugOut << "Group: " << CFStringRefToString(group) << std::endl;
-			debugOut << "Subgroup: " << CFStringRefToString(subgroup) << std::endl;
-			debugOut << "Name: " << CFStringRefToString(name) << std::endl;
-			debugOut << "Format: " << format << std::endl;
-
-			if (format == kIOReportFormatSimple) {
-				debugOut << "Value: " << IOReportSimpleGetIntegerValue(sample, nullptr) << std::endl;
-			} else if (format == kIOReportFormatSimpleArray) {
-				int count = IOReportStateGetCount(sample);
-				for (int i = 0; i < count; i++) {
-					debugOut << "Value " << i << ": " << IOReportArrayGetValueAtIndex(sample, i) << std::endl;
-				}
-			} else if (format == kIOReportFormatState) {
-				int count = IOReportStateGetCount(sample);
-				for (int i = 0; i < count; i++) {
-					auto state = IOReportStateGetNameForIndex(sample, i);
-					debugOut << "State " << CFStringRefToString(state) << ": " << IOReportStateGetResidency(sample, i) << std::endl;
-				}
-			}
-
+			CFRelease(cf_group);
+			CFRelease(cf_name);
 			return kIOReportIterOk;
 		});
-		return 0;
+		CFRelease(delta);
+
+		return static_cast<long long>(power);
 	}
-}  // namespace Cpu
+}  // namespace Npu

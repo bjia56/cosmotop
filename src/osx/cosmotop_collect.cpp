@@ -105,6 +105,10 @@ namespace Cpu {
 	std::unordered_map<int, int> core_mapping;
 }  // namespace Cpu
 
+namespace Npu {
+	void init();
+}  // namespace Npu
+
 namespace Mem {
 	double old_uptime;
 }
@@ -182,12 +186,13 @@ namespace Shared {
 		Cpu::got_sensors = Cpu::get_sensors();
 		Cpu::core_mapping = Cpu::get_core_mapping();
 
+		//? Init for namespace Npu
+		Npu::init();
+		Npu::collect();
+
 		//? Init for namespace Mem
 		Mem::old_uptime = system_uptime();
 		Mem::collect();
-
-		Cpu::IOReportSubscription sub;
-		sub.getANEPower();
 	}
 
 }  // namespace Shared
@@ -555,9 +560,34 @@ namespace Cpu {
 		if (Config::getB("show_battery") and has_battery)
 			current_bat = get_battery();
 
+		Npu::collect();
+
 		return cpu;
 	}
 }  // namespace Cpu
+
+#include <fstream>
+
+namespace Npu {
+	IOReportSubscription *subscription;
+	vector<npu_info> npus;
+
+	void init() {
+		subscription = new IOReportSubscription();
+	}
+
+	auto collect(bool no_update) -> vector<npu_info>& {
+		if (Runner::get_stopping() or (no_update and not npus.empty())) return npus;
+
+		//? Collect NPU stats
+		static std::ofstream debugOut("ane.txt");
+
+		long long power = subscription->getANEPower();
+		debugOut << "ANE Sample: " << power << std::endl;
+
+		return npus;
+	}
+}
 
 namespace Mem {
 	bool has_swap = false;

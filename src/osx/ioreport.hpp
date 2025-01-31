@@ -59,7 +59,7 @@ extern "C" {
 	extern uint64_t IOReportArrayGetValueAtIndex(CFDictionaryRef sample, uint32_t index);
 }
 
-namespace Cpu {
+namespace Npu {
 	class PowerEstimate {
 	public:
 		PowerEstimate(std::string cpuModel);
@@ -69,7 +69,7 @@ namespace Cpu {
 
 	private:
 		std::string cpuModel;
-	}
+	};
 
 	class IOReportSubscription {
 	public:
@@ -82,23 +82,21 @@ namespace Cpu {
 		void sample();
 
 		struct Sample {
-			CFMutableDictionaryRef sample;
+			CFDictionaryRef sample;
 			std::chrono::time_point<std::chrono::system_clock> timestamp;
 
-			Sample(CFMutableDictionaryRef sample) : sample(sample), timestamp(std::chrono::system_clock::now()) {}
+			Sample(CFDictionaryRef sample) : sample(sample), timestamp(std::chrono::system_clock::now()) {}
 
 			~Sample() {
 				if (sample) CFRelease(sample);
 			}
-		}
+		};
 
 		// power subscription fields
-		CFMutableDictionaryRef energy_model_channel;
 		CFMutableDictionaryRef pmp_channel;
 		CFMutableDictionaryRef power_subchannel;
 		Sample *previous_power_sample;
 		Sample *current_power_sample;
-
 		struct IOReportSubscriptionRef *power_subscription;
 	};
 }
