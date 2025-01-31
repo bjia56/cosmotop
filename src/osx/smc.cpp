@@ -47,8 +47,6 @@ static void _ultostr(char *str, UInt32 val) {
 			(unsigned int)val);
 }
 
-#include <fstream>
-
 namespace Cpu {
 
 	std::unordered_map<std::string, std::function<double(const SMCVal_t&)>> converters = {
