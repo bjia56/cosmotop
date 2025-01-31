@@ -18,8 +18,41 @@ tab-size = 4
 
 #pragma once
 
-#include <Foundation/Foundation.h>
 #include <CoreFoundation/CoreFoundation.h>
+
+enum {
+	kIOReportIterOk,
+	kIOReportIterFailed,
+	kIOReportIterSkipped
+};
+
+enum {
+	kIOReportInvalidFormat = 0,
+	kIOReportFormatSimple = 1,
+	kIOReportFormatState = 2,
+	kIOReportFormatHistogram = 3,
+	kIOReportFormatSimpleArray = 4
+};
+
+typedef CFDictionaryRef IOReportSampleRef;
+typedef int (^ioreportiterateblock)(IOReportSampleRef sample);
+
+extern "C" {
+	extern CFMutableDictionaryRef IOReportCopyAllChannels(uint64_t, uint64_t);
+	extern struct IOReportSubscriptionRef *IOReportCreateSubscription(void *a, CFMutableDictionaryRef desiredChannels, CFMutableDictionaryRef *subbedChannels, uint64_t channel_id, CFTypeRef b);
+	extern CFDictionaryRef IOReportCreateSamples(struct IOReportSubscriptionRef *iorsub, CFMutableDictionaryRef subbedChannels, CFTypeRef a);
+	extern CFDictionaryRef IOReportCreateSamplesDelta(CFDictionaryRef prev, CFDictionaryRef current, CFTypeRef a);
+	extern void IOReportIterate(CFDictionaryRef samples, ioreportiterateblock);
+	extern CFStringRef IOReportChannelGetGroup(IOReportSampleRef sample);
+	extern CFStringRef IOReportChannelGetSubGroup(IOReportSampleRef sample);
+	extern CFStringRef IOReportChannelGetChannelName(IOReportSampleRef sample);
+	extern int IOReportChannelGetFormat(IOReportSampleRef sample);
+	extern uint64_t IOReportSimpleGetIntegerValue(IOReportSampleRef sample, void *a);
+	extern uint64_t IOReportStateGetCount(IOReportSampleRef sample);
+	extern uint64_t IOReportStateGetResidency(IOReportSampleRef sample, uint32_t index);
+	extern CFStringRef IOReportStateGetNameForIndex(CFDictionaryRef sample, uint32_t index);
+	extern uint64_t IOReportArrayGetValueAtIndex(CFDictionaryRef sample, uint32_t index);
+}
 
 namespace Cpu {
 	class IOReportSubscription {

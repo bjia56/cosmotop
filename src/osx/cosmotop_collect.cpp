@@ -64,6 +64,7 @@ tab-size = 4
 #include "sensors.hpp"
 #endif
 #include "smc.hpp"
+#include "ioreport.hpp"
 
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
@@ -184,6 +185,9 @@ namespace Shared {
 		//? Init for namespace Mem
 		Mem::old_uptime = system_uptime();
 		Mem::collect();
+
+		Cpu::IOReportSubscription sub;
+		sub.getANEEnergy();
 	}
 
 }  // namespace Shared
