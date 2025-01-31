@@ -17,6 +17,7 @@ indent = tab
 tab-size = 4
 */
 
+#include <functional>
 #include <unordered_map>
 
 #include "smc.hpp"
