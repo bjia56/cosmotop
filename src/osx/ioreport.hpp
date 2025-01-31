@@ -20,6 +20,9 @@ tab-size = 4
 
 #include <CoreFoundation/CoreFoundation.h>
 
+#include <chrono>
+#include <string>
+
 enum {
 	kIOReportIterOk,
 	kIOReportIterFailed,
@@ -39,6 +42,8 @@ typedef int (^ioreportiterateblock)(IOReportSampleRef sample);
 
 extern "C" {
 	extern CFMutableDictionaryRef IOReportCopyAllChannels(uint64_t, uint64_t);
+	extern CFMutableDictionaryRef IOReportCopyChannelsInGroup(CFStringRef, CFStringRef, uint64_t, uint64_t, uint64_t);
+	extern void IOReportMergeChannels(CFMutableDictionaryRef, CFMutableDictionaryRef, CFTypeRef);
 	extern struct IOReportSubscriptionRef *IOReportCreateSubscription(void *a, CFMutableDictionaryRef desiredChannels, CFMutableDictionaryRef *subbedChannels, uint64_t channel_id, CFTypeRef b);
 	extern CFDictionaryRef IOReportCreateSamples(struct IOReportSubscriptionRef *iorsub, CFMutableDictionaryRef subbedChannels, CFTypeRef a);
 	extern CFDictionaryRef IOReportCreateSamplesDelta(CFDictionaryRef prev, CFDictionaryRef current, CFTypeRef a);
@@ -55,10 +60,45 @@ extern "C" {
 }
 
 namespace Cpu {
+	class PowerEstimate {
+	public:
+		PowerEstimate(std::string cpuModel);
+		~PowerEstimate();
+
+		long long getANEMaxPower();
+
+	private:
+		std::string cpuModel;
+	}
+
 	class IOReportSubscription {
 	public:
 		IOReportSubscription();
 		~IOReportSubscription();
-		long long getANEEnergy();
+
+		long long getANEPower();
+
+	private:
+		void sample();
+
+		struct Sample {
+			CFMutableDictionaryRef sample;
+			std::chrono::time_point<std::chrono::system_clock> timestamp;
+
+			Sample(CFMutableDictionaryRef sample) : sample(sample), timestamp(std::chrono::system_clock::now()) {}
+
+			~Sample() {
+				if (sample) CFRelease(sample);
+			}
+		}
+
+		// power subscription fields
+		CFMutableDictionaryRef energy_model_channel;
+		CFMutableDictionaryRef pmp_channel;
+		CFMutableDictionaryRef power_subchannel;
+		Sample *previous_power_sample;
+		Sample *current_power_sample;
+
+		struct IOReportSubscriptionRef *power_subscription;
 	};
 }

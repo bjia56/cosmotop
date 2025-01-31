@@ -187,7 +187,7 @@ namespace Shared {
 		Mem::collect();
 
 		Cpu::IOReportSubscription sub;
-		sub.getANEEnergy();
+		sub.getANEPower();
 	}
 
 }  // namespace Shared

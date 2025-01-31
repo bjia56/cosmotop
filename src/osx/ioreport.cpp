@@ -25,27 +25,54 @@ std::string CFStringRefToString(CFStringRef str, UInt32 encoding = kCFStringEnco
 
 namespace Cpu {
 	IOReportSubscription::IOReportSubscription() {
+		energy_model_channel = IOReportCopyChannelsInGroup(CFSTR("Energy Model"), nullptr, 0, 0, 0);
+		pmp_channel = IOReportCopyChannelsInGroup(CFSTR("PMP"), nullptr, 0, 0, 0);
+
+		IOReportMergeChannels(energy_model_channel, pmp_channel, nullptr);
+
+		power_subchannel = nullptr;
+		power_subscription = IOReportCreateSubscription(nullptr, energy_model_channel, &power_subchannel, 0, nullptr);
+
+		previous_power_sample = nullptr;
+		current_power_sample = nullptr;
+		sample();
+
+		std::this_thread::sleep_for(std::chrono::seconds(2));
 	}
 
 	IOReportSubscription::~IOReportSubscription() {
+		if (energy_model_channel != nullptr) {
+			CFRelease(energy_model_channel);
+		}
+		if (pmp_channel != nullptr) {
+			CFRelease(pmp_channel);
+		}
+		if (power_subchannel != nullptr) {
+			CFRelease(power_subchannel);
+		}
+		if (previous_power_sample != nullptr) {
+			delete previous_power_sample;
+		}
+		if (current_power_sample != nullptr) {
+			delete current_power_sample;
+		}
 	}
 
-	long long IOReportSubscription::getANEEnergy() {
-		static std::ofstream debugOut("ane0.txt");
-		CFMutableDictionaryRef subchn;
-		auto chn = IOReportCopyAllChannels(0, 0);
-		auto sub = IOReportCreateSubscription(nullptr, chn, &subchn, 0, nullptr);
+	void sample() {
+		if (previous_power_sample != nullptr) {
+			delete previous_power_sample;
+		}
+		previous_power_sample = current_power_sample;
+		current_power_sample = new Sample(IOReportCreateSamples(power_subscription, power_subchannel, nullptr));
+	}
 
-		auto samples_a = IOReportCreateSamples(sub, subchn, nullptr);
-		std::this_thread::sleep_for(std::chrono::seconds(5));
-		auto samples_b = IOReportCreateSamples(sub, subchn, nullptr);
+	long long IOReportSubscription::getANEPower() {
+		sample();
+		if (previous_power_sample == nullptr || current_power_sample == nullptr) {
+			return 0;
+		}
 
-		auto delta = IOReportCreateSamplesDelta(samples_a, samples_b, nullptr);
-		CFRelease(samples_a);
-		CFRelease(samples_b);
-
-		debugOut << "Sample collected!" << std::endl;
-
+		auto delta = IOReportCreateSamplesDelta(previous_power_sample->sample, current_power_sample->sample, nullptr);
 		IOReportIterate(delta, ^int (IOReportSampleRef sample) {
 			static std::ofstream debugOut("ane.txt");
 			debugOut << "--- Sample ---" << std::endl;
