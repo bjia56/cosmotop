@@ -249,6 +249,9 @@ namespace Cpu {
 				name = trim(name);
 		}
 
+		SMCConnection conn;
+		conn.getANEPower();
+
 		return name;
 	}
 

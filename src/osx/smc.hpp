@@ -1,4 +1,5 @@
 /* Copyright 2021 Aristocratos (jakob@qvantnet.com)
+   Copyright 2025 Brett Jia (dev.bjia56@gmail.com)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -24,6 +25,8 @@ tab-size = 4
 #include <IOKit/ps/IOPowerSources.h>
 
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #define VERSION "0.01"
 
@@ -36,12 +39,6 @@ tab-size = 4
 #define SMC_CMD_READ_PLIMIT 11
 #define SMC_CMD_READ_VERS 12
 
-#define DATATYPE_FPE2 "fpe2"
-#define DATATYPE_UINT8 "ui8 "
-#define DATATYPE_UINT16 "ui16"
-#define DATATYPE_UINT32 "ui32"
-#define DATATYPE_SP78 "sp78"
-
 // key values
 #define SMC_KEY_CPU_TEMP "TC0P" // proximity temp?
 #define SMC_KEY_CPU_DIODE_TEMP "TC0D" // diode temp?
@@ -49,6 +46,8 @@ tab-size = 4
 #define SMC_KEY_CPU1_TEMP "TC1C"
 #define SMC_KEY_CPU2_TEMP "TC2C"  // etc
 #define SMC_KEY_FAN0_RPM_CUR "F0Ac"
+#define SMC_KEY_ANE_PWR "ANE"
+#define SMC_KEY_ANE_PWR2 "ANE0" // fallback?
 
 typedef struct {
 	char major;
@@ -72,7 +71,7 @@ typedef struct {
 	char dataAttributes;
 } SMCKeyData_keyInfo_t;
 
-typedef char SMCBytes_t[32];
+typedef unsigned char SMCBytes_t[32];
 
 typedef struct {
 	UInt32 key;
@@ -102,10 +101,12 @@ namespace Cpu {
 		virtual ~SMCConnection();
 
 		long long getTemp(int core);
+		long long getANEPower();
 
 	   private:
+		std::vector<std::string> listKeys();
+		double getValue(char *key);
 		kern_return_t SMCReadKey(UInt32Char_t key, SMCVal_t *val);
-		long long getSMCTemp(char *key);
 		kern_return_t SMCCall(int index, SMCKeyData_t *inputStructure, SMCKeyData_t *outputStructure);
 
 		io_connect_t conn;

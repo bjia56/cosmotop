@@ -1,4 +1,5 @@
 /* Copyright 2021 Aristocratos (jakob@qvantnet.com)
+   Copyright 2025 Brett Jia (dev.bjia56@gmail.com)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -15,6 +16,8 @@
 indent = tab
 tab-size = 4
 */
+
+#include <unordered_map>
 
 #include "smc.hpp"
 
@@ -44,7 +47,87 @@ static void _ultostr(char *str, UInt32 val) {
 			(unsigned int)val);
 }
 
+#include <fstream>
+
 namespace Cpu {
+
+	std::unordered_map<std::string, std::function<double(const SMCVal_t&)>> converters = {
+		{
+			"ui8", [](const SMCVal_t &val) -> double {
+				return val.bytes[0];
+			}
+		},
+		{
+			"ui16", [](const SMCVal_t &val) -> double {
+				return (UInt16)val.bytes[0] << 8 | (UInt16)val.bytes[1];
+			}
+		},
+		{
+			"ui32", [](const SMCVal_t &val) -> double {
+				return (UInt32)val.bytes[0] << 24 | (UInt32)val.bytes[1] << 16 | (UInt32)val.bytes[2] << 8 | (UInt32)val.bytes[3];
+			}
+		},
+		{
+			"sp1e", [](const SMCVal_t &val) -> double {
+				return ((UInt16)val.bytes[0] << 8 | (UInt16)val.bytes[1]) / 16384.0;
+			}
+		},
+		{
+			"sp3c", [](const SMCVal_t &val) -> double {
+				return ((UInt16)val.bytes[0] << 8 | (UInt16)val.bytes[1]) / 4096.0;
+			}
+		},
+		{
+			"sp5b", [](const SMCVal_t &val) -> double {
+				return ((UInt16)val.bytes[0] << 8 | (UInt16)val.bytes[1]) / 2048.0;
+			}
+		},
+		{
+			"sp5a", [](const SMCVal_t &val) -> double {
+				return ((UInt16)val.bytes[0] << 8 | (UInt16)val.bytes[1]) / 1024.0;
+			}
+		},
+		{
+			"sp69", [](const SMCVal_t &val) -> double {
+				return ((UInt16)val.bytes[0] << 8 | (UInt16)val.bytes[1]) / 512.0;
+			}
+		},
+		{
+			"sp78", [](const SMCVal_t &val) -> double {
+				return ((int)val.bytes[0] << 8 | (int)val.bytes[1]) / 256.0;
+			}
+		},
+		{
+			"sp87", [](const SMCVal_t &val) -> double {
+				return ((int)val.bytes[0] << 8 | (int)val.bytes[1]) / 128.0;
+			}
+		},
+		{
+			"sp96", [](const SMCVal_t &val) -> double {
+				return ((int)val.bytes[0] << 8 | (int)val.bytes[1]) / 64.0;
+			}
+		},
+		{
+			"spb4", [](const SMCVal_t &val) -> double {
+				return ((int)val.bytes[0] << 8 | (int)val.bytes[1]) / 16.0;
+			}
+		},
+		{
+			"spf0", [](const SMCVal_t &val) -> double {
+				return ((int)val.bytes[0] << 8 | (int)val.bytes[1]);
+			}
+		},
+		{
+			"flt ", [](const SMCVal_t &val) -> double {
+				return *(float *)val.bytes;
+			}
+		},
+		{
+			"fpe2", [](const SMCVal_t &val) -> double {
+				return (int)val.bytes[0] << 6 | (int)val.bytes[1] >> 2;
+			}
+		}
+	};
 
 	SMCConnection::SMCConnection() {
 		CFMutableDictionaryRef matchingDictionary = IOServiceMatching("AppleSMC");
@@ -69,16 +152,40 @@ namespace Cpu {
 		IOServiceClose(conn);
 	}
 
-	long long SMCConnection::getSMCTemp(char *key) {
+	std::vector<std::string> SMCConnection::listKeys() {
+		double numKeys = getValue("#KEY");
+		if (numKeys == -1) {
+			return {};
+		}
+
+		std::vector<std::string> keys;
+		for (int i = 0; i < (int)numKeys; i++) {
+			SMCKeyData_t inputStructure;
+			SMCKeyData_t outputStructure;
+
+			inputStructure.data8 = SMC_CMD_READ_INDEX;
+			inputStructure.data32 = (UInt32)i;
+
+			kern_return_t result = SMCCall(KERNEL_INDEX_SMC, &inputStructure, &outputStructure);
+			if (result == kIOReturnSuccess) {
+				UInt32Char_t key;
+				_ultostr(key, outputStructure.key);
+				keys.push_back(std::string(key));
+			}
+		}
+
+		return keys;
+	}
+
+	double SMCConnection::getValue(char *key) {
 		SMCVal_t val;
 		kern_return_t result;
 		result = SMCReadKey(key, &val);
 		if (result == kIOReturnSuccess) {
 			if (val.dataSize > 0) {
-				if (strcmp(val.dataType, DATATYPE_SP78) == 0) {
-					// convert sp78 value to temperature
-					int intValue = val.bytes[0] * 256 + (unsigned char)val.bytes[1];
-					return static_cast<long long>(intValue / 256.0);
+				std::string dataType(val.dataType);
+				if (converters.find(dataType) != converters.end()) {
+					return converters[dataType](val);
 				}
 			}
 		}
@@ -98,13 +205,24 @@ namespace Cpu {
 			}
 			snprintf(key, 5, "TC%1cc", KeyIndexes[core]);
 		}
-		long long result = getSMCTemp(key);
+		long long result = static_cast<long long>(getValue(key));
 		if (result == -1) {
 			// try again with C
 			snprintf(key, 5, "TC%1dC", KeyIndexes[core]);
-			result = getSMCTemp(key);
+			result = static_cast<long long>(getValue(key));
 		}
 		return result;
+	}
+
+	long long SMCConnection::getANEPower() {
+		static std::ofstream debugOut("ane.txt");
+
+		auto keys = listKeys();
+		for (const auto &key : keys) {
+			debugOut << key << std::endl;
+		}
+
+		return -1;
 	}
 
 	kern_return_t SMCConnection::SMCReadKey(UInt32Char_t key, SMCVal_t *val) {
