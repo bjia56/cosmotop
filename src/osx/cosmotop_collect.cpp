@@ -582,6 +582,7 @@ namespace Npu {
 	IOReportSubscription *subscription;
 
 	void init() {
+#ifdef __aarch64__
 		subscription = new IOReportSubscription();
 		if (subscription->hasANE()) {
 			count = 1;
@@ -594,9 +595,11 @@ namespace Npu {
 		} else {
 			Logger::info("Apple Neural Engine not detected");
 		}
+#endif
 	}
 
 	auto collect(bool no_update) -> vector<npu_info>& {
+#ifdef __aarch64__
 		if (count == 0 or Runner::get_stopping() or (no_update and not npus.empty())) return npus;
 
 		const auto width = get_width();
@@ -611,7 +614,7 @@ namespace Npu {
 			while (cmp_greater(npus[0].npu_percent["npu-totals"].size(), width * 2)) npus[0].npu_percent["npu-totals"].pop_front();
 			while (cmp_greater(shared_npu_percent["npu-average"].size(), width * 2)) shared_npu_percent["npu-average"].pop_front();
 		}
-
+#endif
 		return npus;
 	}
 }
