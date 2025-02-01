@@ -58,6 +58,8 @@ Utilization monitoring of Intel and Rockchip NPUs is supported on Linux, provide
 - Intel: The path `/sys/devices/pci0000:00/0000:00:0b.0` must be readable.
 - Rockchip: The path `/sys/kernel/debug/rknpu` must be readable.
 
+Utilization monitoring of the Apple Neural Engine is also supported on Apple Silicon. Sudo is not required.
+
 ### Configuration
 
 The configuration file for `cosmotop` is stored at `~/.config/cosmotop/cosmotop.conf`, populated with defaults
