@@ -35,7 +35,7 @@ namespace Npu {
 
 			while (!thread_stop) {
 				CFDictionaryRef sample_a = IOReportCreateSamples(power_subscription, power_subchannel, nullptr);
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				std::this_thread::sleep_for(std::chrono::seconds(1));
 				CFDictionaryRef sample_b = IOReportCreateSamples(power_subscription, power_subchannel, nullptr);
 
 				CFDictionaryRef delta = IOReportCreateSamplesDelta(sample_a, sample_b, nullptr);
@@ -54,8 +54,6 @@ namespace Npu {
 						ane_power = value;
 					}
 
-					CFRelease(cf_group);
-					CFRelease(cf_name);
 					return kIOReportIterOk;
 				});
 				CFRelease(delta);
