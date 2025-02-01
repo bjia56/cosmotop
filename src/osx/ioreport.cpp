@@ -21,6 +21,8 @@ static std::string CFStringRefToString(CFStringRef str, UInt32 encoding = kCFStr
 	return std::string(buffer.data());
 }
 
+#include <fstream>
+
 namespace Npu {
 	IOReportSubscription::IOReportSubscription() {
 		pmp_channel = IOReportCopyChannelsInGroup(CFSTR("PMP"), nullptr, 0, 0, 0);
@@ -63,17 +65,19 @@ namespace Npu {
 		}
 
 		double power = 0;
+		double *powerRef = &power;
 
 		CFDictionaryRef delta = IOReportCreateSamplesDelta(previous_power_sample->sample, current_power_sample->sample, nullptr);
 		IOReportIterate(delta, ^int (IOReportSampleRef sample) {
 			CFStringRef cf_group = IOReportChannelGetGroup(sample);
 			CFStringRef cf_name = IOReportChannelGetChannelName(sample);
-			int  value = IOReportSimpleGetIntegerValue(sample, nullptr);
 
 			std::string group = CFStringRefToString(cf_group);
 			std::string name = CFStringRefToString(cf_name);
 			if (group == "PMP" and name == "ANE") {
-				power = value;
+				int format = IOReportChannelGetFormat(sample);
+				int value = format == kIOReportFormatSimple ? IOReportSimpleGetIntegerValue(sample, nullptr) : 0;
+				*powerRef = value;
 			}
 
 			CFRelease(cf_group);

@@ -560,7 +560,12 @@ namespace Cpu {
 		if (Config::getB("show_battery") and has_battery)
 			current_bat = get_battery();
 
-		Npu::collect();
+		static bool first_go = true;
+		if (first_go) {
+			first_go = false;
+		} else {
+			Npu::collect();
+		}
 
 		return cpu;
 	}
