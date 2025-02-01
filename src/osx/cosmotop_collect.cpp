@@ -597,7 +597,7 @@ namespace Npu {
 			npus[0].supported_functions.npu_utilization = true;
 
 			npu_names.push_back("Apple Neural Engine");
-			npu_b_height_offsets.push_back(npu[0].supported_functions.npu_utilization);
+			npu_b_height_offsets.push_back(npus[0].supported_functions.npu_utilization);
 		}
 	}
 
