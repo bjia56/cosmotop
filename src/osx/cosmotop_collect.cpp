@@ -106,6 +106,14 @@ namespace Cpu {
 }  // namespace Cpu
 
 namespace Npu {
+	vector<npu_info> npus;
+	vector<string> npu_names;
+	vector<int> npu_b_height_offsets;
+	std::unordered_map<string, deque<long long>> shared_npu_percent = {
+		{"npu-average", {}},
+	};
+	int count = 0;
+
 	void init();
 }  // namespace Npu
 
@@ -189,6 +197,12 @@ namespace Shared {
 		//? Init for namespace Npu
 		Npu::init();
 		Npu::collect();
+		if (not Npu::npu_names.empty()) {
+			for (auto const& [key, _] : Npu::npus[0].npu_percent)
+				Cpu::available_fields.push_back(key);
+			for (auto const& [key, _] : Npu::shared_npu_percent)
+				Cpu::available_fields.push_back(key);
+		}
 
 		//? Init for namespace Mem
 		Mem::old_uptime = system_uptime();
@@ -571,24 +585,37 @@ namespace Cpu {
 	}
 }  // namespace Cpu
 
-#include <fstream>
-
 namespace Npu {
 	IOReportSubscription *subscription;
-	vector<npu_info> npus;
 
 	void init() {
 		subscription = new IOReportSubscription();
+		if (subscription->hasANE()) {
+			count = 1;
+
+			npus.push_back(npu_info());
+			npus[0].supported_functions.npu_utilization = true;
+
+			npu_names.push_back("Apple Neural Engine");
+			npu_b_height_offsets.push_back(npu[0].supported_functions.npu_utilization);
+		}
 	}
 
 	auto collect(bool no_update) -> vector<npu_info>& {
-		if (Runner::get_stopping() or (no_update and not npus.empty())) return npus;
+		if (count == 0 or Runner::get_stopping() or (no_update and not npus.empty())) return npus;
+
+		const auto width = get_width();
 
 		//? Collect NPU stats
-		static std::ofstream debugOut("ane.txt");
+		auto power = subscription->getANEPower();
+		auto powerPercent = clamp((long long)round((double)power * 100 / 10), 0ll, 100ll); // todo max wattage
+		npus[0].npu_percent["npu-totals"].push_back(powerPercent);
+		shared_npu_percent["npu-average"].push_back(powerPercent);
 
-		long long power = subscription->getANEPower();
-		debugOut << "ANE Sample: " << power << std::endl;
+		if (width != 0) {
+			while (cmp_greater(npus[0].npu_percent["npu-totals"].size(), width * 2)) npus[0].npu_percent["npu-totals"].pop_front();
+			while (cmp_greater(shared_npu_percent["npu-average"].size(), width * 2)) shared_npu_percent["npu-average"].pop_front();
+		}
 
 		return npus;
 	}

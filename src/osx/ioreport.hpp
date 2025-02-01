@@ -24,6 +24,7 @@ tab-size = 4
 #include <chrono>
 #include <string>
 #include <thread>
+#include <optional>
 
 enum {
 	kIOReportIterOk,
@@ -67,7 +68,7 @@ namespace Npu {
 		PowerEstimate(std::string cpuModel);
 		~PowerEstimate();
 
-		long long getANEMaxPower();
+		double getANEMaxPower();
 
 	private:
 		std::string cpuModel;
@@ -78,13 +79,15 @@ namespace Npu {
 		IOReportSubscription();
 		~IOReportSubscription();
 
-		long long getANEPower();
+		bool hasANE();
+		double getANEPower();
 
 	private:
 		// metrics gathering thread
 		std::atomic<bool> thread_stop;
 		std::thread *thread;
 
-		std::atomic<long long> ane_power;
+		std::optional<bool> has_ane;
+		std::atomic<double> ane_power; // watts
 	};
 }

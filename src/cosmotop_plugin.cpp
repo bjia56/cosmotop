@@ -65,35 +65,35 @@ void plugin_initializer(Plugin* plugin) {
 	}));
 
 	plugin->registerHandler<vector<Npu::npu_info>, bool>("Npu::collect", std::function([](bool no_update) {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 		return Npu::collect(no_update);
 #else
 		return vector<Npu::npu_info>();
 #endif
 	}));
 	plugin->registerHandler<int>("Npu::get_count", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 		return Npu::count;
 #else
 		return 0;
 #endif
 	}));
 	plugin->registerHandler<vector<string>>("Npu::get_npu_names", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 		return Npu::npu_names;
 #else
 		return vector<string>();
 #endif
 	}));
 	plugin->registerHandler<vector<int>>("Npu::get_npu_b_height_offsets", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 		return Npu::npu_b_height_offsets;
 #else
 		return vector<int>();
 #endif
 	}));
 	plugin->registerHandler<unordered_map<string, deque<long long>>>("Npu::get_shared_npu_percent", std::function([]() {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 		return Npu::shared_npu_percent;
 #else
 		return unordered_map<string, deque<long long>>();
