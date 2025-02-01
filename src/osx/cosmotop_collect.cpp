@@ -591,6 +591,8 @@ namespace Npu {
 
 			npu_names.push_back("Apple Neural Engine");
 			npu_b_height_offsets.push_back(npus[0].supported_functions.npu_utilization);
+		} else {
+			Logger::info("Apple Neural Engine not detected");
 		}
 	}
 
