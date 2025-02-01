@@ -574,13 +574,6 @@ namespace Cpu {
 		if (Config::getB("show_battery") and has_battery)
 			current_bat = get_battery();
 
-		static bool first_go = true;
-		if (first_go) {
-			first_go = false;
-		} else {
-			Npu::collect();
-		}
-
 		return cpu;
 	}
 }  // namespace Cpu
@@ -608,7 +601,7 @@ namespace Npu {
 
 		//? Collect NPU stats
 		auto power = subscription->getANEPower();
-		auto powerPercent = clamp((long long)round((double)power * 100 / 10), 0ll, 100ll); // todo max wattage
+		auto powerPercent = clamp((long long)round((double)power * 100 / 8.0), 0ll, 100ll); // asitop defaults to max 8W
 		npus[0].npu_percent["npu-totals"].push_back(powerPercent);
 		shared_npu_percent["npu-average"].push_back(powerPercent);
 

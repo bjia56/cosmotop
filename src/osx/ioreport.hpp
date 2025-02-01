@@ -63,6 +63,8 @@ extern "C" {
 }
 
 namespace Npu {
+	// todo: neoasitop appears to use different max wattages
+	// based on the cpu generation/model
 	class PowerEstimate {
 	public:
 		PowerEstimate(std::string cpuModel);
