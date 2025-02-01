@@ -25,67 +25,51 @@ static std::string CFStringRefToString(CFStringRef str, UInt32 encoding = kCFStr
 
 namespace Npu {
 	IOReportSubscription::IOReportSubscription() {
-		pmp_channel = IOReportCopyChannelsInGroup(CFSTR("PMP"), nullptr, 0, 0, 0);
+		ane_power = 0;
 
-		power_subchannel = nullptr;
-		power_subscription = IOReportCreateSubscription(nullptr, pmp_channel, &power_subchannel, 0, nullptr);
+		thread_stop = false;
+		thread = new std::thread([this]() {
+			CFMutableDictionaryRef pmp_channel = IOReportCopyChannelsInGroup(CFSTR("PMP"), nullptr, 0, 0, 0);
+			CFMutableDictionaryRef power_subchannel = nullptr;
+			struct IOReportSubscriptionRef *power_subscription = IOReportCreateSubscription(nullptr, pmp_channel, &power_subchannel, 0, nullptr);
 
-		previous_power_sample = nullptr;
-		current_power_sample = nullptr;
-		sample();
+			while (!thread_stop) {
+				CFDictionaryRef sample_a = IOReportCreateSamples(power_subscription, power_subchannel, nullptr);
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				CFDictionaryRef sample_b = IOReportCreateSamples(power_subscription, power_subchannel, nullptr);
+
+				CFDictionaryRef delta = IOReportCreateSamplesDelta(sample_a, sample_b, nullptr);
+				CFRelease(sample_a);
+				CFRelease(sample_b);
+
+				IOReportIterate(delta, ^int (IOReportSampleRef sample) {
+					CFStringRef cf_group = IOReportChannelGetGroup(sample);
+					CFStringRef cf_name = IOReportChannelGetChannelName(sample);
+
+					std::string group = CFStringRefToString(cf_group);
+					std::string name = CFStringRefToString(cf_name);
+					if (group == "PMP" and name == "ANE") {
+						int format = IOReportChannelGetFormat(sample);
+						int value = format == kIOReportFormatSimple ? IOReportSimpleGetIntegerValue(sample, nullptr) : 0;
+						ane_power = value;
+					}
+
+					CFRelease(cf_group);
+					CFRelease(cf_name);
+					return kIOReportIterOk;
+				});
+				CFRelease(delta);
+			}
+		});
 	}
 
 	IOReportSubscription::~IOReportSubscription() {
-		if (pmp_channel != nullptr) {
-			CFRelease(pmp_channel);
-		}
-		if (power_subchannel != nullptr) {
-			CFRelease(power_subchannel);
-		}
-		if (previous_power_sample != nullptr) {
-			delete previous_power_sample;
-		}
-		if (current_power_sample != nullptr) {
-			delete current_power_sample;
-		}
-	}
-
-	void IOReportSubscription::sample() {
-		if (previous_power_sample != nullptr) {
-			delete previous_power_sample;
-		}
-		previous_power_sample = current_power_sample;
-		current_power_sample = new Sample(IOReportCreateSamples(power_subscription, power_subchannel, nullptr));
+		thread_stop = true;
+		thread->join();
+		delete thread;
 	}
 
 	long long IOReportSubscription::getANEPower() {
-		sample();
-		if (previous_power_sample == nullptr || current_power_sample == nullptr) {
-			return 0;
-		}
-
-		double power = 0;
-		double *powerRef = &power;
-
-		CFDictionaryRef delta = IOReportCreateSamplesDelta(previous_power_sample->sample, current_power_sample->sample, nullptr);
-		IOReportIterate(delta, ^int (IOReportSampleRef sample) {
-			CFStringRef cf_group = IOReportChannelGetGroup(sample);
-			CFStringRef cf_name = IOReportChannelGetChannelName(sample);
-
-			std::string group = CFStringRefToString(cf_group);
-			std::string name = CFStringRefToString(cf_name);
-			if (group == "PMP" and name == "ANE") {
-				int format = IOReportChannelGetFormat(sample);
-				int value = format == kIOReportFormatSimple ? IOReportSimpleGetIntegerValue(sample, nullptr) : 0;
-				*powerRef = value;
-			}
-
-			CFRelease(cf_group);
-			CFRelease(cf_name);
-			return kIOReportIterOk;
-		});
-		CFRelease(delta);
-
-		return static_cast<long long>(power);
+		return ane_power;
 	}
 }  // namespace Npu

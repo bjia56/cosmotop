@@ -20,8 +20,10 @@ tab-size = 4
 
 #include <CoreFoundation/CoreFoundation.h>
 
+#include <atomic>
 #include <chrono>
 #include <string>
+#include <thread>
 
 enum {
 	kIOReportIterOk,
@@ -79,24 +81,10 @@ namespace Npu {
 		long long getANEPower();
 
 	private:
-		void sample();
+		// metrics gathering thread
+		std::atomic<bool> thread_stop;
+		std::thread *thread;
 
-		struct Sample {
-			CFDictionaryRef sample;
-			std::chrono::time_point<std::chrono::system_clock> timestamp;
-
-			Sample(CFDictionaryRef sample) : sample(sample), timestamp(std::chrono::system_clock::now()) {}
-
-			~Sample() {
-				if (sample) CFRelease(sample);
-			}
-		};
-
-		// power subscription fields
-		CFMutableDictionaryRef pmp_channel;
-		CFMutableDictionaryRef power_subchannel;
-		Sample *previous_power_sample;
-		Sample *current_power_sample;
-		struct IOReportSubscriptionRef *power_subscription;
+		std::atomic<long long> ane_power;
 	};
 }
