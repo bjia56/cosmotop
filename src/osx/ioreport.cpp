@@ -47,9 +47,11 @@ namespace Npu {
 
 		thread_stop = false;
 		thread = new std::thread([this]() {
+			CFMutableDictionaryRef energy_model_channel = IOReportCopyChannelsInGroup(CFSTR("Energy Model"), nullptr, 0, 0, 0);
 			CFMutableDictionaryRef pmp_channel = IOReportCopyChannelsInGroup(CFSTR("PMP"), nullptr, 0, 0, 0);
+			IOReportMergeChannels(energy_model_channel, pmp_channel, nullptr);
 			CFMutableDictionaryRef power_subchannel = nullptr;
-			struct IOReportSubscriptionRef *power_subscription = IOReportCreateSubscription(nullptr, pmp_channel, &power_subchannel, 0, nullptr);
+			struct IOReportSubscriptionRef *power_subscription = IOReportCreateSubscription(nullptr, energy_model_channel, &power_subchannel, 0, nullptr);
 
 			while (!thread_stop) {
 				CFDictionaryRef sample_a = IOReportCreateSamples(power_subscription, power_subchannel, nullptr);
@@ -61,21 +63,28 @@ namespace Npu {
 				CFRelease(sample_b);
 
 				IOReportIterate(delta, ^int (IOReportSampleRef sample) {
-					CFStringRef cf_group = IOReportChannelGetGroup(sample);
-					CFStringRef cf_name = IOReportChannelGetChannelName(sample);
-
-					std::string group = CFStringRefToString(cf_group);
-					std::string name = CFStringRefToString(cf_name);
-					if (group == "PMP" and name == "ANE") {
+					std::string group = CFStringRefToString(IOReportChannelGetGroup(sample));
+					std::string name = CFStringRefToString(IOReportChannelGetChannelName(sample));
+					std::string units = CFStringRefToString(IOReportChannelGetUnitLabel(sample));
+					if (
+						(group == "PMP" and name == "ANE") or
+						(group == "Energy Model" and name.starts_with("ANE"))
+					) {
 						int format = IOReportChannelGetFormat(sample);
-						// seems like we get millijoules as reading?
-						int value = format == kIOReportFormatSimple ? IOReportSimpleGetIntegerValue(sample, nullptr) : 0;
-						ane_power = (value / 1000.0) / (sampling_interval / 1000.0); // convert to watts
+						double value = format == kIOReportFormatSimple ? IOReportSimpleGetIntegerValue(sample, nullptr) : 0;
+						if (units.find("mJ") != std::string::npos) {
+							value /= 1000; // convert to joules
+						} else if (units.find("uJ") != std::string::npos) {
+							value /= 1000000; // convert to joules
+						} else if (units.find("nJ") != std::string::npos) {
+							value /= 1000000000; // convert to joules
+						}
+
+						ane_power = value / (sampling_interval / 1000.0); // convert to watts
 						if (!has_ane.has_value()) {
 							has_ane = true;
 						}
 					}
-
 					return kIOReportIterOk;
 				});
 				CFRelease(delta);

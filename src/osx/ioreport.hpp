@@ -60,6 +60,7 @@ extern "C" {
 	extern uint64_t IOReportStateGetResidency(IOReportSampleRef sample, uint32_t index);
 	extern CFStringRef IOReportStateGetNameForIndex(CFDictionaryRef sample, uint32_t index);
 	extern uint64_t IOReportArrayGetValueAtIndex(CFDictionaryRef sample, uint32_t index);
+	extern CFStringRef IOReportChannelGetUnitLabel(CFDictionaryRef sample);
 }
 
 namespace Npu {
