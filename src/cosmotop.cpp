@@ -78,7 +78,7 @@ namespace Global {
 		{"#062c43", "██████╗ ██████║ ██████║ ██║     ██║ ██████║   ██║   ██████║ ██║"},
 		{"#000000", "╚═════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝   ╚═╝   ╚═════╝ ╚═╝"},
 	};
-	const string Version = "0.5.1";
+	const string Version = "0.6.0";
 
 	int coreCount;
 	string overlay;
