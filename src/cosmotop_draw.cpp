@@ -111,34 +111,39 @@ namespace Draw {
 		static size_t width = 0;
 		if (redraw) banner.clear();
 		if (banner.empty()) {
-			string b_color, bg, fg, oc, letter;
+			string b_color, bg, fg1, fg2, oc, letter;
 			auto lowcolor = Config::getB("lowcolor");
 			auto tty_mode = Config::getB("tty_mode");
 			for (size_t z = 0; const auto& line : Global::Banner_src) {
-				if (const auto w = ulen(line[1]); w > width) width = w;
+				string full_line = line[1] + line[3];
+
+				if (const auto w = ulen(full_line); w > width) width = w;
 				if (tty_mode) {
-					fg = (z > 2) ? "\x1b[31m" : "\x1b[91m";
+					fg1 = fg2 = (z > 2) ? "\x1b[31m" : "\x1b[91m";
 					bg = (z > 2) ? "\x1b[90m" : "\x1b[37m";
 				}
 				else {
-					fg = Theme::hex_to_color(line[0], lowcolor);
+					fg1 = Theme::hex_to_color(line[0], lowcolor);
+					fg2 = Theme::hex_to_color(line[2], lowcolor);
 					int bg_i = 120 - z * 12;
 					bg = Theme::dec_to_color(bg_i, bg_i, bg_i, lowcolor);
 				}
-				for (size_t i = 0; i < line[1].size(); i += 3) {
-					if (line[1][i] == ' ') {
-						letter = Mv::r(1);
-						i -= 2;
-					}
-					else
-						letter = line[1].substr(i, 3);
+				for (const auto &[l, fg] : {std::pair{line[1], fg1}, std::pair{line[3], fg2}}) {
+					for (size_t i = 0; i < l.size(); i += 3) {
+						if (l[i] == ' ') {
+							letter = Mv::r(1);
+							i -= 2;
+						}
+						else
+							letter = l.substr(i, 3);
 
-					b_color = (letter == "█") ? fg : bg;
-					if (b_color != oc) banner += b_color;
-					banner += letter;
-					oc = b_color;
+						b_color = (letter == "█") ? fg : bg;
+						if (b_color != oc) banner += b_color;
+						banner += letter;
+						oc = b_color;
+					}
 				}
-				if (++z < Global::Banner_src.size()) banner += Mv::l(ulen(line[1])) + Mv::d(1);
+				if (++z < Global::Banner_src.size()) banner += Mv::l(ulen(full_line)) + Mv::d(1);
 			}
 			banner += Mv::r(18 - Global::Version.size())
 					+ Theme::c("main_fg") + Fx::b + Fx::i + "v" + Global::Version + Fx::reset;
