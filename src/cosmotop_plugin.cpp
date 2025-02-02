@@ -501,10 +501,15 @@ void create_plugin_host() {
 		for (const auto& [key, value] : Config::ints) {
 			result[std::string(key)] = value;
 		}
+		// overrides
+		for (const auto& [key, value] : Config::intsOverrides) {
+			result[std::string(key)] = value;
+		}
 		return result;
 	}));
 	pluginHost->registerHandler<bool, std::string, int>("Config::ints_set_at", std::function([](string name, int value) {
 		Config::ints.at(name) = value;
+		if (Config::intsOverrides.contains(name)) Config::intsOverrides.erase(name);
 		return true;
 	}));
 	pluginHost->registerHandler<bool>("Config::getB", std::function([](string name) {

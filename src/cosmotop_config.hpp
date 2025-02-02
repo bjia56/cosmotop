@@ -23,7 +23,7 @@ tab-size = 4
 #include <optional>
 #include <string>
 #include <vector>
-
+#include <istream>
 #include <unordered_map>
 
 using std::string;
@@ -37,10 +37,13 @@ namespace Config {
 
 	extern std::unordered_map<std::string_view, string> strings;
 	extern std::unordered_map<std::string_view, string> stringsTmp;
+	extern std::unordered_map<std::string_view, string> stringsOverrides;
 	extern std::unordered_map<std::string_view, bool> bools;
 	extern std::unordered_map<std::string_view, bool> boolsTmp;
+	extern std::unordered_map<std::string_view, bool> boolsOverrides;
 	extern std::unordered_map<std::string_view, int> ints;
 	extern std::unordered_map<std::string_view, int> intsTmp;
+	extern std::unordered_map<std::string_view, int> intsOverrides;
 
 	const vector<string> valid_graph_symbols = { "braille", "block", "tty" };
 	const vector<string> valid_graph_symbols_def = { "default", "braille", "block", "tty" };
@@ -99,20 +102,32 @@ namespace Config {
 
 	//* Set config key <name> to bool <value>
 	inline void set(const std::string_view name, bool value) {
-		if (_locked(name)) boolsTmp.insert_or_assign(name, value);
-		else bools.at(name) = value;
+		if (_locked(name)) {
+			boolsTmp.insert_or_assign(name, value);
+		} else {
+			bools.at(name) = value;
+			if (boolsOverrides.contains(name)) boolsOverrides.erase(name);
+		}
 	}
 
 	//* Set config key <name> to int <value>
 	inline void set(const std::string_view name, const int value) {
-		if (_locked(name)) intsTmp.insert_or_assign(name, value);
-		else ints.at(name) = value;
+		if (_locked(name)) {
+			intsTmp.insert_or_assign(name, value);
+		} else {
+			ints.at(name) = value;
+			if (intsOverrides.contains(name)) intsOverrides.erase(name);
+		}
 	}
 
 	//* Set config key <name> to string <value>
 	inline void set(const std::string_view name, const string& value) {
-		if (_locked(name)) stringsTmp.insert_or_assign(name, value);
-		else strings.at(name) = value;
+		if (_locked(name)) {
+			stringsTmp.insert_or_assign(name, value);
+		} else {
+			strings.at(name) = value;
+			if (stringsOverrides.contains(name)) stringsOverrides.erase(name);
+		}
 	}
 
 	//* Flip config key bool <name>
@@ -126,6 +141,9 @@ namespace Config {
 
 	//* Load the config file from disk
 	void load(const std::filesystem::path& conf_file, vector<string>& load_warnings);
+
+	//* Load config overrides from a stream
+	void loadOverrides(std::istream& conf, vector<string>& load_warnings);
 
 	//* Write the config file to disk
 	void write();

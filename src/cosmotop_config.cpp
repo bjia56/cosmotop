@@ -280,6 +280,7 @@ namespace Config {
 		{"intel_gpu_exporter", ""}
 	};
 	std::unordered_map<std::string_view, string> stringsTmp;
+	std::unordered_map<std::string_view, string> stringsOverrides;
 
 	std::unordered_map<std::string_view, bool> bools = {
 		{"theme_background", true},
@@ -335,6 +336,7 @@ namespace Config {
 		{"npu_mirror_graph", true}
 	};
 	std::unordered_map<std::string_view, bool> boolsTmp;
+	std::unordered_map<std::string_view, bool> boolsOverrides;
 
 	std::unordered_map<std::string_view, int> ints = {
 		{"update_ms", 2000},
@@ -349,6 +351,7 @@ namespace Config {
 		{"proc_max_rows", 1}
 	};
 	std::unordered_map<std::string_view, int> intsTmp;
+	std::unordered_map<std::string_view, int> intsOverrides;
 
 	// Returns a valid config dir or an empty optional
 	// The config dir might be read only, a warning is printed, but a path is returned anyway
@@ -417,14 +420,17 @@ namespace Config {
 	}
 
 	bool getB(const std::string_view name) {
+		if (boolsOverrides.contains(name)) return boolsOverrides.at(name);
 		return bools.at(name);
 	}
 
 	const int& getI(const std::string_view name) {
+		if (intsOverrides.contains(name)) return intsOverrides.at(name);
 		return ints.at(name);
 	}
 
 	const string& getS(const std::string_view name) {
+		if (stringsOverrides.contains(name)) return stringsOverrides.at(name);
 		return strings.at(name);
 	}
 
@@ -620,20 +626,23 @@ namespace Config {
 
 	string getAsString(const std::string_view name) {
 		if (bools.contains(name))
-			return (bools.at(name) ? "True" : "False");
+			return (getB(name) ? "True" : "False");
 		else if (ints.contains(name))
-			return to_string(ints.at(name));
+			return to_string(getI(name));
 		else if (strings.contains(name))
-			return strings.at(name);
+			return getS(name);
 		return "";
 	}
 
 	void flip(const std::string_view name) {
 		if (_locked(name)) {
 			if (boolsTmp.contains(name)) boolsTmp.at(name) = not boolsTmp.at(name);
-			else boolsTmp.insert_or_assign(name, (not bools.at(name)));
+			else boolsTmp.insert_or_assign(name, (not getB(name)));
 		}
-		else bools.at(name) = not bools.at(name);
+		else {
+			bools.at(name) = not getB(name);
+			if (boolsOverrides.contains(name)) boolsOverrides.erase(name);
+		}
 	}
 
 	void unlock() {
@@ -647,20 +656,29 @@ namespace Config {
 				ints.at("proc_start") = Proc::start;
 				ints.at("proc_selected") = Proc::selected;
 				ints.at("selected_depth") = Proc::selected_depth;
+
+				if (intsOverrides.contains("selected_pid")) intsOverrides.erase("selected_pid");
+				if (stringsOverrides.contains("selected_name")) stringsOverrides.erase("selected_name");
+				if (intsOverrides.contains("proc_start")) intsOverrides.erase("proc_start");
+				if (intsOverrides.contains("proc_selected")) intsOverrides.erase("proc_selected");
+				if (intsOverrides.contains("selected_depth")) intsOverrides.erase("selected_depth");
 			}
 
 			for (auto& item : stringsTmp) {
 				strings.at(item.first) = item.second;
+				if (stringsOverrides.contains(item.first)) stringsOverrides.erase(item.first);
 			}
 			stringsTmp.clear();
 
 			for (auto& item : intsTmp) {
 				ints.at(item.first) = item.second;
+				if (intsOverrides.contains(item.first)) intsOverrides.erase(item.first);
 			}
 			intsTmp.clear();
 
 			for (auto& item : boolsTmp) {
 				bools.at(item.first) = item.second;
+				if (boolsOverrides.contains(item.first)) boolsOverrides.erase(item.first);
 			}
 			boolsTmp.clear();
 		}
@@ -710,25 +728,22 @@ namespace Config {
 		return true;
 	}
 
-	void load(const fs::path& conf_file, vector<string>& load_warnings) {
-		std::error_code error;
-		if (conf_file.empty())
-			return;
-		else if (not fs::exists(conf_file, error)) {
-			write_new = true;
-			return;
-		}
-		if (error) {
-			return;
-		}
-
-		std::ifstream cread(conf_file);
+	// Helper function to parse a configuration stream and load the values into the config maps.
+	// We use the global strings, bools, and ints maps to look up keys, and write to the references
+	// passed as arguments.
+	// Because we use string_view as keys, we do a bit of a dance to fetch the key from the global config
+	// maps instead of using the temporary stack string variable.
+	static void loadFrom(
+		std::istream& cread,
+		vector<string>& load_warnings,
+		std::unordered_map<string_view, string>& stringsRef,
+		std::unordered_map<string_view, bool>& boolsRef,
+		std::unordered_map<string_view, int>& intsRef
+	) {
 		if (cread.good()) {
 			vector<string> valid_names;
 			for (auto &n : descriptions)
 				valid_names.push_back(n[0]);
-			if (string v_string; cread.peek() != '#' or (getline(cread, v_string, '\n') and not s_contains(v_string, Global::Version)))
-				write_new = true;
 			while (not cread.eof()) {
 				cread >> std::ws;
 				if (cread.peek() == '#') {
@@ -746,20 +761,23 @@ namespace Config {
 
 				if (bools.contains(name)) {
 					cread >> value;
-					if (not isbool(value))
+					if (not isbool(value)) {
 						load_warnings.push_back("Got an invalid bool value for config name: " + name);
-					else
-						bools.at(name) = stobool(value);
+					} else {
+						const auto &name_sv = bools.find(name)->first;
+						boolsRef[name_sv] = stobool(value);
+					}
 				}
 				else if (ints.contains(name)) {
 					cread >> value;
-					if (not isint(value))
+					if (not isint(value)) {
 						load_warnings.push_back("Got an invalid integer value for config name: " + name);
-					else if (not intValid(name, value)) {
+					} else if (not intValid(name, value)) {
 						load_warnings.push_back(validError);
+					} else {
+						const auto &name_sv = ints.find(name)->first;
+						intsRef[name_sv] = stoi(value);
 					}
-					else
-						ints.at(name) = stoi(value);
 				}
 				else if (strings.contains(name)) {
 					if (cread.peek() == '"') {
@@ -768,17 +786,40 @@ namespace Config {
 					}
 					else cread >> value;
 
-					if (not stringValid(name, value))
+					if (not stringValid(name, value)) {
 						load_warnings.push_back(validError);
-					else
-						strings.at(name) = value;
+					} else {
+						const auto &name_sv = strings.find(name)->first;
+						stringsRef[name_sv] = value;
+					}
 				}
 
 				cread.ignore(SSmax, '\n');
 			}
-
-			if (not load_warnings.empty()) write_new = true;
 		}
+	}
+
+	void load(const fs::path& conf_file, vector<string>& load_warnings) {
+		std::error_code error;
+		if (conf_file.empty())
+			return;
+		else if (not fs::exists(conf_file, error)) {
+			write_new = true;
+			return;
+		}
+		if (error) {
+			return;
+		}
+
+		std::ifstream cread(conf_file);
+		if (string v_string; cread.peek() != '#' or (getline(cread, v_string, '\n') and not s_contains(v_string, Global::Version)))
+			write_new = true;
+		loadFrom(cread, load_warnings, strings, bools, ints);
+		if (not load_warnings.empty()) write_new = true;
+	}
+
+	void loadOverrides(std::istream& cread, vector<string>& load_warnings) {
+		loadFrom(cread, load_warnings, stringsOverrides, boolsOverrides, intsOverrides);
 	}
 
 	void write() {

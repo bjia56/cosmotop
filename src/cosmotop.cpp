@@ -168,6 +168,7 @@ static void print_help() {
 			"  {0}+t,  --tty_off       {2}force (OFF) tty mode\n"
 			"  {0}-p,  --preset <id>   {2}start with preset, integer value between 0-9\n"
 			"  {0}-u,  --update <ms>   {2}set the program update rate in milliseconds\n"
+			"  {0}-o,  --option        {2}override a configuration option in KEY=VALUE format, can use multiple times\n"
 			"  {0}     --utf-force     {2}force start even if no UTF-8 locale was detected\n"
 			"  {0}     --show-defaults {2}print default configuration values to stdout\n"
 			"  {0}     --show-themes   {2}list all available themes\n"
@@ -333,7 +334,7 @@ void init_config_dir() {
 }
 
 //* A simple argument parser
-void argumentParser(const int argc, char **argv) {
+void argumentParser(const int argc, char **argv, string& configOverrides) {
 	for(int i = 1; i < argc; i++) {
 		const string argument = argv[i];
 		if (is_in(argument, "-h", "--help")) {
@@ -389,6 +390,16 @@ void argumentParser(const int argc, char **argv) {
 		}
 		else if (is_in(argument, "-lc", "--low-color")) {
 			Global::arg_low_color = true;
+		}
+		else if (is_in(argument, "-o", "--option")) {
+			if (++i >= argc) {
+				fmt::println("{0}error:{1} Option needs an argument\n", "\033[1;31m", "\033[0m");
+				print_usage();
+				print_help_hint();
+				exit(1);
+			}
+			configOverrides += argv[i];
+			configOverrides += '\n';
 		}
 		else if (is_in(argument, "-t", "--tty_on")) {
 			Config::set("tty_mode", true);
@@ -616,10 +627,15 @@ void _signal_handler(const int sig) {
 }
 
 //* Config init
-void init_config() {
+void init_config(const string& configOverrides) {
 	atomic_lock lck(Global::init_conf);
 	vector<string> load_warnings;
 	Config::load(Config::conf_file, load_warnings);
+	if (!configOverrides.empty()) {
+		std::istringstream iss(configOverrides);
+		Config::loadOverrides(iss, load_warnings);
+	}
+
 	Config::set("lowcolor", (Global::arg_low_color ? true : not Config::getB("truecolor")));
 
 	static bool first_init = true;
@@ -1144,13 +1160,14 @@ int main(int argc, char **argv) {
 	}
 
 	//? Call argument parser if launched with arguments
-	if (argc > 1) argumentParser(argc, argv);
+	string configOverrides;
+	if (argc > 1) argumentParser(argc, argv, configOverrides);
 
 	//? Config dir init
 	init_config_dir();
 
 	//? Config init
-	init_config();
+	init_config(configOverrides);
 
 	//? Plugin init
 	create_plugin_host();
@@ -1321,7 +1338,7 @@ int main(int argc, char **argv) {
 				Global::reload_conf = false;
 				if (Runner::active) Runner::stop();
 				Config::unlock();
-				init_config();
+				init_config(""s);
 				Theme::updateThemes();
 				Theme::setTheme();
 				Draw::banner_gen(0, 0, false, true);
