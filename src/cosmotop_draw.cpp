@@ -1758,7 +1758,7 @@ namespace Proc {
 		auto mem_bytes = Config::getB("proc_mem_bytes");
 		auto vim_keys = Config::getB("vim_keys");
 		auto show_graphs = Config::getB("proc_cpu_graphs");
-		auto max_rows = Config::getI("proc_max_rows");
+		auto max_rows = proc_tree ? 1 : Config::getI("proc_max_rows");
 		start = Config::getI("proc_start");
 		selected = Config::getI("proc_selected");
 		const int y = show_detailed ? Proc::y + 8 : Proc::y;
@@ -1997,19 +1997,23 @@ namespace Proc {
 		//* Compute cmdline rows for all proc rows
 		std::unordered_map<size_t, vector<string>> p_cmdlines;
 		all_proc_heights.clear();
-		if (!proc_tree) {
-			for (const auto& p : plist) {
-				vector<string> cmd_lines;
-				// Split command into multiple lines
-				string remaining = p.cmd;
-				while (!remaining.empty() && cmd_lines.size() < static_cast<size_t>(max_rows)) {
-					string line = uresize(remaining, cmd_size, true);
-					cmd_lines.push_back(line);
-					remaining = luresize(remaining, ulen(remaining) - ulen(line), true);
-				}
-				all_proc_heights.push_back(min(static_cast<int>(cmd_lines.size()), max_rows));
-				p_cmdlines[p.pid] = cmd_lines;
+		all_proc_heights.reserve(plist.size());
+		for (const auto& p : plist) {
+			vector<string> cmd_lines;
+			if (proc_tree) {
+				all_proc_heights.push_back(1);
+				p_cmdlines[p.pid] = {p.cmd};
+				continue;
 			}
+			// Split command into multiple lines
+			string remaining = p.cmd;
+			while (!remaining.empty() && cmd_lines.size() < static_cast<size_t>(max_rows)) {
+				string line = uresize(remaining, cmd_size, true);
+				cmd_lines.push_back(line);
+				remaining = luresize(remaining, ulen(remaining) - ulen(line), true);
+			}
+			all_proc_heights.push_back(min(static_cast<int>(cmd_lines.size()), max_rows));
+			p_cmdlines[p.pid] = cmd_lines;
 		}
 
 		//* Iteration over processes
