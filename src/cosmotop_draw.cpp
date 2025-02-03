@@ -1722,7 +1722,7 @@ namespace Proc {
 		else if (cmd_key.starts_with("mousey")) {
 			const int mouse_y = std::stoi(cmd_key.substr(6));
 			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
-			const int target_height = (int)floor(all_proc_height * (double)mouse_y / (height - 5));
+			const int target_height = (int)floor(all_proc_height * (double)mouse_y / (height - 3));
 			for (int i = 0, acc = 0; i < all_proc_heights.size(); i++) {
 				acc += all_proc_heights.at(i);
 				if (acc >= target_height) {
@@ -2085,7 +2085,7 @@ namespace Proc {
 			int lines_used = cmd_lines.size();
 
 			//? Account for available space
-			lines_used = min(lines_used, height - 5 - current_line);
+			lines_used = min(lines_used, height - 3 - current_line);
 			if (lines_used <= 0) break;
 
 			//? Store the height of this row
@@ -2116,7 +2116,7 @@ namespace Proc {
 
 			//? Render each line
 			for (int i = 0; i < lines_used; ++i) {
-				if (current_line >= height - 5) break;
+				if (current_line >= height - 3) break;
 				const int line_y = y + 2 + current_line;
 				string line_content;
 
@@ -2170,17 +2170,17 @@ namespace Proc {
 			}
 
 			process_count++;
-			if (current_line >= height - 5) break;
+			if (current_line >= height - 3) break;
 		}
 
 		out += Fx::reset;
-		while (current_line++ < height - 5) out += Mv::to(y+current_line+1, x+1) + string(width - 2, ' ');
+		while (current_line++ < height - 3) out += Mv::to(y+current_line+1, x+1) + string(width - 2, ' ');
 
 		//? Draw scrollbar if needed
 		if (numpids > select_max) {
 			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
 			const int up_to_start = accumulate(all_proc_heights.begin(), all_proc_heights.begin() + start, 0);
-			const int scroll_pos = clamp((int)round((height - 5) * (double)up_to_start / all_proc_height), 0, height - 5);
+			const int scroll_pos = clamp((int)round((height - 3) * (double)up_to_start / all_proc_height), 0, height - 3);
 			out += Mv::to(y + 1, x + width - 2) + Fx::b + Theme::c("main_fg") + Symbols::up
 				+ Mv::to(y + height - 2, x + width - 2) + Symbols::down;
 
