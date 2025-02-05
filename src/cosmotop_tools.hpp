@@ -330,6 +330,26 @@ namespace Tools {
 		return ltrim(rtrim(str, t_str), t_str);
 	}
 
+	//* Trim whitespace from start (in place)
+	inline void w_ltrim(std::string &s) {
+		s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+			return !std::isspace(ch);
+		}));
+	}
+
+	//* Trim whitespace from end (in place)
+	inline void w_rtrim(std::string &s) {
+		s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+			return !std::isspace(ch);
+		}).base(), s.end());
+	}
+
+	//* Trim whitespace from both ends (in place)
+	inline void w_trim(std::string &s) {
+		w_ltrim(s);
+		w_rtrim(s);
+	}
+
 	//* Split <string> at all occurrences of <delim> and return as vector of strings
 	auto ssplit(const string& str, const char& delim = ' ', bool discard_empty = true) -> vector<string>;
 

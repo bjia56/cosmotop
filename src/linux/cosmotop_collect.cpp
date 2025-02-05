@@ -2251,12 +2251,14 @@ namespace Npu {
 					Logger::info("Failed to read Intel NPU vendor file, Intel NPUs will not be detected");
 					return false;
 				}
-				if (buffer.str() != intel_vendor_id) {
-					Logger::info("Intel NPU not found, Intel NPUs will not be detected");
+				std::string read_vendor = buffer.str();
+				w_trim(read_vendor);
+				if (read_vendor != intel_vendor_id) {
+					Logger::info("Well-known PCI device vendor is not Intel, Intel NPUs will not be detected");
 					return false;
 				}
 			} catch (const std::exception& e) {
-				Logger::info("Failed to read Intel NPU vendor file, Intel NPUs will not be detected");
+				Logger::info("Exception reading Intel NPU vendor file, Intel NPUs will not be detected: "s + e.what());
 				return false;
 			}
 
