@@ -285,16 +285,6 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Load cosmocc version
-        run: |
-          version=$(cat .github/cosmocc_version.txt)
-          echo "cosmocc_version=${version}" >> "$GITHUB_ENV"
-
-      - name: Setup cosmocc
-        uses: bjia56/setup-cosmocc@v0.0.3
-        with:
-          version: ${{ env.cosmocc_version }}
-
       - name: Build apelink
         run: |
           git clone https://github.com/jart/cosmopolitan.git
