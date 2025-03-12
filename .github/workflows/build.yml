@@ -207,7 +207,7 @@ jobs:
           arch: ${{ matrix.arch }}
           release: "10.0"
           prepare: |
-            /usr/sbin/pkg_add cmake clang git
+            /usr/sbin/pkg_add cmake clang git gmake
 
       - name: Build plugin
         shell: netbsd {0}
@@ -226,7 +226,7 @@ jobs:
           cd blink
           git checkout ${{ env.blink_version }}
           ./configure --static
-          make -j4
+          gmake -j4
           cp o/blink/blink blink-netbsd-${{ matrix.arch }}
 
       - name: Upload plugin
