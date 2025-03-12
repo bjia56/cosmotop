@@ -200,13 +200,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Checkout blink
-        if: ${{ matrix.arch != 'x86_64' }}
-        run: |
-          git clone https://github.com/jart/blink.git
-          cd blink
-          git checkout ${{ env.blink_version }}
-
       - name: Start VM
         uses: vmactions/netbsd-vm@v1
         with:
@@ -228,7 +221,10 @@ jobs:
         if: ${{ matrix.arch != 'x86_64' }}
         shell: netbsd {0}
         run: |
-          cd ${{ github.workspace }}/blink
+          cd ${{ github.workspace }}
+          git clone https://github.com/jart/blink.git
+          cd blink
+          git checkout ${{ env.blink_version }}
           ./configure --static
           gmake -j4
           cp o/blink/blink blink-netbsd-${{ matrix.arch }}
