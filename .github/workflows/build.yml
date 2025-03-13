@@ -476,6 +476,9 @@ jobs:
             arch: x86_64
             os: NetBSD
           - runner: ubuntu-latest
+            arch: aarch64
+            os: NetBSD
+          - runner: ubuntu-latest
             arch: x86_64
             os: OpenBSD
 
@@ -531,6 +534,7 @@ jobs:
         uses: vmactions/netbsd-vm@v1
         with:
           sync: nfs
+          arch: ${{ matrix.arch }}
 
       - name: Start VM
         if: ${{ matrix.os == 'OpenBSD' }}
