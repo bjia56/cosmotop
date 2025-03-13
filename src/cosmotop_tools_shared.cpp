@@ -503,29 +503,6 @@ namespace Tools {
 		return running;
 	}
 
-#ifdef __x86_64__
-	string cpuid(uint32_t eax) {
-		uint32_t ebx = 0, ecx = 0, edx = 0;
-
-		// Execute CPUID to get the cpuid string
-		asm volatile (
-			"cpuid"
-			: "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
-			: "a" (eax)
-		);
-	
-		// Allocate 13 bytes for 12 characters plus null terminator
-		char result[13];
-	
-		// Copy registers to the string in correct order: EBX, EDX, ECX
-		memcpy(result, &ebx, 4);
-		memcpy(result + 4, &ecx, 4);
-		memcpy(result + 8, &edx, 4);
-		result[12] = '\0'; // Null-terminate the string
-	
-		return string{result};
-	}
-#endif
 }
 
 #ifdef _WIN32

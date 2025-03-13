@@ -420,7 +420,19 @@ static std::filesystem::path findFreeFilename(const std::filesystem::path& path)
 void create_plugin_host() {
 	std::stringstream pluginName;
 	pluginName << "cosmotop-";
+
 	if (IsLinux()) {
+#ifdef __x86_64__
+		// Check if we are running under Blink
+		string hyp = Tools::cpuid(0x40000000);
+		if (hyp == "GenuineBlink") {
+			string hostOS = Tools::cpuid(0x40031337);
+			string hostArch = Tools::cpuid(0x40031338);
+			pluginName << Tools::str_to_lower(hostOS) << "-" << Tools::str_to_lower(hostArch);
+			goto choose_extension;
+		}
+#endif
+
 		pluginName << "linux";
 	} else if (IsXnu()) {
 		pluginName << "macos";
@@ -439,6 +451,7 @@ void create_plugin_host() {
 		pluginName << "-x86_64";
 	}
 
+choose_extension:
 	if (IsXnuSilicon()) {
 		pluginName << ".dylib";
 	} else if (IsWindows()) {
