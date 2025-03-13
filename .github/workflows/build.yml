@@ -227,6 +227,7 @@ jobs:
           git checkout ${{ env.blink_version }}
           ./configure --static
           gmake -j4
+          paxctl +m o/blink/blink
           cp o/blink/blink blink-netbsd-${{ matrix.arch }}
 
       - name: Upload plugin
@@ -283,7 +284,7 @@ jobs:
   build_apelink:
     name: Build apelink
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Build apelink
         run: |
