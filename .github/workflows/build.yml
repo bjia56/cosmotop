@@ -13,7 +13,7 @@ on:
 
 env:
   zig_version: 0.13.0
-  blink_version: 33351f16f1355e6bb6fc9567d780d700bf62bd14
+  blink_version: 4fdcd8db3df9c880aac53f85f7e1ecaa18931c8d
 
 jobs:
   build:
@@ -224,7 +224,6 @@ jobs:
           cd ${{ github.workspace }}
           git clone https://github.com/jart/blink.git
           cd blink
-          git fetch origin pull/185/head
           git checkout ${{ env.blink_version }}
           ./configure --static
           gmake -j4
