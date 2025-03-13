@@ -289,8 +289,8 @@ jobs:
         run: |
           git clone https://github.com/jart/cosmopolitan.git
           cd cosmopolitan
-          git fetch origin pull/1383/head
-          git checkout 8c8c8fe4f5adea654d37db14f7ff8c0010d942f1
+          git fetch origin pull/1384/head
+          git checkout 2e4341fad969e8a922abbc6301a01ad6623fcfce
           make o//tool/build/apelink
 
       - name: Upload apelink
