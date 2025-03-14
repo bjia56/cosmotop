@@ -2,6 +2,10 @@ name: Build cosmotop
 
 on:
   workflow_dispatch:
+    inputs:
+      debug:
+        required: false
+        type: boolean
   push:
     branches: ["main"]
   pull_request:
@@ -230,6 +234,10 @@ jobs:
           paxctl +m o/blink/blink
           cp o/blink/blink blink-netbsd-${{ matrix.arch }}
 
+      - name: Interactive debugging
+        uses: fawazahmed0/action-debug-vscode@v3
+        if: ${{ always() && inputs.debug }}
+
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
@@ -438,10 +446,6 @@ jobs:
         with:
           name: cosmotop.exe
           path: ./cosmotop.exe
-
-      - name: Interactive debugging
-        uses: fawazahmed0/action-debug-vscode@v3
-        if: ${{ always() && inputs.debug_link }}
 
   check:
     name: Check cosmotop.exe ${{ matrix.os }} ${{ matrix.arch }}
