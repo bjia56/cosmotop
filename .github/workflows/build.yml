@@ -226,6 +226,7 @@ jobs:
         shell: netbsd {0}
         run: |
           cd ${{ github.workspace }}
+          git config --global --add safe.directory ${{ github.workspace}}/blink
           git clone https://github.com/bjia56/blink.git
           cd blink
           git checkout ${{ env.blink_version }}
