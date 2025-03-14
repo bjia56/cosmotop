@@ -17,7 +17,7 @@ on:
 
 env:
   zig_version: 0.13.0
-  blink_version: 4fdcd8db3df9c880aac53f85f7e1ecaa18931c8d
+  blink_version: 4980d2ca534a9366a54046da02daf59c4042569f
 
 jobs:
   build:
@@ -231,7 +231,6 @@ jobs:
           git checkout ${{ env.blink_version }}
           ./configure --static
           gmake -j4
-          /usr/sbin/paxctl +m o/blink/blink
           cp o/blink/blink blink-netbsd-${{ matrix.arch }}
 
       - name: Interactive debugging
