@@ -231,6 +231,7 @@ jobs:
           git checkout ${{ env.blink_version }}
           ./configure
           gmake -j4
+          /usr/sbin/paxctl +m o/blink/blink
           cp o/blink/blink blink-netbsd-${{ matrix.arch }}
 
       - name: Interactive debugging
