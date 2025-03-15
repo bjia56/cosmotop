@@ -17,7 +17,7 @@ on:
 
 env:
   zig_version: 0.13.0
-  blink_version: 9909848f80da37f009ef6dddfdd9634056bdd5e3
+  blink_version: 4da95da865a1d3ccdc2e802cccfbddd8507d1c95
 
 jobs:
   build:
