@@ -78,7 +78,7 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 - MacOS 13+ (x86_64 and aarch64)
 - Windows 10+ (x86_64)
 - FreeBSD 13+ (x86_64 and aarch64)
-- NetBSD 10.0+ (x86_64)
+- NetBSD 10.0+ (x86_64 and aarch64)
 - OpenBSD 7.3 (x86_64)
 
 ## How it works
@@ -90,6 +90,9 @@ the terminal UI and handle generic systems metrics, like processes, memory, disk
 runs natively. On UNIX, the executable will self-extract a small loader binary to run the program.
 
 Collecting real data from the underlying system is done by helper [plugins](https://github.com/bjia56/libcosmo_plugin), which are built for each target platform using host-native compilers and libraries. These plugins are then bundled into `cosmotop.exe` and extracted out onto the host under the path `~/.cosmotop`, and are used at runtime to gather system metrics that are then displayed by the primary multiplatform executable process in the terminal.
+
+For platforms not supported natively by Cosmpolitan Libc, `cosmotop` uses the [Blink](https://github.com/jart/blink) lightweight virtual machine
+to run the x86_64 version of `cosmotop`. Data collection is still done by host-native plugin executables.
 
 ## Building from source
 
@@ -135,6 +138,7 @@ cosmotop-windows-x86_64.dll
 cosmotop-freebsd-x86_64.so
 cosmotop-freebsd-aarch64.so
 cosmotop-netbsd-x86_64.exe
+cosmotop-netbsd-aarch64.exe
 cosmotop-openbsd-x86_64.exe
 ```
 
