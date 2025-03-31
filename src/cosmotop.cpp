@@ -31,11 +31,7 @@ tab-size = 4
 #include <regex>
 #include <chrono>
 #include <utility>
-#if !defined(__clang__) && __GNUC__ < 11
-	#include <semaphore.h>
-#else
-	#include <semaphore>
-#endif
+#include <condition_variable>
 
 #include <cosmo.h>
 #include <libc/calls/struct/utsname.h>
@@ -664,18 +660,20 @@ namespace Runner {
 	atomic<bool> redraw (false);
 	atomic<bool> coreNum_reset (false);
 
-	//* Setup semaphore for triggering thread to do work
-#if !defined(__clang__) && __GNUC__ < 11
-	sem_t do_work;
-	inline void thread_sem_init() { sem_init(&do_work, 0, 0); }
-	inline void thread_wait() { sem_wait(&do_work); }
-	inline void thread_trigger() { sem_post(&do_work); }
-#else
-	std::binary_semaphore do_work(0);
-	inline void thread_sem_init() { ; }
-	inline void thread_wait() { do_work.acquire(); }
-	inline void thread_trigger() { do_work.release(); }
-#endif
+	//* Setup cv for triggering thread to do work
+	std::condition_variable do_work;
+	std::mutex work_mutex;
+	bool triggered (false);
+	inline void thread_wait() {
+		std::unique_lock<std::mutex> lock(work_mutex);
+		do_work.wait(lock, [] { return triggered; });
+		triggered = false;
+	}
+	inline void thread_trigger() {
+		std::unique_lock<std::mutex> lock(work_mutex);
+		triggered = true;
+		do_work.notify_all();
+	}
 
 	//* RAII wrapper for pthread_mutex locking
 	class thread_lock {
@@ -1071,14 +1069,10 @@ namespace Runner {
 	void run(const string& box, bool no_update, bool force_redraw) {
 		atomic_wait_for(active, true, 5000);
 		if (active) {
-			Logger::error("Stall in Runner thread, restarting!");
+			Logger::error("Stall in runner thread, exiting!");
 			active = false;
-			// exit(1);
-			pthread_cancel(Runner::runner_id);
-			if (pthread_create(&Runner::runner_id, nullptr, &Runner::_runner, nullptr) != 0) {
-				Global::exit_error_msg = "Failed to re-create _runner thread!";
-				clean_quit(1);
-			}
+			Global::exit_error_msg = "Stall in runner thread!";
+			clean_quit(1);
 		}
 		if (stopping or Global::resized) return;
 
@@ -1279,7 +1273,6 @@ int main(int argc, char **argv) {
 	pthread_sigmask(SIG_BLOCK, &mask, &Input::signal_mask);
 
 	//? Start runner thread
-	Runner::thread_sem_init();
 	if (pthread_create(&Runner::runner_id, nullptr, &Runner::_runner, nullptr) != 0) {
 		Global::exit_error_msg = "Failed to create _runner thread!";
 		clean_quit(1);
