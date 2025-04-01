@@ -812,10 +812,13 @@ namespace Runner {
 
 			auto& conf = current_conf;
 
+			//? Ensure we get fresh plugin data
+			trigger_plugin_refresh();
+
 			//! DEBUG stats
 			if (Global::debug) {
-                if (debug_bg.empty() or redraw)
-                    Runner::debug_bg = Draw::createBox(2, 2, 33, 9, "", true, "μs");
+				if (debug_bg.empty() or redraw)
+					Runner::debug_bg = Draw::createBox(2, 2, 33, 9, "", true, "μs");
 
 				debug_times.clear();
 				debug_times["total"] = {0, 0};

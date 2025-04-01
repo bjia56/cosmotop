@@ -22,5 +22,6 @@ tab-size = 4
 
 void create_plugin_host();
 bool is_plugin_loaded();
+void trigger_plugin_refresh();
 void shutdown_plugin();
 std::string plugin_build_info();

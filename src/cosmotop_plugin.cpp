@@ -360,12 +360,14 @@ namespace Global {
 
 #include <cosmo.h>
 #include <filesystem>
+#include <unordered_set>
 #include <sys/stat.h>
 
 #include <libc/nt/runtime.h>
 #include <libc/proc/ntspawn.h>
 
 PluginHost* pluginHost = nullptr;
+std::unordered_set<uintptr_t> plugin_cache;
 
 static std::filesystem::path getOutputDirectory() {
 	const char *homedir;
@@ -631,6 +633,10 @@ bool is_plugin_loaded() {
 	return pluginHost != nullptr;
 }
 
+void trigger_plugin_refresh() {
+	plugin_cache.clear();
+}
+
 void shutdown_plugin() {
 	if (pluginHost) {
 		delete pluginHost;
@@ -642,156 +648,197 @@ string plugin_build_info() {
 	return pluginHost->call<string>("build_info");
 }
 
+#define PLUGIN_CACHE_CONTAINS(val) (plugin_cache.contains(reinterpret_cast<uintptr_t>(&val)))
+#define PLUGIN_CACHE_SHORTCIRCUIT(val) if (PLUGIN_CACHE_CONTAINS(val)) return val;
+#define PLUGIN_CACHE_INSERT(val) plugin_cache.insert(reinterpret_cast<uintptr_t>(&val))
+#define PLUGIN_FETCH_REMOTE(typ, rpc) \
+	static typ result; \
+	PLUGIN_CACHE_SHORTCIRCUIT(result); \
+	result = pluginHost->call<typ>(rpc); \
+	PLUGIN_CACHE_INSERT(result); \
+	return result;
+#define PLUGIN_FETCH_REMOTE_ARGS(typ, rpc, ...) \
+	static typ result; \
+	PLUGIN_CACHE_SHORTCIRCUIT(result); \
+	result = pluginHost->call<typ>(rpc, __VA_ARGS__); \
+	PLUGIN_CACHE_INSERT(result); \
+	return result;
+
 namespace Npu {
 	vector<npu_info>& collect(bool no_update) {
 		static vector<npu_info> result;
-		result = pluginHost->call<vector<npu_info>, bool>("Npu::collect", std::move(no_update));
+		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
+			return result;
+		}
+		result = pluginHost->call<vector<npu_info>>("Npu::collect", std::move(no_update));
+		PLUGIN_CACHE_INSERT(result);
 		return result;
 	}
 	int get_count() {
-		return pluginHost->call<int>("Npu::get_count");
+		typedef int result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Npu::get_count");
 	}
 	vector<string>& get_npu_names() {
-		static vector<string> result;
-		result = pluginHost->call<vector<string>>("Npu::get_npu_names");
-		return result;
+		typedef vector<string> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Npu::get_npu_names");
 	}
 	vector<int>& get_npu_b_height_offsets() {
-		static vector<int> result;
-		result = pluginHost->call<vector<int>>("Npu::get_npu_b_height_offsets");
-		return result;
+		typedef vector<int> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Npu::get_npu_b_height_offsets");
 	}
 	unordered_map<string, deque<long long>>& get_shared_npu_percent() {
-		static unordered_map<string, deque<long long>> result;
-		result = pluginHost->call<unordered_map<string, deque<long long>>>("Npu::get_shared_npu_percent");
-		return result;
+		typedef unordered_map<string, deque<long long>> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Npu::get_shared_npu_percent");
 	}
 }
 
 namespace Gpu {
 	vector<gpu_info>& collect(bool no_update) {
 		static vector<gpu_info> result;
-		result = pluginHost->call<vector<gpu_info>, bool>("Gpu::collect", std::move(no_update));
+		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
+			return result;
+		}
+		result = pluginHost->call<vector<gpu_info>>("Gpu::collect", std::move(no_update));
+		PLUGIN_CACHE_INSERT(result);
 		return result;
 	}
 	int get_count() {
-		return pluginHost->call<int>("Gpu::get_count");
+		typedef int result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Gpu::get_count");
 	}
 	vector<string>& get_gpu_names() {
-		static vector<string> result;
-		result = pluginHost->call<vector<string>>("Gpu::get_gpu_names");
-		return result;
+		typedef vector<string> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Gpu::get_gpu_names");
 	}
 	vector<int>& get_gpu_b_height_offsets() {
-		static vector<int> result;
-		result = pluginHost->call<vector<int>>("Gpu::get_gpu_b_height_offsets");
-		return result;
+		typedef vector<int> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Gpu::get_gpu_b_height_offsets");
 	}
 	unordered_map<string, deque<long long>>& get_shared_gpu_percent() {
-		static unordered_map<string, deque<long long>> result;
-		result = pluginHost->call<unordered_map<string, deque<long long>>>("Gpu::get_shared_gpu_percent");
-		return result;
+		typedef unordered_map<string, deque<long long>> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Gpu::get_shared_gpu_percent");
 	}
 }
 
 namespace Cpu {
 	cpu_info& collect(bool no_update) {
 		static cpu_info result;
-		result = pluginHost->call<cpu_info, bool>("Cpu::collect", std::move(no_update));
+		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
+			return result;
+		}
+		result = pluginHost->call<cpu_info>("Cpu::collect", std::move(no_update));
+		PLUGIN_CACHE_INSERT(result);
 		return result;
 	}
 	string get_cpuHz() {
-		return pluginHost->call<string>("Cpu::get_cpuHz");
+		typedef string result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_cpuHz");
 	}
 	bool update_core_mapping() {
-		return pluginHost->call<bool>("Cpu::update_core_mapping");
+		typedef bool result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::update_core_mapping");
 	}
 	bool get_has_battery() {
-		return pluginHost->call<bool>("Cpu::get_has_battery");
+		typedef bool result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_has_battery");
 	}
 	bool get_got_sensors() {
-		return pluginHost->call<bool>("Cpu::get_got_sensors");
+		typedef bool result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_got_sensors");
 	}
 	bool get_cpu_temp_only() {
-		return pluginHost->call<bool>("Cpu::get_cpu_temp_only");
+		typedef bool result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_cpu_temp_only");
 	}
 	string get_cpuName() {
-		return pluginHost->call<string>("Cpu::get_cpuName");
+		typedef string result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_cpuName");
 	}
 	vector<string>& get_available_fields() {
-		static vector<string> result;
-		result = pluginHost->call<vector<string>>("Cpu::get_available_fields");
-		return result;
+		typedef vector<string> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_available_fields");
 	}
 	vector<string>& get_available_sensors() {
-		static vector<string> result;
-		result = pluginHost->call<vector<string>>("Cpu::get_available_sensors");
-		return result;
+		typedef vector<string> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_available_sensors");
 	}
 	tuple<int, float, long, string>& get_current_bat() {
-		static tuple<int, float, long, string> result;
-		result = pluginHost->call<tuple<int, float, long, string>>("Cpu::get_current_bat");
-		return result;
+		typedef tuple<int, float, long, string> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_current_bat");
 	}
 }
 
 namespace Mem {
 	mem_info& collect(bool no_update) {
 		static mem_info result;
-		result = pluginHost->call<mem_info, bool>("Mem::collect", std::move(no_update));
+		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
+			return result;
+		}
+		result = pluginHost->call<mem_info>("Mem::collect", std::move(no_update));
+		PLUGIN_CACHE_INSERT(result);
 		return result;
 	}
 	uint64_t get_totalMem() {
-		return pluginHost->call<uint64_t>("Mem::get_totalMem");
+		typedef uint64_t result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Mem::get_totalMem");
 	}
 	bool get_has_swap() {
-		return pluginHost->call<bool>("Mem::get_has_swap");
+		typedef bool result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Mem::get_has_swap");
 	}
 	int get_disk_ios() {
-		return pluginHost->call<int>("Mem::get_disk_ios");
+		typedef int result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Mem::get_disk_ios");
 	}
 }
 
 namespace Net {
 	net_info& collect(bool no_update) {
 		static net_info result;
-		result = pluginHost->call<net_info, bool>("Net::collect", std::move(no_update));
+		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
+			return result;
+		}
+		result = pluginHost->call<net_info>("Net::collect", std::move(no_update));
+		PLUGIN_CACHE_INSERT(result);
 		return result;
 	}
 	string get_selected_iface() {
-		return pluginHost->call<string>("Net::get_selected_iface");
+		typedef string result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Net::get_selected_iface");
 	}
 	void set_selected_iface(const string& iface) {
-		pluginHost->call<bool, string>("Net::set_selected_iface", string(iface));
+		pluginHost->call<bool>("Net::set_selected_iface", string(iface));
 	}
 	vector<string>& get_interfaces() {
-		static vector<string> result;
-		result = pluginHost->call<vector<string>>("Net::get_interfaces");
-		return result;
+		typedef vector<string> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Net::get_interfaces");
 	}
 	unordered_map<string, uint64_t>& get_graph_max() {
-		static unordered_map<string, uint64_t> result;
-		result = pluginHost->call<unordered_map<string, uint64_t>>("Net::get_graph_max");
-		return result;
+		typedef unordered_map<string, uint64_t> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Net::get_graph_max");
 	}
 	void set_rescale(bool rescale) {
 		pluginHost->call<bool>("Net::set_rescale", std::move(rescale));
 	}
 	unordered_map<string, net_info>& get_current_net() {
-		static unordered_map<string, net_info> result;
-		result = pluginHost->call<unordered_map<string, net_info>>("Net::get_current_net");
-		return result;
+		typedef unordered_map<string, net_info> result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Net::get_current_net");
 	}
 }
 
 namespace Proc {
 	vector<proc_info>& collect(bool no_update) {
 		static vector<proc_info> result;
-		result = pluginHost->call<vector<proc_info>, bool>("Proc::collect", std::move(no_update));
+		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
+			return result;
+		}
+		result = pluginHost->call<vector<proc_info>>("Proc::collect", std::move(no_update));
+		PLUGIN_CACHE_INSERT(result);
 		return result;
 	}
 	int get_numpids() {
-		return pluginHost->call<int>("Proc::get_numpids");
+		typedef int result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Proc::get_numpids");
 	}
 	void set_collapse(int val) {
 		pluginHost->call<bool>("Proc::set_collapse", std::move(val));
@@ -803,7 +850,8 @@ namespace Proc {
 		pluginHost->call<bool>("Proc::increment_filter_found");
 	}
 	detail_container get_detailed() {
-		return pluginHost->call<detail_container>("Proc::get_detailed");
+		typedef detail_container result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Proc::get_detailed");
 	}
 }
 
@@ -812,7 +860,8 @@ namespace Shared {
 		pluginHost->call<bool>("Shared::init");
 	}
 	long get_coreCount() {
-		return pluginHost->call<long>("Shared::get_coreCount");
+		typedef long result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Shared::get_coreCount");
 	}
 	bool shutdown() {
 		return pluginHost->call<bool>("Shared::shutdown");
@@ -821,7 +870,8 @@ namespace Shared {
 
 namespace Tools {
 	double system_uptime() {
-		return pluginHost->call<double>("Tools::system_uptime");
+		typedef double result_type;
+		PLUGIN_FETCH_REMOTE(result_type, "Tools::system_uptime");
 	}
 }
 
