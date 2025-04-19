@@ -82,6 +82,7 @@ jobs:
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} ${{ matrix.arch == 'x86_64' && '-DRSMI_STATIC=ON' || '' }}
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.exe
+          upx --best ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
