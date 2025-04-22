@@ -55,7 +55,7 @@ jobs:
           export AR=$(command -v cosmoar)
           export CC=cosmocc
           export CXX=cosmoc++
-          ./Configure linux-generic64 no-asm no-shared no-dso no-engine --prefix=${{ github.workspace }}/openssl --openssldir=/zip/openssl
+          ./Configure linux-generic64 no-asm no-shared no-dso no-engine no-tests --prefix=${{ github.workspace }}/openssl --openssldir=/zip/openssl
           make -j4
           make install_sw
 
@@ -63,7 +63,7 @@ jobs:
         run: |
           export CC=cosmocc
           export CXX=cosmoc++
-          cmake -B build -DTARGET=host -DCMAKE_PREFIX_PATH=${{ github.workspace }}/openssl ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake -B build -DTARGET=host -DLINK_OPENSSL=ON -DCMAKE_PREFIX_PATH=${{ github.workspace }}/openssl ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
 
       - name: Upload artifacts
