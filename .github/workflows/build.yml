@@ -185,6 +185,7 @@ jobs:
           path: ./cosmotop-windows-${{ matrix.arch }}.dll
 
   build_freebsd_plugin:
+    if: false
     name: Build plugin FreeBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
@@ -222,6 +223,7 @@ jobs:
           path: ./cosmotop-freebsd-${{ matrix.arch }}.so
 
   build_netbsd_plugin:
+    if: false
     name: Build plugin NetBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
@@ -348,8 +350,8 @@ jobs:
       - build_linux_plugin
       - build_macos_plugin
       - build_windows_plugin
-      - build_freebsd_plugin
-      - build_netbsd_plugin
+      #- build_freebsd_plugin
+      #- build_netbsd_plugin
       #- build_openbsd_plugin
       - build_apelink
 
@@ -394,6 +396,7 @@ jobs:
           merge-multiple: true
 
       - name: Download blink
+        if: false
         uses: actions/download-artifact@v4
         with:
           pattern: blink-*
@@ -415,8 +418,6 @@ jobs:
             -l ${cosmo_bin}/ape-x86_64.elf \
             -l ${cosmo_bin}/ape-aarch64.elf \
             -M ${cosmo_bin}/ape-m1.c \
-            -k NetBSD \
-            -l /tmp/blink/blink-netbsd-aarch64 \
             -o ${{ github.workspace }}/cosmotop.com \
             cosmotop.com.dbg \
             cosmotop.aarch64.elf
@@ -433,11 +434,11 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.dylib /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-windows-x86_64.dll /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-x86_64.so /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-x86_64.exe /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-aarch64.exe /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-openbsd-x86_64.exe /zip/
+          #sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-x86_64.so /zip/
+          #sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
+          #sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-x86_64.exe /zip/
+          #sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-aarch64.exe /zip/
+          #sudo cp /tmp/cosmotop-plugin/cosmotop-openbsd-x86_64.exe /zip/
 
           cd ${{ github.workspace }}
           mkdir LHM
@@ -512,18 +513,18 @@ jobs:
           - runner: windows-latest
             arch: x86_64
             os: Windows
-          - runner: ubuntu-latest
-            arch: x86_64
-            os: FreeBSD
-          - runner: ubuntu-latest
-            arch: aarch64
-            os: FreeBSD
-          - runner: ubuntu-latest
-            arch: x86_64
-            os: NetBSD
-          - runner: ubuntu-latest
-            arch: aarch64
-            os: NetBSD
+          #- runner: ubuntu-latest
+          #  arch: x86_64
+          #  os: FreeBSD
+          #- runner: ubuntu-latest
+          #  arch: aarch64
+          #  os: FreeBSD
+          #- runner: ubuntu-latest
+          #  arch: x86_64
+          #  os: NetBSD
+          #- runner: ubuntu-latest
+          #  arch: aarch64
+          #  os: NetBSD
           #- runner: ubuntu-latest
           #  arch: x86_64
           #  os: OpenBSD
