@@ -58,6 +58,7 @@ jobs:
           ./Configure linux-generic64 no-asm no-shared no-dso no-engine no-tests --prefix=${{ github.workspace }}/openssl --openssldir=/zip/openssl
           make -j4
           make install_sw
+          cp -r .aarch64 ${{ github.workspace }}/openssl/lib/.aarch64
 
       - name: Build cosmotop.com
         run: |
