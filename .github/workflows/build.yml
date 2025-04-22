@@ -48,8 +48,12 @@ jobs:
           tar -xzf openssl-${OPENSSL_VERSION}.tar.gz
           cd openssl-${OPENSSL_VERSION}
 
-          sudo mkdir -p /zip/openssl
+          sudo mkdir -p /zip/openssl/certs
           sudo chown -R $USER /zip
+          cd /zip/openssl/certs
+          wget https://curl.se/ca/cacert.pem
+          
+          cd -
           mkdir ${{ github.workspace }}/openssl
 
           export AR=$(command -v cosmoar)
