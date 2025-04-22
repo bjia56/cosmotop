@@ -18,6 +18,7 @@ on:
 env:
   zig_version: 0.13.0
   blink_version: 4da95da865a1d3ccdc2e802cccfbddd8507d1c95
+  openssl_version: 3.5.0
 
 jobs:
   build:
@@ -40,11 +41,26 @@ jobs:
         with:
           version: ${{ env.cosmocc_version }}
 
+      - name: Build OpenSSL
+        run: |
+          OPENSSL_VERSION=${{ env.openssl_version }}
+          wget https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz
+          tar -xzf openssl-${OPENSSL_VERSION}.tar.gz
+          cd openssl-${OPENSSL_VERSION}
+
+          sudo mkdir -p /zip/openssl
+          sudo chown -R $USER /zip
+          mkdir ${{ github.workspace }}/openssl
+
+          ./Configure linux-generic64 no-asm no-shared no-dso no-engine --prefix=${{ github.workspace }}/openssl --openssldir=/zip/openssl
+          make -j4
+          make install_sw
+
       - name: Build cosmotop.com
         run: |
           export CC=cosmocc
           export CXX=cosmoc++
-          cmake -B build -DTARGET=host ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake -B build -DTARGET=host -DCMAKE_PREFIX_PATH=${{ github.workspace }}/openssl ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
 
       - name: Upload artifacts
@@ -54,6 +70,13 @@ jobs:
           path: |
             ./build/cosmotop.com.dbg
             ./build/cosmotop.aarch64.elf
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openssl
+          path: |
+            /zip/openssl
 
   build_linux_plugin:
     name: Build plugin Linux ${{ matrix.arch }}
@@ -253,6 +276,7 @@ jobs:
           path: ./blink/blink-netbsd-${{ matrix.arch }}
 
   build_openbsd_plugin:
+    if: false
     name: Build plugin OpenBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
@@ -318,7 +342,7 @@ jobs:
       - build_windows_plugin
       - build_freebsd_plugin
       - build_netbsd_plugin
-      - build_openbsd_plugin
+      #- build_openbsd_plugin
       - build_apelink
 
     steps:
@@ -347,6 +371,12 @@ jobs:
         with:
           name: cosmotop.parts
           path: .
+
+      - name: Download OpenSSL
+        uses: actions/download-artifact@v4
+        with:
+          name: openssl
+          path: /tmp/openssl
 
       - name: Download plugins
         uses: actions/download-artifact@v4
@@ -410,6 +440,8 @@ jobs:
           sudo cp *.dll /zip/windows/
           sudo cp *.exe /zip/windows/
 
+          sudo cp -r /tmp/openssl/* /zip/openssl/
+
           cd ${{ github.workspace }}
           mkdir licenses
           cd licenses
@@ -425,6 +457,7 @@ jobs:
           curl -L -o yyjson https://raw.githubusercontent.com/ibireme/yyjson/refs/tags/0.10.0/LICENSE
           curl -L -o compile-time-regular-expressions https://raw.githubusercontent.com/hanickadot/compile-time-regular-expressions/068c6269caa0600021bbe93ca784bb819f3a8273/LICENSE
           cp ${{ github.workspace }}/third_party/cpp-httplib/LICENSE cpp-httplib
+          curl -L -o OpenSSL https://raw.githubusercontent.com/openssl/openssl/refs/tags/openssl-${{ env.openssl_version }}/LICENSE.txt
           cp ${{ github.workspace }}/third_party/widecharwidth/LICENSE widecharwidth
           cp ${{ github.workspace }}/third_party/rocm_smi_lib/License.txt "ROCm SMI"
           cp ${{ github.workspace }}/third_party/rocm_smi_lib/third_party/shared_mutex/LICENSE shared_mutex
@@ -483,9 +516,9 @@ jobs:
           - runner: ubuntu-latest
             arch: aarch64
             os: NetBSD
-          - runner: ubuntu-latest
-            arch: x86_64
-            os: OpenBSD
+          #- runner: ubuntu-latest
+          #  arch: x86_64
+          #  os: OpenBSD
 
     steps:
       - name: Set up cosmocc
