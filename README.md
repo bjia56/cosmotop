@@ -116,10 +116,8 @@ This should produce a `cosmotop.com` binary.
 
 ### Building platform-native "plugin" binaries
 
-Platform-native binaries are built as shared libraries on MacOS (aarch64), Windows, and FreeBSD, and as
-executables on Linux, MacOS (x86_64), NetBSD, and OpenBSD. Plugins are built as executables on platforms where Cosmopolitan
-is unable to reliably load native shared libraries, or when building an executable provides greater distro compatibility (e.g. Linux plugins are statically linked with musl libc). To tell CMake to build plugins, use `-DTARGET=plugin`, which
-automatically selects whether to build a shared library or an executable.
+Platform-native plugins are built as executables on all supported platforms.
+To tell CMake to build plugins, use `-DTARGET=plugin`.
 
 ```bash
 cmake -B build-plugin -DTARGET=plugin
@@ -127,16 +125,16 @@ cmake --build build
 # or: cmake --build build --parallel
 ```
 
-This should produce a `libcosmotop-plugin.[so|dylib]`, `cosmotop-plugin.dll`, or `cosmotop-plugin.exe`. Rename it to one of the following, matching the target platform:
+This should produce a `cosmotop-plugin.exe`. Rename it to one of the following, matching the target platform:
 
 ```
 cosmotop-linux-x86_64.exe
 cosmotop-linux-aarch64.exe
 cosmotop-macos-x86_64.exe
-cosmotop-macos-aarch64.dylib
-cosmotop-windows-x86_64.dll
-cosmotop-freebsd-x86_64.so
-cosmotop-freebsd-aarch64.so
+cosmotop-macos-aarch64.exe
+cosmotop-windows-x86_64.exe
+cosmotop-freebsd-x86_64.exe
+cosmotop-freebsd-aarch64.exe
 cosmotop-netbsd-x86_64.exe
 cosmotop-netbsd-aarch64.exe
 cosmotop-openbsd-x86_64.exe

@@ -141,21 +141,15 @@ jobs:
       - name: Build plugin
         shell: bash
         run: |
-          if [[ ${{ matrix.arch }} == "x86_64" ]]; then
-            cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
-            cmake --build build --parallel 4
-            cp build/cosmotop-plugin.exe ./cosmotop-macos-${{ matrix.arch }}.exe
-          else
-            cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
-            cmake --build build --parallel 4
-            cp build/libcosmotop-plugin.dylib ./cosmotop-macos-${{ matrix.arch }}.dylib
-          fi
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop-plugin.exe ./cosmotop-macos-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-macos-${{ matrix.arch }}
-          path: ./cosmotop-macos-${{ matrix.arch }}.*
+          path: ./cosmotop-macos-${{ matrix.arch }}.exe
 
   build_windows_plugin:
     name: Build plugin Windows ${{ matrix.arch }}
@@ -176,13 +170,13 @@ jobs:
         run: |
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4 --config Release
-          cp build/Release/cosmotop-plugin.dll ./cosmotop-windows-${{ matrix.arch }}.dll
+          cp build/Release/cosmotop-plugin.exe ./cosmotop-windows-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-windows-${{ matrix.arch }}
-          path: ./cosmotop-windows-${{ matrix.arch }}.dll
+          path: ./cosmotop-windows-${{ matrix.arch }}.exe
 
   build_freebsd_plugin:
     if: false
@@ -214,16 +208,15 @@ jobs:
           cd ${{ github.workspace }}
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
-          cp build/libcosmotop-plugin.so ./cosmotop-freebsd-${{ matrix.arch }}.so
+          cp build/libcosmotop-plugin.exe ./cosmotop-freebsd-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-freebsd-${{ matrix.arch }}
-          path: ./cosmotop-freebsd-${{ matrix.arch }}.so
+          path: ./cosmotop-freebsd-${{ matrix.arch }}.exe
 
   build_netbsd_plugin:
-    if: false
     name: Build plugin NetBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
@@ -286,13 +279,12 @@ jobs:
           path: ./blink/blink-netbsd-${{ matrix.arch }}
 
   build_openbsd_plugin:
-    if: false
     name: Build plugin OpenBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        arch: [x86_64]
+        arch: [x86_64, aarch64]
 
     steps:
       - name: Checkout
@@ -305,9 +297,9 @@ jobs:
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
-          release: "7.3"
+          release: "7.6"
           prepare: |
-            pkg_add cmake
+            pkg_add cmake gmake
 
       - name: Build plugin
         shell: openbsd {0}
@@ -317,11 +309,31 @@ jobs:
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
+      - name: Build blink
+        if: ${{ matrix.arch != 'x86_64' }}
+        shell: openbsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          git config --global --add safe.directory ${{ github.workspace}}/blink
+          git clone https://github.com/bjia56/blink.git
+          cd blink
+          git checkout ${{ env.blink_version }}
+          ./configure
+          gmake -j4
+          cp o/blink/blink blink-openbsd-${{ matrix.arch }}
+
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-openbsd-${{ matrix.arch }}
           path: ./cosmotop-openbsd-${{ matrix.arch }}.exe
+
+      - name: Upload blink
+        if: ${{ matrix.arch != 'x86_64' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blink-openbsd-${{ matrix.arch }}
+          path: ./blink/blink-openbsd-${{ matrix.arch }}
 
   # TODO: Remove this once Cosmopolitan releases latest apelink
   build_apelink:
@@ -350,9 +362,9 @@ jobs:
       - build_linux_plugin
       - build_macos_plugin
       - build_windows_plugin
-      #- build_freebsd_plugin
-      #- build_netbsd_plugin
-      #- build_openbsd_plugin
+      - build_freebsd_plugin
+      - build_netbsd_plugin
+      - build_openbsd_plugin
       - build_apelink
 
     steps:
@@ -418,6 +430,11 @@ jobs:
             -l ${cosmo_bin}/ape-x86_64.elf \
             -l ${cosmo_bin}/ape-aarch64.elf \
             -M ${cosmo_bin}/ape-m1.c \
+            -k NetBSD \
+            -l /tmp/blink/blink-netbsd-aarch64 \
+            -k OpenBSD \
+            -l /tmp/blink/blink-openbsd-x86_64 \
+            -l /tmp/blink/blink-openbsd-aarch64 \
             -o ${{ github.workspace }}/cosmotop.com \
             cosmotop.com.dbg \
             cosmotop.aarch64.elf
@@ -432,13 +449,8 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.dylib /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-windows-x86_64.dll /zip/
-          #sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-x86_64.so /zip/
-          #sudo cp /tmp/cosmotop-plugin/cosmotop-freebsd-aarch64.so /zip/
-          #sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-x86_64.exe /zip/
-          #sudo cp /tmp/cosmotop-plugin/cosmotop-netbsd-aarch64.exe /zip/
-          #sudo cp /tmp/cosmotop-plugin/cosmotop-openbsd-x86_64.exe /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.exe /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-windows-x86_64.exe /zip/
 
           cd ${{ github.workspace }}
           mkdir LHM
@@ -507,27 +519,12 @@ jobs:
           - runner: ubuntu-latest
             arch: x86_64
             os: Linux
-          - runner: ubuntu-24.04-arm
+          - runner: ubuntu-latest
             arch: aarch64
             os: Linux
           - runner: windows-latest
             arch: x86_64
             os: Windows
-          #- runner: ubuntu-latest
-          #  arch: x86_64
-          #  os: FreeBSD
-          #- runner: ubuntu-latest
-          #  arch: aarch64
-          #  os: FreeBSD
-          #- runner: ubuntu-latest
-          #  arch: x86_64
-          #  os: NetBSD
-          #- runner: ubuntu-latest
-          #  arch: aarch64
-          #  os: NetBSD
-          #- runner: ubuntu-latest
-          #  arch: x86_64
-          #  os: OpenBSD
 
     steps:
       - name: Set up cosmocc
@@ -564,51 +561,8 @@ jobs:
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.exe
 
       - name: Check cosmotop.exe
-        if: ${{ !contains(matrix.os, 'BSD') }}
         shell: bash
         run: |
-          ./cosmotop.exe --version
-
-      - name: Start VM
-        if: ${{ matrix.os == 'FreeBSD' }}
-        uses: vmactions/freebsd-vm@v1
-        with:
-          sync: nfs
-          arch: ${{ matrix.arch }}
-
-      - name: Start VM
-        if: ${{ matrix.os == 'NetBSD' }}
-        uses: vmactions/netbsd-vm@v1
-        with:
-          sync: nfs
-          arch: ${{ matrix.arch }}
-
-      - name: Start VM
-        if: ${{ matrix.os == 'OpenBSD' }}
-        uses: vmactions/openbsd-vm@v1
-        with:
-          sync: nfs
-          release: 7.3
-
-      - name: Check cosmotop.exe
-        if: ${{ matrix.os == 'FreeBSD' }}
-        shell: freebsd {0}
-        run: |
-          cd ${{ github.workspace }}
-          ./cosmotop.exe --version
-
-      - name: Check cosmotop.exe
-        if: ${{ matrix.os == 'NetBSD' }}
-        shell: netbsd {0}
-        run: |
-          cd ${{ github.workspace }}
-          ./cosmotop.exe --version
-
-      - name: Check cosmotop.exe
-        if: ${{ matrix.os == 'OpenBSD' }}
-        shell: openbsd {0}
-        run: |
-          cd ${{ github.workspace }}
           ./cosmotop.exe --version
 
   docker:

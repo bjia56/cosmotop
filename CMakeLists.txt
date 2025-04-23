@@ -106,6 +106,8 @@ if(${TARGET} STREQUAL "host")
 
 elseif(${TARGET} STREQUAL "plugin")
 
+  set(BUILD_EXE ON)
+
   if(CMAKE_SYSTEM MATCHES "Linux")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -119,7 +121,6 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    set(BUILD_EXE ON)
 
     if(RSMI_STATIC)
       # ROCm doesn't properly add it's folders to the module path if `CMAKE_MODULE_PATH` is already
@@ -153,9 +154,6 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
-    if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
-      set(BUILD_EXE ON)
-    endif()
   elseif(CMAKE_SYSTEM MATCHES "Windows")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -191,7 +189,6 @@ elseif(${TARGET} STREQUAL "plugin")
     )
     find_package(kvm REQUIRED)
     find_package(proplib REQUIRED)
-    set(BUILD_EXE ON)
   elseif(CMAKE_SYSTEM MATCHES "OpenBSD")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -202,7 +199,6 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(kvm REQUIRED)
-    set(BUILD_EXE ON)
   else()
     message(FATAL_ERROR "Unsupported platform")
   endif()

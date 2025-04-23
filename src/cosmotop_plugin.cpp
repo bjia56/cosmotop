@@ -458,15 +458,7 @@ void create_plugin_host() {
 	}
 
 choose_extension:
-	if (IsXnuSilicon()) {
-		pluginName << ".dylib";
-	} else if (IsWindows()) {
-		pluginName << ".dll";
-	} else if (IsFreebsd()) {
-		pluginName << ".so";
-	} else {
-		pluginName << ".exe";
-	}
+	pluginName << ".exe";
 
 	// Create output directory for cosmotop plugin
 	auto outdir = getOutputDirectory();
@@ -527,11 +519,7 @@ choose_extension:
 		}
 	}
 
-	auto launchMethod = PluginHost::DLOPEN;
-	if (!IsXnuSilicon() && !IsWindows() && !IsFreebsd()) {
-		launchMethod = PluginHost::FORK;
-	}
-
+	auto launchMethod = PluginHost::FORK;
 	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
 
 	pluginHost->registerHandler<std::unordered_map<std::string, int>>("Config::get_ints", std::function([]() {
