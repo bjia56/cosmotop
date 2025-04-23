@@ -179,7 +179,6 @@ jobs:
           path: ./cosmotop-windows-${{ matrix.arch }}.exe
 
   build_freebsd_plugin:
-    if: false
     name: Build plugin FreeBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
