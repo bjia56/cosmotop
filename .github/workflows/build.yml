@@ -405,7 +405,6 @@ jobs:
           merge-multiple: true
 
       - name: Download blink
-        if: false
         uses: actions/download-artifact@v4
         with:
           pattern: blink-*
@@ -417,6 +416,10 @@ jobs:
         with:
           name: apelink
           path: /tmp/
+
+      - name: Inspect artifacts
+        run: |
+          tree /tmp || true
 
       - name: Apelink
         run: |
@@ -438,8 +441,6 @@ jobs:
 
       - name: Bundle
         run: |
-          tree /tmp/cosmotop-plugin || true
-
           sudo mkdir -p /zip/
           sudo cp -r ${{ github.workspace }}/themes /zip/
           sudo cp ${{ github.workspace }}/third_party/catppuccin/themes/* /zip/themes/
