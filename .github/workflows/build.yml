@@ -207,7 +207,7 @@ jobs:
           cd ${{ github.workspace }}
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
-          cp build/libcosmotop-plugin.exe ./cosmotop-freebsd-${{ matrix.arch }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-freebsd-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
