@@ -298,7 +298,7 @@ jobs:
           arch: ${{ matrix.arch }}
           release: "7.6"
           prepare: |
-            pkg_add cmake gmake
+            pkg_add cmake gmake git
 
       - name: Build plugin
         shell: openbsd {0}
