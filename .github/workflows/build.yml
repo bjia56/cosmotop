@@ -309,7 +309,6 @@ jobs:
           cp build/cosmotop-plugin.exe ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
       - name: Build blink
-        if: ${{ matrix.arch != 'x86_64' }}
         shell: openbsd {0}
         run: |
           cd ${{ github.workspace }}
