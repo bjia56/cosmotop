@@ -331,9 +331,9 @@ jobs:
     steps:
       - name: Build apelink
         run: |
-          git clone https://github.com/jart/cosmopolitan.git
+          git clone https://github.com/bjia56/cosmopolitan.git
           cd cosmopolitan
-          git checkout a8ed4fdd098b4be27ead8fc14d40c8dc7ef77491
+          git checkout dd4fc71bfae767bcb63d8e509333909e9a7860a7
           make o//tool/build/apelink
 
       - name: Upload apelink
