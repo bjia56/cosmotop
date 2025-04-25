@@ -36,7 +36,6 @@ tab-size = 4
 #include <cosmo.h>
 #include <libc/calls/struct/utsname.h>
 #include <libc/runtime/runtime.h>
-#include <libc/nt/runtime.h>
 
 #include <fmt/core.h>
 #include <fmt/ostream.h>
@@ -344,9 +343,6 @@ void argumentParser(const int argc, char **argv, string& configOverrides) {
 		}
 		else if (is_in(argument, "--version")) {
 			print_version_with_build_info();
-			if (IsWindows()) {
-				ExitProcess(0);
-			}
 			exit(0);
 		}
 		else if(is_in(argument, "--licenses")) {
