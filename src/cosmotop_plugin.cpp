@@ -523,7 +523,7 @@ choose_extension:
 		}
 	}
 
-	auto launchMethod = PluginHost::FORK;
+	auto launchMethod = IsWindows() ? PluginHost::DLOPEN : PluginHost::FORK;
 	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
 
 	pluginHost->registerHandler<std::unordered_map<std::string, int>>("Config::get_ints", std::function([]() {
