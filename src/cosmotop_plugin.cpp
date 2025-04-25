@@ -28,8 +28,6 @@ using std::unordered_map;
 
 #ifndef __COSMOPOLITAN__
 
-#include <thread>
-
 #include "config.h"
 
 namespace Gpu {
@@ -56,13 +54,6 @@ void plugin_initializer(Plugin* plugin) {
 		std::stringstream ss;
 		ss << "Host-native plugin compiled with: " << COMPILER << " (" << COMPILER_VERSION << ")";
 		return ss.str();
-	}));
-	plugin->registerHandler<bool>("exit", std::function([]() {
-		std::thread([&]() {
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-			exit(0);
-		}).detach();
-		return true;
 	}));
 
 	plugin->registerHandler<bool>("register_cosmotop_directory", std::function([](std::string dir) {
@@ -660,11 +651,6 @@ void trigger_plugin_refresh() {
 
 void shutdown_plugin() {
 	if (pluginHost) {
-		try {
-			pluginHost->call<bool>("exit");
-		} catch (const std::exception& e) {
-			// ignore
-		}
 		delete pluginHost;
 		pluginHost = nullptr;
 	}
