@@ -163,6 +163,9 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
 
+    # Windows doesn't exit properly
+    set(BUILD_EXE OFF)
+
     # range/v3 doesn't compile properly with MSVC, so prefer stdlib ranges on Windows
     check_include_file_cxx(ranges CXX_HAVE_RANGES)
     if(NOT CXX_HAVE_RANGES)

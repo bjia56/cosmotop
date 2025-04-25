@@ -458,7 +458,11 @@ void create_plugin_host() {
 	}
 
 choose_extension:
-	pluginName << ".exe";
+	if (IsWindows()) {
+		pluginName << ".dll";
+	} else {
+		pluginName << ".exe";
+	}
 
 	// Create output directory for cosmotop plugin
 	auto outdir = getOutputDirectory();

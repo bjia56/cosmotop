@@ -116,7 +116,7 @@ This should produce a `cosmotop.com` binary.
 
 ### Building platform-native "plugin" binaries
 
-Platform-native plugins are built as executables on all supported platforms.
+Platform-native plugins are built as executables on all supported platforms except Windows, which builds as a DLL.
 To tell CMake to build plugins, use `-DTARGET=plugin`.
 
 ```bash
@@ -125,14 +125,14 @@ cmake --build build
 # or: cmake --build build --parallel
 ```
 
-This should produce a `cosmotop-plugin.exe`. Rename it to one of the following, matching the target platform:
+This should produce a `cosmotop-plugin.exe` (or `cosmotop-plugin.dll` on Windows). Rename it to one of the following, matching the target platform:
 
 ```
 cosmotop-linux-x86_64.exe
 cosmotop-linux-aarch64.exe
 cosmotop-macos-x86_64.exe
 cosmotop-macos-aarch64.exe
-cosmotop-windows-x86_64.exe
+cosmotop-windows-x86_64.dll
 cosmotop-freebsd-x86_64.exe
 cosmotop-freebsd-aarch64.exe
 cosmotop-netbsd-x86_64.exe

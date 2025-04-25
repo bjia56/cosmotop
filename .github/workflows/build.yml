@@ -52,7 +52,7 @@ jobs:
           sudo chown -R $USER /zip
           cd /zip/openssl/certs
           wget https://curl.se/ca/cacert.pem
-          
+
           cd -
           mkdir ${{ github.workspace }}/openssl
 
@@ -170,13 +170,13 @@ jobs:
         run: |
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4 --config Release
-          cp build/Release/cosmotop-plugin.exe ./cosmotop-windows-${{ matrix.arch }}.exe
+          cp build/Release/cosmotop-plugin.dll ./cosmotop-windows-${{ matrix.arch }}.dll
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-windows-${{ matrix.arch }}
-          path: ./cosmotop-windows-${{ matrix.arch }}.exe
+          path: ./cosmotop-windows-${{ matrix.arch }}.dll
 
   build_freebsd_plugin:
     name: Build plugin FreeBSD ${{ matrix.arch }}
@@ -448,7 +448,7 @@ jobs:
           sudo cp /tmp/cosmotop-plugin/cosmotop-linux-aarch64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-x86_64.exe /zip/
           sudo cp /tmp/cosmotop-plugin/cosmotop-macos-aarch64.exe /zip/
-          sudo cp /tmp/cosmotop-plugin/cosmotop-windows-x86_64.exe /zip/
+          sudo cp /tmp/cosmotop-plugin/cosmotop-windows-x86_64.dll /zip/
 
           cd ${{ github.workspace }}
           mkdir LHM
