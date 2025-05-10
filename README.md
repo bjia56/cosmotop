@@ -11,7 +11,7 @@ Place it anywhere and run!
 
 ### Homebrew
 
-The Homebrew tap `bjia56/tap` supports installing the latest `cosmotop.exe` from GitHub releases on both MacOS and Linux.
+The Homebrew tap [`bjia56/tap`](https://github.com/bjia56/homebrew-tap) supports installing the latest `cosmotop.exe` from GitHub releases on both MacOS and Linux.
 
 ```bash
 brew tap bjia56/tap
