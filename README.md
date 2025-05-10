@@ -9,6 +9,15 @@ A fork of [`btop++`](https://github.com/aristocratos/btop) and built with
 Download `cosmotop.exe` from [GitHub releases](https://github.com/bjia56/cosmotop/releases/latest).
 Place it anywhere and run!
 
+### Homebrew
+
+The Homebrew tap `bjia56/tap` supports installing the latest `cosmotop.exe` from GitHub releases on both MacOS and Linux.
+
+```bash
+brew tap bjia56/tap
+brew install cosmotop
+```
+
 ### Linux troubleshooting
 
 Some Linux systems might be configured to launch Windows-like executables in a specific way, such as under WINE or
