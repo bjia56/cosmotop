@@ -57,6 +57,10 @@ if(NOT TARGET)
   set(TARGET "host")
 endif()
 
+if(NOT LINK_OPENSSL)
+  set(LINK_OPENSSL OFF)
+endif()
+
 if(${TARGET} STREQUAL "host")
 
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -81,11 +85,28 @@ if(${TARGET} STREQUAL "host")
   # Enable pthreads
   set(THREADS_PREFER_PTHREAD_FLAG ON)
   find_package(Threads REQUIRED)
-  target_link_libraries(cosmotop.com Threads::Threads)
 
-  target_compile_definitions(cosmotop.com PRIVATE FMT_HEADER_ONLY _FILE_OFFSET_BITS=64)
+  set(LINK_LIBS
+    Threads::Threads
+  )
+  set(COMPILE_DEFINITIONS
+    FMT_HEADER_ONLY
+    _FILE_OFFSET_BITS=64
+  )
+
+  if(LINK_OPENSSL)
+    # Enable OpenSSL
+    find_package(OpenSSL REQUIRED)
+    list(APPEND LINK_LIBS OpenSSL::SSL OpenSSL::Crypto)
+    list(APPEND COMPILE_DEFINITIONS CPPHTTPLIB_OPENSSL_SUPPORT)
+  endif()
+
+  target_link_libraries(cosmotop.com PRIVATE ${LINK_LIBS})
+  target_compile_definitions(cosmotop.com PRIVATE ${COMPILE_DEFINITIONS})
 
 elseif(${TARGET} STREQUAL "plugin")
+
+  set(BUILD_EXE ON)
 
   if(CMAKE_SYSTEM MATCHES "Linux")
     set(PLUGIN_SOURCES
@@ -100,7 +121,6 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    set(BUILD_EXE ON)
 
     if(RSMI_STATIC)
       # ROCm doesn't properly add it's folders to the module path if `CMAKE_MODULE_PATH` is already
@@ -134,9 +154,6 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
-    if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
-      set(BUILD_EXE ON)
-    endif()
   elseif(CMAKE_SYSTEM MATCHES "Windows")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -145,6 +162,9 @@ elseif(${TARGET} STREQUAL "plugin")
       src/windows/cosmotop_collect.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
+
+    # Windows doesn't exit properly
+    set(BUILD_EXE OFF)
 
     # range/v3 doesn't compile properly with MSVC, so prefer stdlib ranges on Windows
     check_include_file_cxx(ranges CXX_HAVE_RANGES)
@@ -172,7 +192,6 @@ elseif(${TARGET} STREQUAL "plugin")
     )
     find_package(kvm REQUIRED)
     find_package(proplib REQUIRED)
-    set(BUILD_EXE ON)
   elseif(CMAKE_SYSTEM MATCHES "OpenBSD")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
@@ -183,13 +202,16 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(kvm REQUIRED)
-    set(BUILD_EXE ON)
   else()
     message(FATAL_ERROR "Unsupported platform")
   endif()
 
   if(BUILD_EXE)
-    set(BINARY_NAME "cosmotop-plugin.exe")
+    if(CMAKE_SYSTEM MATCHES "Windows")
+      set(BINARY_NAME "cosmotop-plugin")
+    else()
+      set(BINARY_NAME "cosmotop-plugin.exe")
+    endif()
     add_executable(${BINARY_NAME} ${PLUGIN_SOURCES})
     target_compile_definitions(${BINARY_NAME} PRIVATE COSMO_PLUGIN_WANT_MAIN)
     if(CMAKE_SYSTEM MATCHES "Linux")
