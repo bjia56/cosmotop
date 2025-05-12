@@ -6,6 +6,9 @@ on:
       version:
         required: true
         type: string
+      draft:
+        required: true
+        type: boolean
 
 jobs:
   build:
@@ -53,3 +56,4 @@ jobs:
           files: cosmotop*.exe
           tag_name: ${{ inputs.version }}
           generate_release_notes: true
+          draft: ${{ inputs.draft }}
