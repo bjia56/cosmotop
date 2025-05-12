@@ -485,7 +485,16 @@ choose_extension:
 			out << res->body;
 			out.close();
 		} else {
-			throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub: " + ziposPath.string());
+			std::stringstream errMsg;
+			errMsg << "Plugin not found in zipos and not downloadable from GitHub: " << pluginName.str();
+			errMsg << " (";
+			if (res) {
+				errMsg << "HTTP code " << res->status;
+			} else {
+				errMsg << "HTTP response is null";
+			}
+			errMsg << ")";
+			throw std::runtime_error(errMsg.str());
 		}
 
 		if (!IsWindows()) {
