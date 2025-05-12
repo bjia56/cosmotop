@@ -475,7 +475,7 @@ choose_extension:
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	if (!std::filesystem::exists(ziposPath)) {
 #if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
-		string url = "https://github.com/bjia56/cosmotop/releases/download/" + Global::Version + "/" + pluginName.str();
+		string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
 
 		httplib::Client cli("https://github.com");
 		auto res = cli.Get(url.c_str());
