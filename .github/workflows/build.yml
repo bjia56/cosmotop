@@ -460,7 +460,7 @@ jobs:
           sudo cp *.dll /zip/windows/
           sudo cp *.exe /zip/windows/
 
-          sudo cp -r /tmp/openssl/* /zip/openssl/
+          sudo cp -r /tmp/openssl/ /zip/openssl/
 
           cd ${{ github.workspace }}
           mkdir licenses
