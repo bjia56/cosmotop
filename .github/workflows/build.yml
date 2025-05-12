@@ -48,10 +48,11 @@ jobs:
           tar -xzf openssl-${OPENSSL_VERSION}.tar.gz
           cd openssl-${OPENSSL_VERSION}
 
-          sudo mkdir -p /zip/openssl/certs
+          sudo mkdir -p /zip/openssl
           sudo chown -R $USER /zip
-          cd /zip/openssl/certs
+          cd /zip/openssl
           wget https://curl.se/ca/cacert.pem
+          mv cacert.pem cert.pem
 
           cd -
           mkdir ${{ github.workspace }}/openssl
@@ -459,7 +460,7 @@ jobs:
           sudo cp *.dll /zip/windows/
           sudo cp *.exe /zip/windows/
 
-          sudo cp -r /tmp/openssl/* /zip/openssl/
+          sudo cp -r /tmp/openssl/ /zip/openssl/
 
           cd ${{ github.workspace }}
           mkdir licenses
