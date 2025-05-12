@@ -475,9 +475,10 @@ choose_extension:
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	if (!std::filesystem::exists(ziposPath)) {
 #if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
+		string host = "https://github.com";
 		string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
 
-		httplib::Client cli("https://github.com");
+		httplib::Client cli(host.c_str());
 		auto res = cli.Get(url.c_str());
 
 		if (res && res->status == 200) {
@@ -486,7 +487,7 @@ choose_extension:
 			out.close();
 		} else {
 			std::stringstream errMsg;
-			errMsg << "Plugin not found in zipos and not downloadable from GitHub: " << pluginName.str();
+			errMsg << "Plugin not found in zipos and not downloadable from GitHub: " << host << url;
 			errMsg << " (";
 			if (res) {
 				errMsg << "HTTP code " << res->status;
