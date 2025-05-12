@@ -479,6 +479,7 @@ choose_extension:
 		string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
 
 		httplib::Client cli(host.c_str());
+		cli.set_follow_location(true);
 		auto res = cli.Get(url.c_str());
 
 		if (res && res->status == 200) {
