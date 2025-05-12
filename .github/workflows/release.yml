@@ -11,15 +11,26 @@ on:
         type: boolean
 
 jobs:
+  validate-version:
+    name: Validate Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if version is prefixed with 'v'
+        run: |
+          if [[ "${{ inputs.version }}" != v* ]]; then
+            echo "Error: Version must be prefixed with 'v'."
+            exit 1
+          fi
+
   build:
     name: Build
     permissions:
       contents: read
       packages: write
+    needs: validate-version
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ inputs.version }}
-
 
   publish:
     name: Publish
