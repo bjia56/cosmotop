@@ -492,7 +492,7 @@ jobs:
           sudo cp * /zip/licenses/
 
           cd /zip
-          wget https://cosmo.zip/pub/cosmos/bin/zip
+          sudo wget https://cosmo.zip/pub/cosmos/bin/zip
           zip -r ${{ github.workspace }}/cosmotop.com *
 
           cd ${{ github.workspace }}
