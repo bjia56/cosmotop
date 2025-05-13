@@ -363,6 +363,10 @@ namespace Global {
 #include <unordered_set>
 #include <sys/stat.h>
 
+#if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
+#include <httplib.h>
+#endif
+
 #include <libc/nt/runtime.h>
 #include <libc/proc/ntspawn.h>
 
@@ -454,12 +458,8 @@ void create_plugin_host() {
 	}
 
 choose_extension:
-	if (IsXnuSilicon()) {
-		pluginName << ".dylib";
-	} else if (IsWindows()) {
+	if (IsWindows()) {
 		pluginName << ".dll";
-	} else if (IsFreebsd()) {
-		pluginName << ".so";
 	} else {
 		pluginName << ".exe";
 	}
@@ -474,15 +474,35 @@ choose_extension:
 	auto pluginPath = outdir / pluginName.str();
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	if (!std::filesystem::exists(ziposPath)) {
-		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
-	}
-	if (!std::filesystem::exists(pluginPath) || !compareFiles(ziposPath, pluginPath)) {
-		if (std::filesystem::exists(pluginPath)) {
-			std::filesystem::remove(pluginPath);
+#if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
+		string url = "https://github.com/bjia56/cosmotop/releases/download/" + Global::Version + "/" + pluginName.str();
+
+		httplib::Client cli("https://github.com");
+		auto res = cli.Get(url.c_str());
+
+		if (res && res->status == 200) {
+			std::ofstream out(pluginPath, std::ios::binary);
+			out << res->body;
+			out.close();
+		} else {
+			throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub: " + ziposPath.string());
 		}
-		std::filesystem::copy_file(ziposPath, pluginPath);
+
 		if (!IsWindows()) {
 			chmod(pluginPath.c_str(), 0500);
+		}
+#else
+		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
+#endif
+	} else {
+		if (!std::filesystem::exists(pluginPath) || !compareFiles(ziposPath, pluginPath)) {
+			if (std::filesystem::exists(pluginPath)) {
+				std::filesystem::remove(pluginPath);
+			}
+			std::filesystem::copy_file(ziposPath, pluginPath);
+			if (!IsWindows()) {
+				chmod(pluginPath.c_str(), 0500);
+			}
 		}
 	}
 
@@ -503,11 +523,7 @@ choose_extension:
 		}
 	}
 
-	auto launchMethod = PluginHost::DLOPEN;
-	if (!IsXnuSilicon() && !IsWindows() && !IsFreebsd()) {
-		launchMethod = PluginHost::FORK;
-	}
-
+	auto launchMethod = IsWindows() ? PluginHost::DLOPEN : PluginHost::FORK;
 	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
 
 	pluginHost->registerHandler<std::unordered_map<std::string, int>>("Config::get_ints", std::function([]() {

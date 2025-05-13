@@ -6,17 +6,31 @@ on:
       version:
         required: true
         type: string
+      draft:
+        required: true
+        type: boolean
 
 jobs:
+  validate-version:
+    name: Validate Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if version is prefixed with 'v'
+        run: |
+          if [[ "${{ inputs.version }}" != v* ]]; then
+            echo "Error: Version must be prefixed with 'v'."
+            exit 1
+          fi
+
   build:
     name: Build
     permissions:
       contents: read
       packages: write
+    needs: validate-version
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ inputs.version }}
-
 
   publish:
     name: Publish
@@ -31,10 +45,26 @@ jobs:
         with:
           name: cosmotop.exe
           path: .
+          
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: plugin-*
+          path: .
+          merge-multiple: true
+
+      - name: Remove pre-bundled plugins
+        run: |
+          rm cosmotop-linux-x86_64.exe
+          rm cosmotop-linux-aarch64.exe
+          rm cosmotop-macos-x86_64.exe
+          rm cosmotop-macos-aarch64.exe
+          rm cosmotop-windows-x86_64.dll
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: cosmotop.exe
+          files: cosmotop*.exe
           tag_name: ${{ inputs.version }}
           generate_release_notes: true
+          draft: ${{ inputs.draft }}
