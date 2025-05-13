@@ -169,14 +169,4 @@ Optionally, rename `cosmotop.com` to `cosmotop.exe`.
 
 Unless otherwise stated, the code in this repository is licensed under Apache-2.0.
 
-`cosmotop` also relies on the following list of external libraries:
-- [**Cosmopolitan Libc**](https://github.com/jart/cosmopolitan) and LLVM libcxx/compiler-rt: ISC, MIT, Apache-2.0, etc.
-- [**libcosmo_plugin**](https://github.com/bjia56/libcosmo_plugin) and dependencies: MIT, Apache-2.0
-- [**fmt**](https://github.com/fmtlib/fmt): MIT
-- [**widecharwidth**](https://github.com/ridiculousfish/widecharwidth/): CC0-1.0
-- [**range-v3**](https://github.com/ericniebler/range-v3): Boost Software License, MIT, etc.
-- [**cpp-httplib**](https://github.com/yhirose/cpp-httplib): MIT
-- [**LibreHardwareMonitor**](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor), [**CppExport**](https://github.com/bjia56/LHM-CppExport), and dependencies: MPL-2.0, Apache-2.0
-- [**rocm_smi_lib**](https://github.com/ROCm/rocm_smi_lib): MIT
-
 For the most up to date list of licenses included in `cosmotop` release builds, run `cosmotop.exe --licenses`.
