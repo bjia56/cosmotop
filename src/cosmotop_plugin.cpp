@@ -506,7 +506,7 @@ choose_extension:
 		auto zipPath = outdir / "zip";
 		auto ziposZipPath = std::filesystem::path("/zip/zip");
 		if (!std::filesystem::exists(zipPath)) {
-			std::filesystem::copy_file(ziposZipPath, zipPath)
+			std::filesystem::copy_file(ziposZipPath, zipPath);
 		}
 
 		if (!IsWindows()) {
