@@ -514,10 +514,10 @@ choose_extension:
 		}
 
 		const char *currPath = GetProgramExecutableName();
-		std::filesystem::path tempPath = std::filesystem::path(currPath)
+		std::filesystem::path tempPath = std::filesystem::path(currPath);
 		tempPath += ".tmp";
 
-		const char *zipArgv[] = {zipPath.c_str(), "-r", tempPath.c_str(), pluginPath.c_str()}
+		const char *zipArgv[] = {zipPath.c_str(), "-r", tempPath.c_str(), pluginPath.c_str()};
 		pid_t zipPid;
 		int status = posix_spawn(&pid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 		if (status != 0) {
