@@ -521,12 +521,24 @@ choose_extension:
 		}
 		std::filesystem::copy_file(currPath, tempPath);
 
-		const char *zipArgv[] = {zipPath.c_str(), "-qrj", tempPath.c_str(), pluginPath.c_str()};
+		const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
 		pid_t zipPid;
 		int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 		if (status != 0) {
 			throw std::runtime_error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
 		}
+
+		// Wait for the spawned process to exit
+		int waitStatus;
+		if (waitpid(zipPid, &waitStatus, 0) == -1) {
+			throw std::runtime_error("Failed to wait for zip process: " + string(strerror(errno)));
+		}
+
+		// Check if the process exited successfully
+		if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+			throw std::runtime_error("Zip process exited with error status");
+		}
+
 		std::filesystem::rename(tempPath, currPath);
 #else
 		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
