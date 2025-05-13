@@ -519,7 +519,7 @@ choose_extension:
 		if (std::filesystem::exists(tempPath)) {
 			std::filesystem::remove(tempPath);
 		}
-		std::filesystem::copy_file(currPath, tempPath)
+		std::filesystem::copy_file(currPath, tempPath);
 
 		const char *zipArgv[] = {zipPath.c_str(), "-qrj", tempPath.c_str(), pluginPath.c_str()};
 		pid_t zipPid;
