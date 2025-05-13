@@ -365,6 +365,7 @@ namespace Global {
 
 #if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
 #include <httplib.h>
+#include <spawn.h>
 #endif
 
 #include <libc/nt/runtime.h>
@@ -519,7 +520,7 @@ choose_extension:
 
 		const char *zipArgv[] = {zipPath.c_str(), "-r", tempPath.c_str(), pluginPath.c_str()};
 		pid_t zipPid;
-		int status = posix_spawn(&pid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+		int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 		if (status != 0) {
 			throw std::runtime_error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
 		}
