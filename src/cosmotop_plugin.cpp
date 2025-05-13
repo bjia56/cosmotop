@@ -502,6 +502,29 @@ choose_extension:
 		if (!IsWindows()) {
 			chmod(pluginPath.c_str(), 0500);
 		}
+
+		auto zipPath = outdir / "zip";
+		auto ziposZipPath = std::filesystem::path("/zip/zip");
+		if (!std::filesystem::exists(zipPath)) {
+			std::filesystem::copy_file(ziposZipPath, zipPath)
+		}
+
+		if (!IsWindows()) {
+			chmod(zipPath.c_str(), 0500);
+		}
+
+		const char *currPath = GetProgramExecutableName();
+		std::filesystem::path tempPath = std::filesystem::path(currPath)
+		tempPath += ".tmp";
+
+		const char *zipArgv[] = {zipPath.c_str(), "-r", tempPath.c_str(), pluginPath.c_str()}
+		pid_t zipPid;
+		int status = posix_spawn(&pid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+		if (status != 0) {
+			throw std::runtime_error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+		}
+
+		std::filesystem::rename(tempPath, std::filesystem::path(currPath));
 #else
 		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
 #endif
