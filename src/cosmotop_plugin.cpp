@@ -494,7 +494,7 @@ choose_extension:
 			if (res) {
 				errMsg << "HTTP code " << res->status;
 			} else {
-				errMsg << "HTTP response is null";
+				errMsg << "HTTP request error " << res.error();
 			}
 			errMsg << ")";
 			throw std::runtime_error(errMsg.str());
