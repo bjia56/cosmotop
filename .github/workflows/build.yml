@@ -60,7 +60,7 @@ jobs:
           export AR=$(command -v cosmoar)
           export CC=cosmocc
           export CXX=cosmoc++
-          ./Configure linux-generic64 no-asm no-shared no-dso no-engine no-tests --prefix=${{ github.workspace }}/openssl --openssldir=/zip/openssl
+          ./Configure linux-generic64 no-asm no-shared no-dso no-dynamic-engine no-engine no-pic no-autoalginit no-autoerrinit no-tests --with-rand-seed=getrandom --prefix=${{ github.workspace }}/openssl --openssldir=/zip/openssl
           make -j4
           make install_sw
           cp -r .aarch64 ${{ github.workspace }}/openssl/lib/.aarch64
