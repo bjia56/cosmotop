@@ -14,6 +14,9 @@ on:
       version:
         required: true
         type: string
+      beta:
+        required: false
+        type: string
 
 env:
   zig_version: 0.13.0
@@ -581,8 +584,10 @@ jobs:
 
           if [[ "${{ github.ref }}" == "refs/heads/main" && -z "${{ inputs.version }}" ]]; then
             TAGS="$IMAGE_NAME:main"
-          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+          elif [[ "${{ inputs.beta }}" != "true" && -n "${{ github.event.inputs.version }}" ]]; then
             TAGS="$IMAGE_NAME:latest,$IMAGE_NAME:${{ inputs.version }}"
+          elif [[ "${{ inputs.beta }}" == "true" && -n "${{ github.event.inputs.version }}" ]]; then
+            TAGS="$IMAGE_NAME:beta,$IMAGE_NAME:${{ inputs.version }}"
           fi
 
           echo "image_name=$IMAGE_NAME" >> $GITHUB_ENV
