@@ -428,11 +428,13 @@ void create_plugin_host() {
 	std::stringstream pluginName;
 	pluginName << "cosmotop-";
 
+	bool isBlink = false;
 	if (IsLinux()) {
 #ifdef __x86_64__
 		// Check if we are running under Blink
 		string hyp = Tools::cpuid(0x40000000);
 		if (hyp == "GenuineBlink") {
+			isBlink = true;
 			string hostOS = Tools::cpuid(0x40031337);
 			string hostArch = Tools::cpuid(0x40031338);
 			pluginName << Tools::str_to_lower(hostOS) << "-" << Tools::str_to_lower(hostArch);
@@ -479,29 +481,38 @@ choose_extension:
 		// Plugin not found in zipos, try to download from GitHub
 		Logger::info("Plugin not found in zipos, downloading from GitHub...");
 
-		string host = "https://github.com";
-		string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
+		bool useHostNativeTools = false;
+		if (!isBlink) {
+			string host = "https://github.com";
+			string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
 
-		httplib::Client cli(host.c_str());
-		cli.set_follow_location(true);
-		auto res = cli.Get(url.c_str());
+			httplib::Client cli(host.c_str());
+			cli.set_follow_location(true);
+			auto res = cli.Get(url.c_str());
 
-		if (res && res->status == 200) {
-			std::ofstream out(pluginPath, std::ios::binary);
-			out << res->body;
-			out.close();
-		} else {
-			// Plugin could not be downloaded from GitHub
-			std::stringstream errMsg;
-			errMsg << "Direct download from " << host << url << " failed (";
-			if (res) {
-				errMsg << "HTTP code " << res->status;
+			if (res && res->status == 200) {
+				std::ofstream out(pluginPath, std::ios::binary);
+				out << res->body;
+				out.close();
 			} else {
-				errMsg << "HTTP request error " << res.error();
+				// Plugin could not be downloaded from GitHub
+				std::stringstream errMsg;
+				errMsg << "Direct download from " << host << url << " failed (";
+				if (res) {
+					errMsg << "HTTP code " << res->status;
+				} else {
+					errMsg << "HTTP request error " << res.error();
+				}
+				errMsg << ")";
+				Logger::error(errMsg.str());
+				useHostNativeTools = true;
 			}
-			errMsg << ")";
-			Logger::error(errMsg.str());
+		} else {
+			// Blink SSL is broken
+			useHostNativeTools = true;
+		}
 
+		if (useHostNativeTools) {
 			// Try to use curl or wget to download the plugin
 			string fullUrl = host + url;
 			const char *curlArgv[] = {"curl", "-s", "-L", fullUrl.c_str(), "-o", pluginPath.c_str(), nullptr};
@@ -530,43 +541,53 @@ choose_extension:
 			chmod(pluginPath.c_str(), 0500);
 		}
 
-		auto zipPath = outdir / "zip";
-		auto ziposZipPath = std::filesystem::path("/zip/zip");
-		if (!std::filesystem::exists(zipPath)) {
-			std::filesystem::copy_file(ziposZipPath, zipPath);
-		}
-
-		if (!IsWindows()) {
-			chmod(zipPath.c_str(), 0500);
-		}
-
-		std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
-		std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
-		if (std::filesystem::exists(tempPath)) {
-			std::filesystem::remove(tempPath);
-		}
-		std::filesystem::copy_file(currPath, tempPath);
-
-		const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
-		pid_t zipPid;
-		int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 		bool zipSuccess = true;
-		if (status != 0) {
-			Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
-			zipSuccess = false;
-		}
+		if (useHostNativeTools) {
+			const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
+			pid_t zipPid;
+			int status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+			if (status != 0) {
+				Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+				zipSuccess = false;
+			}
+		} else {
+			auto zipPath = outdir / "zip";
+			auto ziposZipPath = std::filesystem::path("/zip/zip");
+			if (!std::filesystem::exists(zipPath)) {
+				std::filesystem::copy_file(ziposZipPath, zipPath);
+			}
 
-		// Wait for the spawned process to exit
-		int waitStatus;
-		if (waitpid(zipPid, &waitStatus, 0) == -1) {
-			Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
-			zipSuccess = false;
-		}
+			if (!IsWindows()) {
+				chmod(zipPath.c_str(), 0500);
+			}
 
-		// Check if the process exited successfully
-		if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-			Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
-			zipSuccess = false;
+			std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
+			std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
+			if (std::filesystem::exists(tempPath)) {
+				std::filesystem::remove(tempPath);
+			}
+
+			std::filesystem::copy_file(currPath, tempPath);
+			const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
+			pid_t zipPid;
+			int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+			if (status != 0) {
+				Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+				zipSuccess = false;
+			}
+
+			// Wait for the spawned process to exit
+			int waitStatus;
+			if (waitpid(zipPid, &waitStatus, 0) == -1) {
+				Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
+				zipSuccess = false;
+			}
+
+			// Check if the process exited successfully
+			if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+				Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+				zipSuccess = false;
+			}
 		}
 
 		if (zipSuccess) {
