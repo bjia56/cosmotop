@@ -258,36 +258,11 @@ jobs:
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-netbsd-${{ matrix.arch }}.exe
 
-      - name: Build blink
-        if: ${{ matrix.arch != 'x86_64' }}
-        shell: netbsd {0}
-        run: |
-          cd ${{ github.workspace }}
-          git config --global --add safe.directory ${{ github.workspace}}/blink
-          git clone https://github.com/bjia56/blink.git
-          cd blink
-          git checkout ${{ env.blink_version }}
-          ./configure
-          gmake -j4
-          /usr/sbin/paxctl +m o/blink/blink
-          cp o/blink/blink blink-netbsd-${{ matrix.arch }}
-
-      - name: Interactive debugging
-        uses: fawazahmed0/action-debug-vscode@v3
-        if: ${{ always() && inputs.debug }}
-
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-netbsd-${{ matrix.arch }}
           path: ./cosmotop-netbsd-${{ matrix.arch }}.exe
-
-      - name: Upload blink
-        if: ${{ matrix.arch != 'x86_64' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: blink-netbsd-${{ matrix.arch }}
-          path: ./blink/blink-netbsd-${{ matrix.arch }}
 
   build_openbsd_plugin:
     name: Build plugin OpenBSD ${{ matrix.arch }}
@@ -320,29 +295,11 @@ jobs:
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
-      - name: Build blink
-        shell: openbsd {0}
-        run: |
-          cd ${{ github.workspace }}
-          git config --global --add safe.directory ${{ github.workspace}}/blink
-          git clone https://github.com/bjia56/blink.git
-          cd blink
-          git checkout ${{ env.blink_version }}
-          ./configure
-          gmake -j4
-          cp o/blink/blink blink-openbsd-${{ matrix.arch }}
-
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
           name: plugin-openbsd-${{ matrix.arch }}
           path: ./cosmotop-openbsd-${{ matrix.arch }}.exe
-
-      - name: Upload blink
-        uses: actions/upload-artifact@v4
-        with:
-          name: blink-openbsd-${{ matrix.arch }}
-          path: ./blink/blink-openbsd-${{ matrix.arch }}
 
   # TODO: Remove this once Cosmopolitan releases latest apelink
   build_apelink:
@@ -417,11 +374,17 @@ jobs:
           merge-multiple: true
 
       - name: Download blink
-        uses: actions/download-artifact@v4
-        with:
-          pattern: blink-*
-          path: /tmp/blink/
-          merge-multiple: true
+        run: |
+          mkdir -p /tmp/blink
+          cd /tmp/blink
+
+          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-netbsd10.0-aarch64 -O blink-netbsd-aarch64
+          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-openbsd7.6-aarch64 -O blink-openbsd-aarch64
+          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-openbsd7.6-x86_64 -O blink-openbsd-x86_64
+
+          chmod +x blink-netbsd-aarch64
+          chmod +x blink-openbsd-aarch64
+          chmod +x blink-openbsd-x86_64
 
       - name: Download apelink
         uses: actions/download-artifact@v4
