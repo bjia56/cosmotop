@@ -57,13 +57,22 @@ jobs:
           cd -
           mkdir ${{ github.workspace }}/openssl
 
-          export AR=$(command -v cosmoar)
-          export CC=cosmocc
-          export CXX=cosmoc++
-          ./Configure linux-generic64 no-asm no-shared no-dso no-engine no-tests --prefix=${{ github.workspace }}/openssl --openssldir=/zip/openssl
-          make -j4
-          make install_sw
-          cp -r .aarch64 ${{ github.workspace }}/openssl/lib/.aarch64
+          for ARCH in x86_64 aarch64; do
+            echo "::group::$ARCH"
+            export CC="$ARCH-unknown-cosmo-cc"
+
+            if [ "$ARCH" = "aarch64" ]; then
+              PREFIX="${{ github.workspace }}/openssl-aarch64"
+            else
+              PREFIX="${{ github.workspace }}/openssl"
+            fi
+
+            ./Configure linux-generic64 no-shared no-dso no-engine no-tests --prefix="$PREFIX" --openssldir=/zip/openssl
+            make -j4
+            make install_sw
+            echo "::endgroup::"
+          done
+          cp -r ${{ github.workspace }}/openssl-aarch64/lib ${{ github.workspace }}/openssl/lib/.aarch64
 
       - name: Build cosmotop.com
         run: |
