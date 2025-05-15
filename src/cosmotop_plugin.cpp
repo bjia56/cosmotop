@@ -544,13 +544,14 @@ choose_extension:
 		// Make temporary copy of the current executable
 		std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
 		std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
+		bool doSelfUpdate = true;
 		if (useHostNativeTools) {
 			const char *cpArgv[] = {"cp", "-f", currPath.c_str(), tempPath.c_str(), nullptr};
 			pid_t cpPid;
 			int status = posix_spawnp(&cpPid, "cp", nullptr, nullptr, const_cast<char* const*>(cpArgv), nullptr);
 			if (status != 0) {
 				Logger::error("Failed to copy current executable: " + string(strerror(status)));
-				goto finish_plugin;
+				doSelfUpdate = false;
 			}
 		} else {
 			if (std::filesystem::exists(tempPath)) {
@@ -559,55 +560,56 @@ choose_extension:
 			std::filesystem::copy_file(currPath, tempPath);
 		}
 
-		bool zipSuccess = true;
-		pid_t zipPid;
-		if (useHostNativeTools) {
-			const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
-			int status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
-			if (status != 0) {
-				Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+		if (doSelfUpdate) {
+			bool zipSuccess = true;
+			pid_t zipPid;
+			if (useHostNativeTools) {
+				const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
+				int status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+				if (status != 0) {
+					Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+					zipSuccess = false;
+				}
+			} else {
+				auto zipPath = outdir / "zip";
+				auto ziposZipPath = std::filesystem::path("/zip/zip");
+				if (!std::filesystem::exists(zipPath)) {
+					std::filesystem::copy_file(ziposZipPath, zipPath);
+				}
+
+				if (!IsWindows()) {
+					chmod(zipPath.c_str(), 0500);
+				}
+
+				const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
+				int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+				if (status != 0) {
+					Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+					zipSuccess = false;
+				}
+			}
+
+			// Wait for the spawned process to exit
+			int waitStatus;
+			if (waitpid(zipPid, &waitStatus, 0) == -1) {
+				Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
 				zipSuccess = false;
 			}
-		} else {
-			auto zipPath = outdir / "zip";
-			auto ziposZipPath = std::filesystem::path("/zip/zip");
-			if (!std::filesystem::exists(zipPath)) {
-				std::filesystem::copy_file(ziposZipPath, zipPath);
-			}
 
-			if (!IsWindows()) {
-				chmod(zipPath.c_str(), 0500);
-			}
-
-			const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
-			int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
-			if (status != 0) {
-				Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+			// Check if the process exited successfully
+			if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+				Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
 				zipSuccess = false;
 			}
-		}
 
-		// Wait for the spawned process to exit
-		int waitStatus;
-		if (waitpid(zipPid, &waitStatus, 0) == -1) {
-			Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
-			zipSuccess = false;
-		}
-
-		// Check if the process exited successfully
-		if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-			Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
-			zipSuccess = false;
-		}
-
-		if (zipSuccess) {
-			std::filesystem::rename(tempPath, currPath);
+			if (zipSuccess) {
+				std::filesystem::rename(tempPath, currPath);
+			} else {
+				std::filesystem::remove(tempPath);
+			}
 		} else {
 			std::filesystem::remove(tempPath);
 		}
-
-finish_plugin:
-		// done
 #else
 		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
 #endif
