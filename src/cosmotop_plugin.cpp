@@ -503,19 +503,26 @@ choose_extension:
 			Logger::error(errMsg.str());
 
 			// Try to use curl or wget to download the plugin
-			const char *curlArgv[] = {"curl", "-s", "-L", url.c_str(), "-o", pluginPath.c_str(), nullptr};
+			string fullUrl = host + url;
+			const char *curlArgv[] = {"curl", "-s", "-L", fullUrl.c_str(), "-o", pluginPath.c_str(), nullptr};
 			pid_t curlPid;
 			int status = posix_spawnp(&curlPid, "curl", nullptr, nullptr, const_cast<char* const*>(curlArgv), nullptr);
 			if (status != 0) {
 				Logger::error("Failed to download plugin using curl: " + string(strerror(status)));
 				// Try wget as a fallback
-				const char *wgetArgv[] = {"wget", "-q", url.c_str(), "-O", pluginPath.c_str(), nullptr};
+				const char *wgetArgv[] = {"wget", "-q", fullUrl.c_str(), "-O", pluginPath.c_str(), nullptr};
 				pid_t wgetPid;
 				status = posix_spawnp(&wgetPid, "wget", nullptr, nullptr, const_cast<char* const*>(wgetArgv), nullptr);
 				if (status != 0) {
 					Logger::error("Failed to download plugin using wget: " + string(strerror(status)));
 					throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
 				}
+
+				int waitStatus;
+				waitpid(wgetPid, &waitStatus, 0);
+			} else {
+				int waitStatus;
+				waitpid(curlPid, &waitStatus, 0);
 			}
 		}
 
