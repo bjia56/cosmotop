@@ -46,8 +46,8 @@ jobs:
           OPENSSL_VERSION=${{ env.openssl_version }}
           wget https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz
           tar -xzf openssl-${OPENSSL_VERSION}.tar.gz
-          cp -r openssl-${OPENSSL_VERSION} ${{ github.workspace }}/openssl-x86_64
-          cp -r openssl-${OPENSSL_VERSION} ${{ github.workspace }}/openssl-aarch64
+          cp -r openssl-${OPENSSL_VERSION} ${{ github.workspace }}/openssl-${OPENSSL_VERSION}-x86_64
+          cp -r openssl-${OPENSSL_VERSION} ${{ github.workspace }}/openssl-${OPENSSL_VERSION}-aarch64
 
           sudo mkdir -p /zip/openssl
           sudo chown -R $USER /zip
@@ -59,7 +59,7 @@ jobs:
 
           for ARCH in x86_64 aarch64; do
             echo "::group::$ARCH"
-            cd ${{ github.workspace }}/openssl-$ARCH
+            cd ${{ github.workspace }}/openssl-${OPENSSL_VERSION}-$ARCH
             export CC="$ARCH-unknown-cosmo-cc"
 
             if [ "$ARCH" = "aarch64" ]; then
