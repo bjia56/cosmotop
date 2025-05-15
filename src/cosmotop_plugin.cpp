@@ -476,6 +476,9 @@ choose_extension:
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	if (!std::filesystem::exists(ziposPath)) {
 #if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
+		// Plugin not found in zipos, try to download from GitHub
+		Logger::info("Plugin not found in zipos, downloading from GitHub...");
+
 		string host = "https://github.com";
 		string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
 
@@ -488,16 +491,32 @@ choose_extension:
 			out << res->body;
 			out.close();
 		} else {
+			// Plugin could not be downloaded from GitHub
 			std::stringstream errMsg;
-			errMsg << "Plugin not found in zipos and not downloadable from GitHub: " << host << url;
-			errMsg << " (";
+			errMsg << "Direct download from " << host << url << " failed (";
 			if (res) {
 				errMsg << "HTTP code " << res->status;
 			} else {
 				errMsg << "HTTP request error " << res.error();
 			}
 			errMsg << ")";
-			throw std::runtime_error(errMsg.str());
+			Logger::error(errMsg.str());
+
+			// Try to use curl or wget to download the plugin
+			const char *curlArgv[] = {"curl", "-s", "-L", url.c_str(), "-o", pluginPath.c_str(), nullptr};
+			pid_t curlPid;
+			int status = posix_spawnp(&curlPid, "curl", nullptr, nullptr, const_cast<char* const*>(curlArgv), nullptr);
+			if (status != 0) {
+				Logger::error("Failed to download plugin using curl: " + string(strerror(status)));
+				// Try wget as a fallback
+				const char *wgetArgv[] = {"wget", "-q", url.c_str(), "-O", pluginPath.c_str(), nullptr};
+				pid_t wgetPid;
+				status = posix_spawnp(&wgetPid, "wget", nullptr, nullptr, const_cast<char* const*>(wgetArgv), nullptr);
+				if (status != 0) {
+					Logger::error("Failed to download plugin using wget: " + string(strerror(status)));
+					throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
+				}
+			}
 		}
 
 		if (!IsWindows()) {
@@ -524,22 +543,30 @@ choose_extension:
 		const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
 		pid_t zipPid;
 		int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+		bool zipSuccess = true;
 		if (status != 0) {
-			throw std::runtime_error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+			Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+			zipSuccess = false;
 		}
 
 		// Wait for the spawned process to exit
 		int waitStatus;
 		if (waitpid(zipPid, &waitStatus, 0) == -1) {
-			throw std::runtime_error("Failed to wait for zip process: " + string(strerror(errno)));
+			Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
+			zipSuccess = false;
 		}
 
 		// Check if the process exited successfully
 		if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-			throw std::runtime_error("Zip process exited with error status");
+			Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+			zipSuccess = false;
 		}
 
-		std::filesystem::rename(tempPath, currPath);
+		if (zipSuccess) {
+			std::filesystem::rename(tempPath, currPath);
+		} else {
+			std::filesystem::remove(tempPath);
+		}
 #else
 		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
 #endif
