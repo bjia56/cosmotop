@@ -481,11 +481,11 @@ choose_extension:
 		// Plugin not found in zipos, try to download from GitHub
 		Logger::info("Plugin not found in zipos, downloading from GitHub...");
 
+		string host = "https://github.com";
+		string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
+
 		bool useHostNativeTools = false;
 		if (!isBlink) {
-			string host = "https://github.com";
-			string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
-
 			httplib::Client cli(host.c_str());
 			cli.set_follow_location(true);
 			auto res = cli.Get(url.c_str());
@@ -541,6 +541,14 @@ choose_extension:
 			chmod(pluginPath.c_str(), 0500);
 		}
 
+		// Make temporary copy of the current executable
+		std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
+		std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
+		if (std::filesystem::exists(tempPath)) {
+			std::filesystem::remove(tempPath);
+		}
+		std::filesystem::copy_file(currPath, tempPath);
+
 		bool zipSuccess = true;
 		if (useHostNativeTools) {
 			const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
@@ -561,13 +569,6 @@ choose_extension:
 				chmod(zipPath.c_str(), 0500);
 			}
 
-			std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
-			std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
-			if (std::filesystem::exists(tempPath)) {
-				std::filesystem::remove(tempPath);
-			}
-
-			std::filesystem::copy_file(currPath, tempPath);
 			const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
 			pid_t zipPid;
 			int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
