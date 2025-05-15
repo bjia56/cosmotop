@@ -73,6 +73,7 @@ jobs:
             make install_sw
             echo "::endgroup::"
           done
+          mv ${{ github.workspace }}/openssl/lib64 ${{ github.workspace }}/openssl/lib
           cp -r ${{ github.workspace }}/openssl-aarch64/lib ${{ github.workspace }}/openssl/lib/.aarch64
 
       - name: Build cosmotop.com
