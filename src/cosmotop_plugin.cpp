@@ -544,15 +544,25 @@ choose_extension:
 		// Make temporary copy of the current executable
 		std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
 		std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
-		if (std::filesystem::exists(tempPath)) {
-			std::filesystem::remove(tempPath);
+		if (useHostNativeTools) {
+			const char *cpArgv[] = {"cp", "-f", currPath.c_str(), tempPath.c_str(), nullptr};
+			pid_t cpPid;
+			int status = posix_spawnp(&cpPid, "cp", nullptr, nullptr, const_cast<char* const*>(cpArgv), nullptr);
+			if (status != 0) {
+				Logger::error("Failed to copy current executable: " + string(strerror(status)));
+				goto finish_plugin;
+			}
+		} else {
+			if (std::filesystem::exists(tempPath)) {
+				std::filesystem::remove(tempPath);
+			}
+			std::filesystem::copy_file(currPath, tempPath);
 		}
-		std::filesystem::copy_file(currPath, tempPath);
 
 		bool zipSuccess = true;
+		pid_t zipPid;
 		if (useHostNativeTools) {
 			const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
-			pid_t zipPid;
 			int status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 			if (status != 0) {
 				Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
@@ -570,25 +580,24 @@ choose_extension:
 			}
 
 			const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
-			pid_t zipPid;
 			int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 			if (status != 0) {
 				Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
 				zipSuccess = false;
 			}
+		}
 
-			// Wait for the spawned process to exit
-			int waitStatus;
-			if (waitpid(zipPid, &waitStatus, 0) == -1) {
-				Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
-				zipSuccess = false;
-			}
+		// Wait for the spawned process to exit
+		int waitStatus;
+		if (waitpid(zipPid, &waitStatus, 0) == -1) {
+			Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
+			zipSuccess = false;
+		}
 
-			// Check if the process exited successfully
-			if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-				Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
-				zipSuccess = false;
-			}
+		// Check if the process exited successfully
+		if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+			Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+			zipSuccess = false;
 		}
 
 		if (zipSuccess) {
@@ -596,6 +605,9 @@ choose_extension:
 		} else {
 			std::filesystem::remove(tempPath);
 		}
+
+finish_plugin:
+		// done
 #else
 		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
 #endif
