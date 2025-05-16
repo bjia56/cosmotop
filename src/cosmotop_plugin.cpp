@@ -388,28 +388,17 @@ static std::filesystem::path getOutputDirectory() {
 	}
 }
 
-template<typename InputIterator1, typename InputIterator2>
-static bool rangeEqual(InputIterator1 first1, InputIterator1 last1,
-						InputIterator2 first2, InputIterator2 last2) {
-	while(first1 != last1 && first2 != last2)
-	{
-		if(*first1 != *first2) return false;
-		++first1;
-		++first2;
+static bool isFileNewer(const std::string& filename1, const std::string& filename2) {
+	struct stat stat1, stat2;
+	if (stat(filename1.c_str(), &stat1) != 0) {
+		// Could not stat file1
+		return false;
 	}
-	return (first1 == last1) && (first2 == last2);
-}
-
-static bool compareFiles(const std::string& filename1, const std::string& filename2) {
-	std::ifstream file1(filename1);
-	std::ifstream file2(filename2);
-
-	std::istreambuf_iterator<char> begin1(file1);
-	std::istreambuf_iterator<char> begin2(file2);
-
-	std::istreambuf_iterator<char> end;
-
-	return rangeEqual(begin1, end, begin2, end);
+	if (stat(filename2.c_str(), &stat2) != 0) {
+		// Could not stat file2
+		return true;
+	}
+	return stat1.st_mtime > stat2.st_mtime;
 }
 
 // might not be needed
@@ -476,6 +465,7 @@ choose_extension:
 	// Extract cosmotop plugin from zipos
 	auto pluginPath = outdir / pluginName.str();
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
+	std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
 	if (!std::filesystem::exists(ziposPath)) {
 #if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
 		// Plugin not found in zipos, try to download from GitHub
@@ -542,7 +532,6 @@ choose_extension:
 		}
 
 		// Make temporary copy of the current executable
-		std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
 		std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
 		bool doSelfUpdate = true;
 		if (useHostNativeTools) {
@@ -614,7 +603,7 @@ choose_extension:
 		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
 #endif
 	} else {
-		if (!std::filesystem::exists(pluginPath) || !compareFiles(ziposPath, pluginPath)) {
+		if (!std::filesystem::exists(pluginPath) || isFileNewer(currPath, pluginPath)) {
 			if (std::filesystem::exists(pluginPath)) {
 				std::filesystem::remove(pluginPath);
 			}
@@ -633,7 +622,7 @@ choose_extension:
 		}
 		for (const auto& entry : std::filesystem::directory_iterator(ziposDir)) {
 			auto entryPath = outdir / entry.path().filename();
-			if (!std::filesystem::exists(entryPath) || !compareFiles(entry.path(), entryPath)) {
+			if (!std::filesystem::exists(entryPath) || isFileNewer(currPath, entryPath)) {
 				if (std::filesystem::exists(entryPath)) {
 					std::filesystem::remove(entryPath);
 				}
