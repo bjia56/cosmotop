@@ -92,6 +92,12 @@ jobs:
         with:
           version: ${{ env.zig_version }}
 
+      - name: Install cross compilers
+        if: ${{ matrix.arch != 'x86_64' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-${{ matrix.arch }}-linux-gnu
+
       - name: Build plugin
         shell: bash
         run: |
@@ -100,6 +106,8 @@ jobs:
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} ${{ matrix.arch == 'x86_64' && '-DRSMI_STATIC=ON' || '' }}
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.dbg
+          ${{ matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.alias }}.exe
           if [ "${{ matrix.upx }}" == "true" ]; then
             upx --best ./cosmotop-linux-${{ matrix.alias }}.exe
           fi
@@ -109,6 +117,12 @@ jobs:
         with:
           name: plugin-linux-${{ matrix.alias }}
           path: ./cosmotop-linux-${{ matrix.alias }}.exe
+
+      - name: Upload debug plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-linux-${{ matrix.alias }}.dbg
+          path: ./cosmotop-linux-${{ matrix.alias }}.dbg
 
   build_macos_plugin:
     name: Build plugin MacOS ${{ matrix.arch }}
