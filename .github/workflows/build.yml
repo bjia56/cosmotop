@@ -19,7 +19,7 @@ on:
         type: string
 
 env:
-  zig_version: 0.13.0
+  zig_version: 0.14.0
   blink_version: 4da95da865a1d3ccdc2e802cccfbddd8507d1c95
 
 jobs:
