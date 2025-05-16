@@ -362,11 +362,7 @@ namespace Global {
 #include <filesystem>
 #include <unordered_set>
 #include <sys/stat.h>
-
-#if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
-#include <httplib.h>
 #include <spawn.h>
-#endif
 
 #include <libc/nt/runtime.h>
 #include <libc/proc/ntspawn.h>
@@ -417,13 +413,11 @@ void create_plugin_host() {
 	std::stringstream pluginName;
 	pluginName << "cosmotop-";
 
-	bool isBlink = false;
 	if (IsLinux()) {
 #ifdef __x86_64__
 		// Check if we are running under Blink
 		string hyp = Tools::cpuid(0x40000000);
 		if (hyp == "GenuineBlink") {
-			isBlink = true;
 			string hostOS = Tools::cpuid(0x40031337);
 			string hostArch = Tools::cpuid(0x40031338);
 			pluginName << Tools::str_to_lower(hostOS) << "-" << Tools::str_to_lower(hostArch);
@@ -458,60 +452,27 @@ choose_extension:
 
 	// Create output directory for cosmotop plugin
 	auto outdir = getOutputDirectory();
-	if (!std::filesystem::exists(outdir)) {
-		std::filesystem::create_directory(outdir);
-	}
+	std::filesystem::create_directory(outdir);
 
 	// Extract cosmotop plugin from zipos
 	auto pluginPath = outdir / pluginName.str();
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
-	if (!std::filesystem::exists(ziposPath)) {
-#if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
-		// Plugin not found in zipos, try to download from GitHub
-		Logger::info("Plugin not found in zipos, downloading from GitHub...");
+	if (!std::filesystem::exists(pluginPath) || isFileNewer(currPath, pluginPath)) {
+		if (!std::filesystem::exists(ziposPath)) {
+			// Plugin not found in zipos, try to download from GitHub
+			Logger::info("Plugin not found in zipos, downloading from GitHub...");
 
-		string host = "https://github.com";
-		string url = "/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
+			string url = "https://github.com/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
 
-		bool useHostNativeTools = false;
-		if (!isBlink) {
-			httplib::Client cli(host.c_str());
-			cli.set_follow_location(true);
-			auto res = cli.Get(url.c_str());
-
-			if (res && res->status == 200) {
-				std::ofstream out(pluginPath, std::ios::binary);
-				out << res->body;
-				out.close();
-			} else {
-				// Plugin could not be downloaded from GitHub
-				std::stringstream errMsg;
-				errMsg << "Direct download from " << host << url << " failed (";
-				if (res) {
-					errMsg << "HTTP code " << res->status;
-				} else {
-					errMsg << "HTTP request error " << res.error();
-				}
-				errMsg << ")";
-				Logger::error(errMsg.str());
-				useHostNativeTools = true;
-			}
-		} else {
-			// Blink SSL is broken
-			useHostNativeTools = true;
-		}
-
-		if (useHostNativeTools) {
 			// Try to use curl or wget to download the plugin
-			string fullUrl = host + url;
-			const char *curlArgv[] = {"curl", "-s", "-L", fullUrl.c_str(), "-o", pluginPath.c_str(), nullptr};
+			const char *curlArgv[] = {"curl", "-s", "-L", url.c_str(), "-o", pluginPath.c_str(), nullptr};
 			pid_t curlPid;
 			int status = posix_spawnp(&curlPid, "curl", nullptr, nullptr, const_cast<char* const*>(curlArgv), nullptr);
 			if (status != 0) {
 				Logger::error("Failed to download plugin using curl: " + string(strerror(status)));
 				// Try wget as a fallback
-				const char *wgetArgv[] = {"wget", "-q", fullUrl.c_str(), "-O", pluginPath.c_str(), nullptr};
+				const char *wgetArgv[] = {"wget", "-q", url.c_str(), "-O", pluginPath.c_str(), nullptr};
 				pid_t wgetPid;
 				status = posix_spawnp(&wgetPid, "wget", nullptr, nullptr, const_cast<char* const*>(wgetArgv), nullptr);
 				if (status != 0) {
@@ -525,16 +486,14 @@ choose_extension:
 				int waitStatus;
 				waitpid(curlPid, &waitStatus, 0);
 			}
-		}
 
-		if (!IsWindows()) {
-			chmod(pluginPath.c_str(), 0500);
-		}
+			if (!IsWindows()) {
+				chmod(pluginPath.c_str(), 0500);
+			}
 
-		// Make temporary copy of the current executable
-		std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
-		bool doSelfUpdate = true;
-		if (useHostNativeTools) {
+			// Make temporary copy of the current executable
+			std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
+			bool doSelfUpdate = true;
 			const char *cpArgv[] = {"cp", "-f", currPath.c_str(), tempPath.c_str(), nullptr};
 			pid_t cpPid;
 			int status = posix_spawnp(&cpPid, "cp", nullptr, nullptr, const_cast<char* const*>(cpArgv), nullptr);
@@ -542,72 +501,40 @@ choose_extension:
 				Logger::error("Failed to copy current executable: " + string(strerror(status)));
 				doSelfUpdate = false;
 			}
-		} else {
-			if (std::filesystem::exists(tempPath)) {
-				std::filesystem::remove(tempPath);
-			}
-			std::filesystem::copy_file(currPath, tempPath);
-		}
 
-		if (doSelfUpdate) {
-			bool zipSuccess = true;
-			pid_t zipPid;
-			if (useHostNativeTools) {
+			if (doSelfUpdate) {
+				bool zipSuccess = true;
+				pid_t zipPid;
 				const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
 				int status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 				if (status != 0) {
 					Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
 					zipSuccess = false;
 				}
-			} else {
-				auto zipPath = outdir / "zip";
-				auto ziposZipPath = std::filesystem::path("/zip/zip");
-				if (!std::filesystem::exists(zipPath)) {
-					std::filesystem::copy_file(ziposZipPath, zipPath);
-				}
 
-				if (!IsWindows()) {
-					chmod(zipPath.c_str(), 0500);
-				}
-
-				const char *zipArgv[] = {zipPath.c_str(), "-quj", tempPath.c_str(), pluginPath.c_str()};
-				int status = posix_spawn(&zipPid, zipPath.c_str(), nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
-				if (status != 0) {
-					Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+				// Wait for the spawned process to exit
+				int waitStatus;
+				if (waitpid(zipPid, &waitStatus, 0) == -1) {
+					Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
 					zipSuccess = false;
 				}
-			}
 
-			// Wait for the spawned process to exit
-			int waitStatus;
-			if (waitpid(zipPid, &waitStatus, 0) == -1) {
-				Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
-				zipSuccess = false;
-			}
+				// Check if the process exited successfully
+				if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+					Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+					zipSuccess = false;
+				}
 
-			// Check if the process exited successfully
-			if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-				Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
-				zipSuccess = false;
-			}
-
-			if (zipSuccess) {
-				std::filesystem::rename(tempPath, currPath);
+				if (zipSuccess) {
+					std::filesystem::rename(tempPath, currPath);
+				} else {
+					std::filesystem::remove(tempPath);
+				}
 			} else {
 				std::filesystem::remove(tempPath);
 			}
 		} else {
-			std::filesystem::remove(tempPath);
-		}
-#else
-		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
-#endif
-	} else {
-		if (!std::filesystem::exists(pluginPath) || isFileNewer(currPath, pluginPath)) {
-			if (std::filesystem::exists(pluginPath)) {
-				std::filesystem::remove(pluginPath);
-			}
-			std::filesystem::copy_file(ziposPath, pluginPath);
+			std::filesystem::copy_file(ziposPath, pluginPath, std::filesystem::copy_options::overwrite_existing);
 			if (!IsWindows()) {
 				chmod(pluginPath.c_str(), 0500);
 			}
@@ -623,10 +550,7 @@ choose_extension:
 		for (const auto& entry : std::filesystem::directory_iterator(ziposDir)) {
 			auto entryPath = outdir / entry.path().filename();
 			if (!std::filesystem::exists(entryPath) || isFileNewer(currPath, entryPath)) {
-				if (std::filesystem::exists(entryPath)) {
-					std::filesystem::remove(entryPath);
-				}
-				std::filesystem::copy_file(entry.path(), entryPath);
+				std::filesystem::copy_file(entry.path(), entryPath, std::filesystem::copy_options::overwrite_existing);
 			}
 		}
 	}
