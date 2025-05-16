@@ -76,6 +76,7 @@ jobs:
         run: |
           mkdir debug
           cp *.dbg debug/
+          cp cosmotop.aarch64.elf debug/
           zip -r debug.zip debug
 
       - name: Release
