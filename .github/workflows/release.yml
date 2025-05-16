@@ -73,12 +73,18 @@ jobs:
           rm cosmotop-windows-x86_64.dll
 
       - name: Make bundle from debug
+        run: |
+          mkdir debug
+          cp *.dbg debug/
+          zip -r debug.zip debug
 
       - name: Release
         if: ${{ !inputs.dry_run }}
         uses: softprops/action-gh-release@v2
         with:
-          files: cosmotop*.exe
+          files: |
+            cosmotop*.exe
+            debug.zip
           tag_name: ${{ inputs.version }}
           generate_release_notes: true
           prerelease: ${{ inputs.beta }}
