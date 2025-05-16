@@ -17,6 +17,9 @@ on:
       beta:
         required: false
         type: string
+      dry_run:
+        required: false
+        type: string
 
 env:
   zig_version: 0.14.0
@@ -49,6 +52,9 @@ jobs:
           export CXX=cosmoc++
           cmake -B build -DTARGET=host ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
+          cp -r build dbg
+          x86_64-unknown-cosmo-strip ./build/cosmotop.com.dbg
+          aarch64-unknown-cosmo-strip ./build/cosmotop.aarch64.elf
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -57,6 +63,14 @@ jobs:
           path: |
             ./build/cosmotop.com.dbg
             ./build/cosmotop.aarch64.elf
+
+      - name: Upload debug artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop.parts.dbg
+          path: |
+            ./dbg/cosmotop.com.dbg.dbg
+            ./dbg/cosmotop.aarch64.elf.dbg
 
   build_linux_plugin:
     name: Build plugin Linux ${{ matrix.arch }}
@@ -564,12 +578,16 @@ jobs:
           IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/$(basename ${{ github.repository }})"
           TAGS=""
 
-          if [[ "${{ github.ref }}" == "refs/heads/main" && -z "${{ inputs.version }}" ]]; then
-            TAGS="$IMAGE_NAME:main"
-          elif [[ "${{ inputs.beta }}" != "true" && -n "${{ github.event.inputs.version }}" ]]; then
-            TAGS="$IMAGE_NAME:latest,$IMAGE_NAME:${{ inputs.version }}"
-          elif [[ "${{ inputs.beta }}" == "true" && -n "${{ github.event.inputs.version }}" ]]; then
-            TAGS="$IMAGE_NAME:beta,$IMAGE_NAME:${{ inputs.version }}"
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "Dry run enabled, skipping tag calculation."
+          else
+            if [[ "${{ github.ref }}" == "refs/heads/main" && -z "${{ inputs.version }}" ]]; then
+              TAGS="$IMAGE_NAME:main"
+            elif [[ "${{ inputs.beta }}" != "true" && -n "${{ github.event.inputs.version }}" ]]; then
+              TAGS="$IMAGE_NAME:latest,$IMAGE_NAME:${{ inputs.version }}"
+            elif [[ "${{ inputs.beta }}" == "true" && -n "${{ github.event.inputs.version }}" ]]; then
+              TAGS="$IMAGE_NAME:beta,$IMAGE_NAME:${{ inputs.version }}"
+            fi
           fi
 
           echo "image_name=$IMAGE_NAME" >> $GITHUB_ENV

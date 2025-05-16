@@ -9,6 +9,9 @@ on:
       beta:
         required: true
         type: boolean
+      dry_run:
+        required: true
+        type: boolean
 
 jobs:
   validate-version:
@@ -32,6 +35,7 @@ jobs:
     with:
       version: ${{ inputs.version }}
       beta: ${{ inputs.beta && 'true' || 'false' }}
+      dry_run: ${{ inputs.dry_run && 'true' || 'false' }}
 
   publish:
     name: Publish
@@ -54,6 +58,12 @@ jobs:
           path: .
           merge-multiple: true
 
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cosmotop.parts.dbg
+          path: .
+
       - name: Remove pre-bundled plugins
         run: |
           rm cosmotop-linux-x86_64.exe
@@ -62,7 +72,10 @@ jobs:
           rm cosmotop-macos-aarch64.exe
           rm cosmotop-windows-x86_64.dll
 
+      - name: Make bundle from debug
+
       - name: Release
+        if: ${{ !inputs.dry_run }}
         uses: softprops/action-gh-release@v2
         with:
           files: cosmotop*.exe
