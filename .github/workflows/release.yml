@@ -61,7 +61,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: cosmotop.parts.dbg
+          name: cosmotop.parts
           path: .
 
       - name: Remove pre-bundled plugins

@@ -52,9 +52,6 @@ jobs:
           export CXX=cosmoc++
           cmake -B build -DTARGET=host ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
-          cp -r build dbg
-          x86_64-unknown-cosmo-strip ./build/cosmotop.com.dbg
-          aarch64-unknown-cosmo-strip ./build/cosmotop.aarch64.elf
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -63,14 +60,6 @@ jobs:
           path: |
             ./build/cosmotop.com.dbg
             ./build/cosmotop.aarch64.elf
-
-      - name: Upload debug artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cosmotop.parts.dbg
-          path: |
-            ./dbg/cosmotop.com.dbg
-            ./dbg/cosmotop.aarch64.elf
 
   build_linux_plugin:
     name: Build plugin Linux ${{ matrix.arch }}
