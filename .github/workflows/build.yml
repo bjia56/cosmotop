@@ -49,8 +49,7 @@ jobs:
           OPENSSL_VERSION=${{ env.openssl_version }}
           wget https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz
           tar -xzf openssl-${OPENSSL_VERSION}.tar.gz
-          cp -r openssl-${OPENSSL_VERSION} ${{ github.workspace }}/openssl-x86_64
-          cp -r openssl-${OPENSSL_VERSION} ${{ github.workspace }}/openssl-aarch64
+          cd openssl-${OPENSSL_VERSION}
 
           sudo mkdir -p /zip/openssl
           sudo chown -R $USER /zip
@@ -58,11 +57,11 @@ jobs:
           wget https://curl.se/ca/cacert.pem
           mv cacert.pem cert.pem
 
+          cd -
           mkdir ${{ github.workspace }}/openssl
 
           for ARCH in x86_64 aarch64; do
             echo "::group::$ARCH"
-            cd ${{ github.workspace }}/openssl-$ARCH
             export CC="$ARCH-unknown-cosmo-cc"
 
             if [ "$ARCH" = "aarch64" ]; then
