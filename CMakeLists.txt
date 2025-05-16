@@ -57,10 +57,6 @@ if(NOT TARGET)
   set(TARGET "host")
 endif()
 
-if(NOT LINK_OPENSSL)
-  set(LINK_OPENSSL OFF)
-endif()
-
 if(${TARGET} STREQUAL "host")
 
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -93,13 +89,6 @@ if(${TARGET} STREQUAL "host")
     FMT_HEADER_ONLY
     _FILE_OFFSET_BITS=64
   )
-
-  if(LINK_OPENSSL)
-    # Enable OpenSSL
-    find_package(OpenSSL REQUIRED)
-    list(APPEND LINK_LIBS OpenSSL::SSL OpenSSL::Crypto)
-    list(APPEND COMPILE_DEFINITIONS CPPHTTPLIB_OPENSSL_SUPPORT)
-  endif()
 
   target_link_libraries(cosmotop.com PRIVATE ${LINK_LIBS})
   target_compile_definitions(cosmotop.com PRIVATE ${COMPILE_DEFINITIONS})

@@ -362,10 +362,7 @@ namespace Global {
 #include <filesystem>
 #include <unordered_set>
 #include <sys/stat.h>
-
-#if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
-#include <httplib.h>
-#endif
+#include <spawn.h>
 
 #include <libc/nt/runtime.h>
 #include <libc/proc/ntspawn.h>
@@ -387,28 +384,17 @@ static std::filesystem::path getOutputDirectory() {
 	}
 }
 
-template<typename InputIterator1, typename InputIterator2>
-static bool rangeEqual(InputIterator1 first1, InputIterator1 last1,
-						InputIterator2 first2, InputIterator2 last2) {
-	while(first1 != last1 && first2 != last2)
-	{
-		if(*first1 != *first2) return false;
-		++first1;
-		++first2;
+static bool isFileNewer(const std::string& filename1, const std::string& filename2) {
+	struct stat stat1, stat2;
+	if (stat(filename1.c_str(), &stat1) != 0) {
+		// Could not stat file1
+		return false;
 	}
-	return (first1 == last1) && (first2 == last2);
-}
-
-static bool compareFiles(const std::string& filename1, const std::string& filename2) {
-	std::ifstream file1(filename1);
-	std::ifstream file2(filename2);
-
-	std::istreambuf_iterator<char> begin1(file1);
-	std::istreambuf_iterator<char> begin2(file2);
-
-	std::istreambuf_iterator<char> end;
-
-	return rangeEqual(begin1, end, begin2, end);
+	if (stat(filename2.c_str(), &stat2) != 0) {
+		// Could not stat file2
+		return true;
+	}
+	return stat1.st_mtime > stat2.st_mtime;
 }
 
 // might not be needed
@@ -466,40 +452,95 @@ choose_extension:
 
 	// Create output directory for cosmotop plugin
 	auto outdir = getOutputDirectory();
-	if (!std::filesystem::exists(outdir)) {
-		std::filesystem::create_directory(outdir);
-	}
+	std::filesystem::create_directory(outdir);
 
 	// Extract cosmotop plugin from zipos
 	auto pluginPath = outdir / pluginName.str();
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
-	if (!std::filesystem::exists(ziposPath)) {
-#if defined(CPPHTTPLIB_OPENSSL_SUPPORT)
-		string url = "https://github.com/bjia56/cosmotop/releases/download/" + Global::Version + "/" + pluginName.str();
+	std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
+	if (!std::filesystem::exists(pluginPath) || isFileNewer(currPath, pluginPath)) {
+		if (!std::filesystem::exists(ziposPath)) {
+			// Plugin not found in zipos, try to download from GitHub
+			Logger::info("Plugin not found in zipos, downloading from GitHub...");
 
-		httplib::Client cli("https://github.com");
-		auto res = cli.Get(url.c_str());
+			string url = "https://github.com/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
+			int status, waitStatus;
 
-		if (res && res->status == 200) {
-			std::ofstream out(pluginPath, std::ios::binary);
-			out << res->body;
-			out.close();
-		} else {
-			throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub: " + ziposPath.string());
-		}
+			// Try to use curl or wget to download the plugin
+			const char *curlArgv[] = {"curl", "-s", "-L", url.c_str(), "-o", pluginPath.c_str(), nullptr};
+			pid_t curlPid;
+			status = posix_spawnp(&curlPid, "curl", nullptr, nullptr, const_cast<char* const*>(curlArgv), nullptr);
+			if (status != 0) {
+				Logger::error("Failed to download plugin using curl: " + string(strerror(status)));
+				// Try wget as a fallback
+				const char *wgetArgv[] = {"wget", "-q", url.c_str(), "-O", pluginPath.c_str(), nullptr};
+				pid_t wgetPid;
+				status = posix_spawnp(&wgetPid, "wget", nullptr, nullptr, const_cast<char* const*>(wgetArgv), nullptr);
+				if (status != 0) {
+					Logger::error("Failed to download plugin using wget: " + string(strerror(status)));
+					throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
+				}
 
-		if (!IsWindows()) {
-			chmod(pluginPath.c_str(), 0500);
-		}
-#else
-		throw std::runtime_error("Plugin not found in zipos: " + ziposPath.string());
-#endif
-	} else {
-		if (!std::filesystem::exists(pluginPath) || !compareFiles(ziposPath, pluginPath)) {
-			if (std::filesystem::exists(pluginPath)) {
-				std::filesystem::remove(pluginPath);
+				waitpid(wgetPid, &waitStatus, 0);
+			} else {
+				waitpid(curlPid, &waitStatus, 0);
 			}
-			std::filesystem::copy_file(ziposPath, pluginPath);
+
+			// Check if the process exited successfully
+			if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+				Logger::error("Download process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+				throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
+			}
+
+			if (!IsWindows()) {
+				chmod(pluginPath.c_str(), 0500);
+			}
+
+			// Make temporary copy of the current executable
+			std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
+			bool doSelfUpdate = true;
+			const char *cpArgv[] = {"cp", "-f", currPath.c_str(), tempPath.c_str(), nullptr};
+			pid_t cpPid;
+			status = posix_spawnp(&cpPid, "cp", nullptr, nullptr, const_cast<char* const*>(cpArgv), nullptr);
+			if (status != 0) {
+				Logger::error("Failed to copy current executable: " + string(strerror(status)));
+				doSelfUpdate = false;
+			} else {
+				waitpid(cpPid, &waitStatus, 0);
+			}
+
+			if (doSelfUpdate) {
+				bool zipSuccess = true;
+				pid_t zipPid;
+				const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
+				status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+				if (status != 0) {
+					Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+					zipSuccess = false;
+				} else {
+					// Wait for the spawned process to exit
+					if (waitpid(zipPid, &waitStatus, 0) == -1) {
+						Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
+						zipSuccess = false;
+					}
+
+					// Check if the process exited successfully
+					if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+						Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+						zipSuccess = false;
+					}
+				}
+
+				if (zipSuccess) {
+					std::filesystem::rename(tempPath, currPath);
+				} else {
+					std::filesystem::remove(tempPath);
+				}
+			} else {
+				std::filesystem::remove(tempPath);
+			}
+		} else {
+			std::filesystem::copy_file(ziposPath, pluginPath, std::filesystem::copy_options::overwrite_existing);
 			if (!IsWindows()) {
 				chmod(pluginPath.c_str(), 0500);
 			}
@@ -514,11 +555,8 @@ choose_extension:
 		}
 		for (const auto& entry : std::filesystem::directory_iterator(ziposDir)) {
 			auto entryPath = outdir / entry.path().filename();
-			if (!std::filesystem::exists(entryPath) || !compareFiles(entry.path(), entryPath)) {
-				if (std::filesystem::exists(entryPath)) {
-					std::filesystem::remove(entryPath);
-				}
-				std::filesystem::copy_file(entry.path(), entryPath);
+			if (!std::filesystem::exists(entryPath) || isFileNewer(currPath, entryPath)) {
+				std::filesystem::copy_file(entry.path(), entryPath, std::filesystem::copy_options::overwrite_existing);
 			}
 		}
 	}
