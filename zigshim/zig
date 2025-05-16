@@ -5,8 +5,8 @@ filtered_args=()
 
 # Iterate over all provided arguments
 for arg in "$@"; do
-  # Exclude unsupported noexecheap flag
-  if [[ "$arg" != "-Wl,-znoexecheap" ]]; then
+  # Exclude unsupported flags: -Wl,-znoexecheap, flags starting with -mtune=, and flags starting with -march=
+  if [[ "$arg" != "-Wl,-znoexecheap" && "${arg:0:7}" != "-mtune=" && "${arg:0:7}" != "-march=" ]]; then
     filtered_args+=("$arg")
   fi
 done
