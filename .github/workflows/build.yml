@@ -108,9 +108,11 @@ jobs:
           cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.exe
           cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.dbg
           ${{ matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.alias }}.exe
-          if [ "${{ matrix.upx }}" == "true" ]; then
-            upx --best ./cosmotop-linux-${{ matrix.alias }}.exe
-          fi
+
+      - name: Compress plugin
+        if: ${{ matrix.upx }}
+        run : |
+          upx --best ./cosmotop-linux-${{ matrix.alias }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
