@@ -53,8 +53,8 @@ jobs:
           cmake -B build -DTARGET=host ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
           cp -r build dbg
-          x86_64-unknown-cosmo-strip ./build/cosmotop.com.dbg
-          aarch64-unknown-cosmo-strip ./build/cosmotop.aarch64.elf
+          x86_64-unknown-cosmo-strip --strip-debug ./build/cosmotop.com.dbg
+          aarch64-unknown-cosmo-strip --strip-debug ./build/cosmotop.aarch64.elf
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
