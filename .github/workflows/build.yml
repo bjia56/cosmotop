@@ -64,7 +64,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [x86_64, aarch64]
+        include:
+          - arch: x86_64
+            alias: x86_64
+          - arch: aarch64
+            alias: aarch64
+          - arch: riscv64
+            alias: riscv64
+          - arch: s390x
+            alias: s390x
+          - arch: powerpc64le
+            alias: ppc64le
 
     steps:
       - name: Checkout
@@ -84,13 +94,13 @@ jobs:
           export CXX="${{ github.workspace }}/zigshim/zig c++ -target ${{ matrix.arch }}-linux-musl"
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} ${{ matrix.arch == 'x86_64' && '-DRSMI_STATIC=ON' || '' }}
           cmake --build build --parallel 4
-          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-linux-${{ matrix.arch }}
-          path: ./cosmotop-linux-${{ matrix.arch }}.exe
+          name: plugin-linux-${{ matrix.alias }}
+          path: ./cosmotop-linux-${{ matrix.alias }}.exe
 
   build_macos_plugin:
     name: Build plugin MacOS ${{ matrix.arch }}
