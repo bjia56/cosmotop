@@ -464,11 +464,12 @@ choose_extension:
 			Logger::info("Plugin not found in zipos, downloading from GitHub...");
 
 			string url = "https://github.com/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
+			int status, waitStatus;
 
 			// Try to use curl or wget to download the plugin
 			const char *curlArgv[] = {"curl", "-s", "-L", url.c_str(), "-o", pluginPath.c_str(), nullptr};
 			pid_t curlPid;
-			int status = posix_spawnp(&curlPid, "curl", nullptr, nullptr, const_cast<char* const*>(curlArgv), nullptr);
+			status = posix_spawnp(&curlPid, "curl", nullptr, nullptr, const_cast<char* const*>(curlArgv), nullptr);
 			if (status != 0) {
 				Logger::error("Failed to download plugin using curl: " + string(strerror(status)));
 				// Try wget as a fallback
@@ -480,11 +481,15 @@ choose_extension:
 					throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
 				}
 
-				int waitStatus;
 				waitpid(wgetPid, &waitStatus, 0);
 			} else {
-				int waitStatus;
 				waitpid(curlPid, &waitStatus, 0);
+			}
+
+			// Check if the process exited successfully
+			if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+				Logger::error("Download process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+				throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
 			}
 
 			if (!IsWindows()) {
@@ -496,33 +501,34 @@ choose_extension:
 			bool doSelfUpdate = true;
 			const char *cpArgv[] = {"cp", "-f", currPath.c_str(), tempPath.c_str(), nullptr};
 			pid_t cpPid;
-			int status = posix_spawnp(&cpPid, "cp", nullptr, nullptr, const_cast<char* const*>(cpArgv), nullptr);
+			status = posix_spawnp(&cpPid, "cp", nullptr, nullptr, const_cast<char* const*>(cpArgv), nullptr);
 			if (status != 0) {
 				Logger::error("Failed to copy current executable: " + string(strerror(status)));
 				doSelfUpdate = false;
+			} else {
+				waitpid(cpPid, &waitStatus, 0);
 			}
 
 			if (doSelfUpdate) {
 				bool zipSuccess = true;
 				pid_t zipPid;
 				const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
-				int status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
+				status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 				if (status != 0) {
 					Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
 					zipSuccess = false;
-				}
+				} else {
+					// Wait for the spawned process to exit
+					if (waitpid(zipPid, &waitStatus, 0) == -1) {
+						Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
+						zipSuccess = false;
+					}
 
-				// Wait for the spawned process to exit
-				int waitStatus;
-				if (waitpid(zipPid, &waitStatus, 0) == -1) {
-					Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
-					zipSuccess = false;
-				}
-
-				// Check if the process exited successfully
-				if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-					Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
-					zipSuccess = false;
+					// Check if the process exited successfully
+					if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+						Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+						zipSuccess = false;
+					}
 				}
 
 				if (zipSuccess) {
