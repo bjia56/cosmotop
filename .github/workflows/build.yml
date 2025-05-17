@@ -50,6 +50,7 @@ jobs:
         run: |
           export CC=cosmocc
           export CXX=cosmoc++
+          export CFLAGS="-fno-rtti"
           cmake -B build -DTARGET=host ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
 
