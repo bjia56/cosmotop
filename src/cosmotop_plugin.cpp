@@ -459,6 +459,10 @@ choose_extension:
 	auto ziposPath = std::filesystem::path("/zip/") / pluginName.str();
 	std::filesystem::path currPath = std::filesystem::path(GetProgramExecutableName());
 	if (!std::filesystem::exists(pluginPath) || isFileNewer(currPath, pluginPath)) {
+		if (std::filesystem::exists(pluginPath)) {
+			std::filesystem::remove(pluginPath);
+		}
+
 		if (!std::filesystem::exists(ziposPath)) {
 			// Plugin not found in zipos, try to download from GitHub
 			Logger::info("Plugin not found in zipos, downloading from GitHub...");
