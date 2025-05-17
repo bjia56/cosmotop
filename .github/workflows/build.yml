@@ -77,9 +77,6 @@ jobs:
           - arch: riscv64
             alias: riscv64
             upx: false
-          - arch: s390x
-            alias: s390x
-            upx: false
           - arch: powerpc64le
             alias: ppc64le
             upx: true
@@ -377,6 +374,14 @@ jobs:
           chmod +x blink-openbsd-aarch64
           chmod +x blink-openbsd-x86_64
 
+          wget https://github.com/bjia56/blinkverse/releases/download/v2/blink-tiny-linux-riscv64 -O blink-linux-riscv64
+          wget https://github.com/bjia56/blinkverse/releases/download/v2/blink-tiny-linux-powerpc64le -O blink-linux-powerpc64le
+
+          chmod +x blink-linux-riscv64
+          chmod +x blink-linux-powerpc64le
+
+          upx --best blink-linux-powerpc64le
+
       - name: Download apelink
         uses: actions/download-artifact@v4
         with:
@@ -396,6 +401,9 @@ jobs:
             -l ${cosmo_bin}/ape-x86_64.elf \
             -l ${cosmo_bin}/ape-aarch64.elf \
             -M ${cosmo_bin}/ape-m1.c \
+            -k Linux \
+            -l /tmp/blink/blink-linux-riscv64 \
+            -l /tmp/blink/blink-linux-powerpc64le \
             -k NetBSD \
             -l /tmp/blink/blink-netbsd-aarch64 \
             -k OpenBSD \
