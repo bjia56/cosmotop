@@ -74,9 +74,6 @@ jobs:
           - arch: aarch64
             alias: aarch64
             upx: true
-          - arch: riscv64
-            alias: riscv64
-            upx: false
           - arch: powerpc64le
             alias: ppc64le
             upx: true
@@ -367,19 +364,16 @@ jobs:
           cd /tmp/blink
 
           wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-netbsd10.0-aarch64 -O blink-netbsd-aarch64
-          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-openbsd7.6-aarch64 -O blink-openbsd-aarch64
-          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-openbsd7.6-x86_64 -O blink-openbsd-x86_64
-
           chmod +x blink-netbsd-aarch64
+
+          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-openbsd7.6-aarch64 -O blink-openbsd-aarch64
           chmod +x blink-openbsd-aarch64
+
+          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-openbsd7.6-x86_64 -O blink-openbsd-x86_64
           chmod +x blink-openbsd-x86_64
 
-          wget https://github.com/bjia56/blinkverse/releases/download/v2/blink-tiny-linux-riscv64 -O blink-linux-riscv64
           wget https://github.com/bjia56/blinkverse/releases/download/v2/blink-tiny-linux-powerpc64le -O blink-linux-powerpc64le
-
-          chmod +x blink-linux-riscv64
           chmod +x blink-linux-powerpc64le
-
           upx --best blink-linux-powerpc64le
 
       - name: Download apelink
@@ -402,7 +396,6 @@ jobs:
             -l ${cosmo_bin}/ape-aarch64.elf \
             -M ${cosmo_bin}/ape-m1.c \
             -k Linux \
-            -l /tmp/blink/blink-linux-riscv64 \
             -l /tmp/blink/blink-linux-powerpc64le \
             -k NetBSD \
             -l /tmp/blink/blink-netbsd-aarch64 \
