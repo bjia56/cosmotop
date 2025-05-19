@@ -486,8 +486,7 @@ choose_extension:
 					// Try Python as a last-resort fallback
 					const char *pythonArgv[] = {
 						"python3", "-c",
-						("import urllib.request; "
-						 "import sys; "
+						("import urllib.request, sys; "
 						 "url = sys.argv[1]; "
 						 "out = sys.argv[2]; "
 						 "urllib.request.urlretrieve(url, out)"),
@@ -556,9 +555,12 @@ choose_extension:
 					pid_t pyPid;
 					const char *pyArgv[] = {
 						"python3", "-c",
-						("import zipfile,sys; "
-						 "with zipfile.ZipFile(sys.argv[1], 'a') as zf: "
-						 "  zf.write(sys.argv[2], arcname=sys.argv[2].split('/')[-1])"),
+						("import zipfile, sys; "
+						 "zip = sys.argv[1]; "
+						 "in = sys.argv[2]; "
+						 "zf = zipfile.ZipFile(zip, 'a'); "
+						 "zf.write(in, arcname=in.split('/')[-1]); "
+						 "zf.close()"),
 						tempPath.c_str(), pluginPath.c_str(),
 						nullptr
 					};
