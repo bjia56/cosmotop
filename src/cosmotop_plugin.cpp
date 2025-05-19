@@ -490,7 +490,7 @@ choose_extension:
 						 "import sys; "
 						 "url = sys.argv[1]; "
 						 "out = sys.argv[2]; "
-						 "urllib.request.urlretrieve(url, out)").c_str(),
+						 "urllib.request.urlretrieve(url, out)"),
 						url.c_str(), pluginPath.c_str(),
 						nullptr
 					};
@@ -554,11 +554,14 @@ choose_extension:
 				if (!zipSuccess) {
 					zipSuccess = true; // reset for python attempt
 					pid_t pyPid;
-					const string pyCmd =
-						"import zipfile,sys; "
-						"with zipfile.ZipFile(sys.argv[1], 'a') as zf: "
-						"  zf.write(sys.argv[2], arcname=sys.argv[2].split('/')[-1])";
-					const char *pyArgv[] = {"python3", "-c", pyCmd.c_str(), tempPath.c_str(), pluginPath.c_str(), nullptr};
+					const char *pyArgv[] = {
+						"python3", "-c",
+						("import zipfile,sys; "
+						 "with zipfile.ZipFile(sys.argv[1], 'a') as zf: "
+						 "  zf.write(sys.argv[2], arcname=sys.argv[2].split('/')[-1])"),
+						tempPath.c_str(), pluginPath.c_str(),
+						nullptr
+					};
 					status = posix_spawnp(&pyPid, "python3", nullptr, nullptr, const_cast<char* const*>(pyArgv), nullptr);
 					if (status != 0) {
 						Logger::error("Failed to embed downloaded plugin into APE with python3: " + string(strerror(status)));
