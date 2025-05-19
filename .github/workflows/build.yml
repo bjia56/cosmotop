@@ -363,16 +363,16 @@ jobs:
           mkdir -p /tmp/blink
           cd /tmp/blink
 
-          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-netbsd10.0-aarch64 -O blink-netbsd-aarch64
+          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-netbsd10.0-aarch64-stripped -O blink-netbsd-aarch64
           chmod +x blink-netbsd-aarch64
 
-          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-openbsd7.6-aarch64 -O blink-openbsd-aarch64
+          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-openbsd7.6-aarch64-stripped -O blink-openbsd-aarch64
           chmod +x blink-openbsd-aarch64
 
-          wget https://github.com/bjia56/blinkverse/releases/download/v1/blink-tiny-openbsd7.6-x86_64 -O blink-openbsd-x86_64
+          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-openbsd7.6-x86_64-stripped -O blink-openbsd-x86_64
           chmod +x blink-openbsd-x86_64
 
-          wget https://github.com/bjia56/blinkverse/releases/download/v2/blink-tiny-linux-powerpc64le -O blink-linux-powerpc64le
+          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-linux-powerpc64le-stripped -O blink-linux-powerpc64le
           chmod +x blink-linux-powerpc64le
           upx --best blink-linux-powerpc64le
 
