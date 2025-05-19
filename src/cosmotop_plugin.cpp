@@ -397,16 +397,71 @@ static bool isFileNewer(const std::string& filename1, const std::string& filenam
 	return stat1.st_mtime > stat2.st_mtime;
 }
 
-// might not be needed
-static std::filesystem::path findFreeFilename(const std::filesystem::path& path) {
-	static int suffix = 0;
-	std::filesystem::path newPath = path;
-	while (std::filesystem::exists(newPath)) {
-		newPath = path;
-		newPath += ".";
-		newPath += std::to_string(suffix++);
-	}
-	return newPath;
+// Helper to execute a process and wait for it, returns exit status
+int spawnAndWait(const std::vector<const char*>& argv) {
+    pid_t pid;
+    int status, waitStatus;
+    status = posix_spawnp(&pid, argv[0], nullptr, nullptr, const_cast<char* const*>(argv.data()), nullptr);
+    if (status != 0)
+        return status; // posix_spawnp failed, not process exit code
+    if (waitpid(pid, &waitStatus, 0) == -1)
+        return errno;
+    if (!WIFEXITED(waitStatus))
+        return -1; // did not exit normally
+    return WEXITSTATUS(waitStatus);
+}
+
+int tryPythonInterpreters(const std::vector<std::string>& argList) {
+	static const std::vector<std::string> pythonVersions = {
+		"python3", "python3.12", "python3.11", "python3.10", "python3.9"
+	};
+    for (const auto& py : pythonVersions) {
+        std::vector<const char*> argv;
+        argv.push_back(py.c_str());
+        for (const auto& arg : argList) argv.push_back(arg.c_str());
+        argv.push_back(nullptr);
+        int ret = spawnAndWait(argv);
+        if (ret == 0) return 0;
+    }
+	return 1;
+}
+
+void downloadFile(const std::string& url, const std::string& outPath) {
+    std::vector<const char*> curlArgv = {"curl", "-s", "-L", url.c_str(), "-o", outPath.c_str(), nullptr};
+    int ret = spawnAndWait(curlArgv);
+    if (ret == 0) return;
+
+    std::vector<const char*> wgetArgv = {"wget", "-q", url.c_str(), "-O", outPath.c_str(), nullptr};
+    ret = spawnAndWait(wgetArgv);
+    if (ret == 0) return;
+
+    std::string pythonCmd =
+        "import urllib.request, sys; "
+        "url = sys.argv[1]; "
+        "out = sys.argv[2]; "
+        "urllib.request.urlretrieve(url, out)";
+    ret = tryPythonInterpreters({ "-c", pythonCmd, url, outPath });
+	if (ret == 0) return;
+
+    throw std::runtime_error("Failed to download file: " + url);
+}
+
+void zipEmbed(const std::string& zipPath, const std::string& fileToAdd) {
+    std::vector<const char*> zipArgv = {"zip", "-quj", zipPath.c_str(), fileToAdd.c_str(), nullptr};
+    int ret = spawnAndWait(zipArgv);
+    if (ret == 0) return;
+
+    std::string pythonCmd =
+        "import zipfile, sys; "
+        "zip = sys.argv[1]; "
+        "infile = sys.argv[2]; "
+        "zf = zipfile.ZipFile(zip, 'a'); "
+        "zf.write(infile, arcname=infile.split('/')[-1]); "
+        "zf.close()";
+    ret = tryPythonInterpreters({ "-c", pythonCmd, zipPath, fileToAdd });
+	if (ret == 0) return;
+
+    throw std::runtime_error("Failed to embed file into zip: " + zipPath);
 }
 
 void create_plugin_host() {
@@ -464,129 +519,40 @@ choose_extension:
 		}
 
 		if (!std::filesystem::exists(ziposPath)) {
-			// Plugin not found in zipos, try to download from GitHub
-			Logger::info("Plugin not found in zipos, downloading from GitHub...");
+			try {
+				Logger::info("Plugin not found in zipos, downloading from GitHub...");
+				std::string url = "https://github.com/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
+				downloadFile(url, pluginPath);
 
-			string url = "https://github.com/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
-			int status, waitStatus;
-
-			// Try to use curl or wget to download the plugin
-			const char *curlArgv[] = {"curl", "-s", "-L", url.c_str(), "-o", pluginPath.c_str(), nullptr};
-			pid_t curlPid;
-			status = posix_spawnp(&curlPid, "curl", nullptr, nullptr, const_cast<char* const*>(curlArgv), nullptr);
-			if (status != 0) {
-				Logger::error("Failed to download plugin using curl: " + string(strerror(status)));
-				// Try wget as a fallback
-				const char *wgetArgv[] = {"wget", "-q", url.c_str(), "-O", pluginPath.c_str(), nullptr};
-				pid_t wgetPid;
-				status = posix_spawnp(&wgetPid, "wget", nullptr, nullptr, const_cast<char* const*>(wgetArgv), nullptr);
-				if (status != 0) {
-					Logger::error("Failed to download plugin using wget: " + string(strerror(status)));
-
-					// Try Python as a last-resort fallback
-					const char *pythonArgv[] = {
-						"python3", "-c",
-						("import urllib.request, sys; "
-						 "url = sys.argv[1]; "
-						 "out = sys.argv[2]; "
-						 "urllib.request.urlretrieve(url, out)"),
-						url.c_str(), pluginPath.c_str(),
-						nullptr
-					};
-					pid_t pythonPid;
-					status = posix_spawnp(&pythonPid, "python3", nullptr, nullptr, const_cast<char* const*>(pythonArgv), nullptr);
-					if (status != 0) {
-						Logger::error("Failed to download plugin using python3: " + string(strerror(status)));
-						throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
-					}
-					waitpid(pythonPid, &waitStatus, 0);
-				} else {
-					waitpid(wgetPid, &waitStatus, 0);
-				}
-			} else {
-				waitpid(curlPid, &waitStatus, 0);
-			}
-
-			// Check if the process exited successfully
-			if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-				Logger::error("Download process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
-				throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
-			}
-
-			if (!IsWindows()) {
-				chmod(pluginPath.c_str(), 0500);
-			}
-
-			// Make temporary copy of the current executable
-			std::filesystem::path tempPath = std::filesystem::path(string(GetProgramExecutableName()) + ".tmp");
-			bool doSelfUpdate = true;
-			const char *cpArgv[] = {"cp", "-f", currPath.c_str(), tempPath.c_str(), nullptr};
-			pid_t cpPid;
-			status = posix_spawnp(&cpPid, "cp", nullptr, nullptr, const_cast<char* const*>(cpArgv), nullptr);
-			if (status != 0) {
-				Logger::error("Failed to copy current executable: " + string(strerror(status)));
-				doSelfUpdate = false;
-			} else {
-				waitpid(cpPid, &waitStatus, 0);
-			}
-
-			if (doSelfUpdate) {
-				bool zipSuccess = true;
-				pid_t zipPid;
-				const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
-				status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
-				if (status != 0) {
-					Logger::error("Failed to embed downloaded plugin into APE with zip: " + string(strerror(status)));
-					zipSuccess = false;
-				} else {
-					if (waitpid(zipPid, &waitStatus, 0) == -1) {
-						Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
-						zipSuccess = false;
-					}
-					if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-						Logger::error("Zip process exited with error status: " + to_string(WEXITSTATUS(waitStatus)));
-						zipSuccess = false;
-					}
+				if (!IsWindows()) {
+					chmod(pluginPath.c_str(), 0500);
 				}
 
-				// If zip failed, try Python fallback
-				if (!zipSuccess) {
-					zipSuccess = true; // reset for python attempt
-					pid_t pyPid;
-					const char *pyArgv[] = {
-						"python3", "-c",
-						("import zipfile, sys; "
-						 "zip = sys.argv[1]; "
-						 "in = sys.argv[2]; "
-						 "zf = zipfile.ZipFile(zip, 'a'); "
-						 "zf.write(in, arcname=in.split('/')[-1]); "
-						 "zf.close()"),
-						tempPath.c_str(), pluginPath.c_str(),
-						nullptr
-					};
-					status = posix_spawnp(&pyPid, "python3", nullptr, nullptr, const_cast<char* const*>(pyArgv), nullptr);
-					if (status != 0) {
-						Logger::error("Failed to embed downloaded plugin into APE with python3: " + string(strerror(status)));
-						zipSuccess = false;
-					} else {
-						if (waitpid(pyPid, &waitStatus, 0) == -1) {
-							Logger::error("Failed to wait for python3 process: " + string(strerror(errno)));
-							zipSuccess = false;
-						}
-						if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-							Logger::error("python3 zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
-							zipSuccess = false;
-						}
-					}
+				// Make temporary copy of the current executable
+				std::filesystem::path tempPath = std::filesystem::path(GetProgramExecutableName()) += ".tmp";
+				bool doSelfUpdate = true;
+
+				std::vector<const char*> cpArgv = {"cp", "-f", currPath.c_str(), tempPath.c_str(), nullptr};
+				int cpStatus = spawnAndWait(cpArgv);
+				if (cpStatus != 0) {
+					Logger::error("Failed to copy current executable: " + std::string(strerror(cpStatus)));
+					doSelfUpdate = false;
 				}
 
-				if (zipSuccess) {
-					std::filesystem::rename(tempPath, currPath);
+				if (doSelfUpdate) {
+					try {
+						zipEmbed(tempPath, pluginPath);
+						std::filesystem::rename(tempPath, currPath);
+					} catch (const std::exception& e) {
+						Logger::error(e.what());
+						std::filesystem::remove(tempPath);
+					}
 				} else {
 					std::filesystem::remove(tempPath);
 				}
-			} else {
-				std::filesystem::remove(tempPath);
+			} catch (const std::exception& e) {
+				Logger::error(e.what());
+				throw;
 			}
 		} else {
 			std::filesystem::copy_file(ziposPath, pluginPath, std::filesystem::copy_options::overwrite_existing);
