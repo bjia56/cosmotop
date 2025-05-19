@@ -482,10 +482,28 @@ choose_extension:
 				status = posix_spawnp(&wgetPid, "wget", nullptr, nullptr, const_cast<char* const*>(wgetArgv), nullptr);
 				if (status != 0) {
 					Logger::error("Failed to download plugin using wget: " + string(strerror(status)));
-					throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
-				}
 
-				waitpid(wgetPid, &waitStatus, 0);
+					// Try Python as a last-resort fallback
+					const char *pythonArgv[] = {
+						"python3", "-c",
+						("import urllib.request; "
+						 "import sys; "
+						 "url = sys.argv[1]; "
+						 "out = sys.argv[2]; "
+						 "urllib.request.urlretrieve(url, out)").c_str(),
+						url.c_str(), pluginPath.c_str(),
+						nullptr
+					};
+					pid_t pythonPid;
+					status = posix_spawnp(&pythonPid, "python3", nullptr, nullptr, const_cast<char* const*>(pythonArgv), nullptr);
+					if (status != 0) {
+						Logger::error("Failed to download plugin using python3: " + string(strerror(status)));
+						throw std::runtime_error("Plugin not found in zipos and not downloadable from GitHub");
+					}
+					waitpid(pythonPid, &waitStatus, 0);
+				} else {
+					waitpid(wgetPid, &waitStatus, 0);
+				}
 			} else {
 				waitpid(curlPid, &waitStatus, 0);
 			}
@@ -519,19 +537,41 @@ choose_extension:
 				const char *zipArgv[] = {"zip", "-quj", tempPath.c_str(), pluginPath.c_str(), nullptr};
 				status = posix_spawnp(&zipPid, "zip", nullptr, nullptr, const_cast<char* const*>(zipArgv), nullptr);
 				if (status != 0) {
-					Logger::error("Failed to embed downloaded plugin into APE: " + string(strerror(status)));
+					Logger::error("Failed to embed downloaded plugin into APE with zip: " + string(strerror(status)));
 					zipSuccess = false;
 				} else {
-					// Wait for the spawned process to exit
 					if (waitpid(zipPid, &waitStatus, 0) == -1) {
 						Logger::error("Failed to wait for zip process: " + string(strerror(errno)));
 						zipSuccess = false;
 					}
-
-					// Check if the process exited successfully
 					if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-						Logger::error("Zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+						Logger::error("Zip process exited with error status: " + to_string(WEXITSTATUS(waitStatus)));
 						zipSuccess = false;
+					}
+				}
+
+				// If zip failed, try Python fallback
+				if (!zipSuccess) {
+					zipSuccess = true; // reset for python attempt
+					pid_t pyPid;
+					const string pyCmd =
+						"import zipfile,sys; "
+						"with zipfile.ZipFile(sys.argv[1], 'a') as zf: "
+						"  zf.write(sys.argv[2], arcname=sys.argv[2].split('/')[-1])";
+					const char *pyArgv[] = {"python3", "-c", pyCmd.c_str(), tempPath.c_str(), pluginPath.c_str(), nullptr};
+					status = posix_spawnp(&pyPid, "python3", nullptr, nullptr, const_cast<char* const*>(pyArgv), nullptr);
+					if (status != 0) {
+						Logger::error("Failed to embed downloaded plugin into APE with python3: " + string(strerror(status)));
+						zipSuccess = false;
+					} else {
+						if (waitpid(pyPid, &waitStatus, 0) == -1) {
+							Logger::error("Failed to wait for python3 process: " + string(strerror(errno)));
+							zipSuccess = false;
+						}
+						if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
+							Logger::error("python3 zip process exited with error status: " + std::to_string(WEXITSTATUS(waitStatus)));
+							zipSuccess = false;
+						}
 					}
 				}
 
