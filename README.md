@@ -83,12 +83,15 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 
 `cosmotop` supports the following operating systems and architectures:
 
-- Linux 2.6.18+ (x86_64 and aarch64)
+- Linux 2.6.18+ (x86_64, aarch64, and powerpc64le)
 - MacOS 13+ (x86_64 and aarch64)
 - Windows 10+ (x86_64)
 - FreeBSD 13+ (x86_64 and aarch64)
 - NetBSD 10.0+ (x86_64 and aarch64)
-- OpenBSD 7.3 (x86_64)
+- OpenBSD 7.6+ (x86_64)
+
+Core platforms (Linux x86_64/aarch64, MacOS, Windows) are self-contained and require no additional tooling.
+Other platforms require that the host `PATH` contains either `curl`, `wget`, or `python3` to download required plugin components (see [below](#how-it-works)).
 
 ## How it works
 
@@ -98,7 +101,7 @@ running on multiple operating systems and architectures. This multiplatform exec
 the terminal UI and handle generic systems metrics, like processes, memory, disk, etc. On Windows, the executable
 runs natively. On UNIX, the executable will self-extract a small loader binary to run the program.
 
-Collecting real data from the underlying system is done by helper [plugins](https://github.com/bjia56/libcosmo_plugin), which are built for each target platform using host-native compilers and libraries. These plugins are then bundled into `cosmotop.exe` and extracted out onto the host under the path `~/.cosmotop`, and are used at runtime to gather system metrics that are then displayed by the primary multiplatform executable process in the terminal.
+Collecting real data from the underlying system is done by helper [plugins](https://github.com/bjia56/libcosmo_plugin), which are built for each target platform using host-native compilers and libraries. On core platforms (see [above](#supported-platforms)), plugins are bundled into `cosmotop.exe` and extracted out onto the host under the path `~/.cosmotop`. On other platforms, plugins are downloaded from GitHub releases from the same release tag as `cosmotop.exe` and placed under `~/.cosmotop`, and are optionally re-bundled into the executable. Plugins are used at runtime to gather system metrics that are then displayed by the primary multiplatform executable process in the terminal.
 
 For platforms not supported natively by Cosmpolitan Libc, `cosmotop` uses the [Blink](https://github.com/jart/blink) lightweight virtual machine
 to run the x86_64 version of `cosmotop`. Data collection is still done by host-native plugin executables.
