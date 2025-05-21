@@ -392,16 +392,11 @@ jobs:
 
           cosmo_bin=$(dirname $(which cosmocc))
           /tmp/apelink \
+            -s \
+            -S "V=${{ github.sha }}"
             -l ${cosmo_bin}/ape-x86_64.elf \
             -l ${cosmo_bin}/ape-aarch64.elf \
             -M ${cosmo_bin}/ape-m1.c \
-            -k Linux \
-            -l /tmp/blink/blink-linux-powerpc64le \
-            -k NetBSD \
-            -l /tmp/blink/blink-netbsd-aarch64 \
-            -k OpenBSD \
-            -l /tmp/blink/blink-openbsd-x86_64 \
-            -l /tmp/blink/blink-openbsd-aarch64 \
             -o ${{ github.workspace }}/cosmotop.com \
             cosmotop.com.dbg \
             cosmotop.aarch64.elf
