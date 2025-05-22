@@ -441,7 +441,7 @@ jobs:
       - name: Chimplink
         run: |
           git clone https://github.com/bjia56/chimp.git
-          python3 chimp/chimplink.py cosmotop.exe cosmotop.cmd ${{ githu.sha }} \
+          python3 chimp/chimplink.py cosmotop.exe cosmotop.cmd ${{ github.sha }} \
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-*
