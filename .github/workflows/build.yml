@@ -365,7 +365,7 @@ jobs:
           wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-linux-riscv64-stripped -O blink-linux-riscv64
           chmod +x blink-linux-riscv64
 
-         wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-linux-s390x-stripped -O blink-linux-s390x
+          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-linux-s390x-stripped -O blink-linux-s390x
           chmod +x blink-linux-s390x
 
       - name: Inspect artifacts
