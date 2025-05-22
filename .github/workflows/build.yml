@@ -374,6 +374,7 @@ jobs:
 
       - name: Apelink
         run: |
+          cosmo_bin=$(dirname $(which cosmocc))
           apelink \
             -s \
             -S "V=${{ github.sha }}" \
