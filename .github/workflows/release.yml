@@ -54,6 +54,12 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
+          name: cosmotop.cmd
+          path: .
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
           pattern: plugin-*
           path: .
           merge-multiple: true
@@ -85,6 +91,7 @@ jobs:
         with:
           files: |
             cosmotop*.exe
+            cosmotop.cmd
             debug.zip
           tag_name: ${{ inputs.version }}
           generate_release_notes: true
