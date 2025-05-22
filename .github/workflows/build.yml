@@ -460,14 +460,14 @@ jobs:
           path: ./cosmotop.cmd
 
   check:
-    name: Check ${{ matrix.executable }} ${{ matrix.os }} ${{ matrix.arch }}
+    name: Check ${{ matrix.executable }} ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
     needs: bundle
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
       matrix:
         executable: [cosmotop.exe, cosmotop.cmd]
-        include:
+        platform:
           - runner: macos-13
             arch: x86_64
             os: MacOS
@@ -486,7 +486,7 @@ jobs:
 
     steps:
       - name: Set up cosmocc
-        if: ${{ matrix.os == 'Linux' }}
+        if: ${{ matrix.platform.os == 'Linux' }}
         uses: bjia56/setup-cosmocc@v0.0.4
 
       - name: Checkout
@@ -504,14 +504,14 @@ jobs:
           chmod +x ${{ matrix.executable }}
 
       - name: Configure Windows
-        if: ${{ matrix.os == 'Windows' }}
+        if: ${{ matrix.platform.os == 'Windows' }}
         shell: powershell
         run: |
           Remove-MpPreference -ExclusionPath (Get-MpPreference).ExclusionPath
           Set-Service -Name wuauserv -StartupType Manual -Status Running
 
       - name: Scan with Windows Defender
-        if: ${{ matrix.os == 'Windows' }}
+        if: ${{ matrix.platform.os == 'Windows' }}
         shell: cmd
         run: |
           copy ${{ matrix.executable }} C:
