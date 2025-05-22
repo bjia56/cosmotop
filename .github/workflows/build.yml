@@ -460,12 +460,13 @@ jobs:
           path: ./cosmotop.cmd
 
   check:
-    name: Check cosmotop.exe ${{ matrix.os }} ${{ matrix.arch }}
+    name: Check ${{ matrix.executable }} ${{ matrix.os }} ${{ matrix.arch }}
     needs: bundle
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
+        executable: [cosmotop.exe, cosmotop.cmd]
         include:
           - runner: macos-13
             arch: x86_64
@@ -494,13 +495,13 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: cosmotop.exe
+          name: ${{ matrix.executable }
           path: .
 
       - name: Mark executable
         shell: bash
         run: |
-          chmod +x cosmotop.exe
+          chmod +x ${{ matrix.executable }}
 
       - name: Configure Windows
         if: ${{ matrix.os == 'Windows' }}
@@ -513,14 +514,14 @@ jobs:
         if: ${{ matrix.os == 'Windows' }}
         shell: cmd
         run: |
-          copy cosmotop.exe C:
+          copy ${{ matrix.executable }} C:
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
-          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.exe
+          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\${{ matrix.executable }}
 
-      - name: Check cosmotop.exe
+      - name: Check ${{ matrix.executable }}
         shell: bash
         run: |
-          ./cosmotop.exe --version
+          ./${{ matrix.executable }} --version
 
   docker:
     name: Build cosmotop Docker image
