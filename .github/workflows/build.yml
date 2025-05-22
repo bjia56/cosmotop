@@ -77,6 +77,12 @@ jobs:
           - arch: powerpc64le
             alias: ppc64le
             upx: true
+          - arch: riscv64
+            alias: riscv64
+            upx: false
+          - arch: s390x
+            alias: s390x
+            upx: false
 
     steps:
       - name: Checkout
@@ -292,25 +298,6 @@ jobs:
           name: plugin-openbsd-${{ matrix.arch }}
           path: ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
-  # TODO: Remove this once Cosmopolitan releases latest apelink
-  build_apelink:
-    name: Build apelink
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Build apelink
-        run: |
-          git clone https://github.com/bjia56/cosmopolitan.git
-          cd cosmopolitan
-          git checkout dd4fc71bfae767bcb63d8e509333909e9a7860a7
-          make o//tool/build/apelink
-
-      - name: Upload apelink
-        uses: actions/upload-artifact@v4
-        with:
-          name: apelink
-          path: ./cosmopolitan/o/tool/build/apelink
-
   bundle:
     name: Bundle plugins into cosmotop.exe
     runs-on: ubuntu-latest
@@ -322,7 +309,6 @@ jobs:
       - build_freebsd_plugin
       - build_netbsd_plugin
       - build_openbsd_plugin
-      - build_apelink
 
     steps:
       - name: Checkout
@@ -376,11 +362,11 @@ jobs:
           chmod +x blink-linux-powerpc64le
           upx --best blink-linux-powerpc64le
 
-      - name: Download apelink
-        uses: actions/download-artifact@v4
-        with:
-          name: apelink
-          path: /tmp/
+          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-full-linux-riscv64-stripped -O blink-linux-riscv64
+          chmod +x blink-linux-riscv64
+
+          https://github.com/bjia56/blinkverse/releases/download/v3/blink-full-linux-s390x-stripped -O blink-linux-s390x
+          chmod +x blink-linux-s390x
 
       - name: Inspect artifacts
         run: |
@@ -388,10 +374,7 @@ jobs:
 
       - name: Apelink
         run: |
-          chmod +x /tmp/apelink
-
-          cosmo_bin=$(dirname $(which cosmocc))
-          /tmp/apelink \
+          apelink \
             -s \
             -S "V=${{ github.sha }}" \
             -l ${cosmo_bin}/ape-x86_64.elf \
@@ -455,11 +438,25 @@ jobs:
           cd ${{ github.workspace }}
           mv cosmotop.com cosmotop.exe
 
+      - name: Chimplink
+        run: |
+          git clone https://github.com/bjia56/chimp.git
+          python3 chimp/chimplink.py cosmotop.exe cosmotop.cmd ${{ githu.sha }} \
+            --os Linux /tmp/blink/blink-linux-* \
+            --os NetBSD /tmp/blink/blink-netbsd-* \
+            --os OpenBSD /tmp/blink/blink-openbsd-*
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: cosmotop.exe
           path: ./cosmotop.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop.cmd
+          path: ./cosmotop.cmd
 
   check:
     name: Check cosmotop.exe ${{ matrix.os }} ${{ matrix.arch }}
