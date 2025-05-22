@@ -495,7 +495,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.executable }
+          name: ${{ matrix.executable }}
           path: .
 
       - name: Mark executable
