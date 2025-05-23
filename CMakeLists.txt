@@ -3,7 +3,7 @@
 # CMake configuration for cosmotop
 #
 
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.21)
 
 # Disable in-source builds
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
@@ -191,6 +191,15 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(kvm REQUIRED)
+  elseif(CMAKE_SYSTEM MATCHES "SunOS")
+    set(PLUGIN_SOURCES
+      src/cosmotop_plugin.cpp
+      src/cosmotop_shared.cpp
+      src/cosmotop_tools_shared.cpp
+      src/solaris/cosmotop_collect.cpp
+      ${LIBCOSMO_PLUGIN_SOURCES}
+    )
+    find_package(kstat REQUIRED)
   else()
     message(FATAL_ERROR "Unsupported platform")
   endif()
@@ -232,6 +241,8 @@ elseif(${TARGET} STREQUAL "plugin")
     target_link_libraries(${BINARY_NAME} PRIVATE kvm::kvm proplib::proplib)
   elseif(CMAKE_SYSTEM MATCHES "OpenBSD")
     target_link_libraries(${BINARY_NAME} PRIVATE kvm::kvm)
+  elseif(CMAKE_SYSTEM MATCHES "SunOS")
+    target_link_libraries(${BINARY_NAME} PRIVATE kstat::kstat)
   endif()
 
 endif() # TARGET
