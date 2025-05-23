@@ -59,7 +59,7 @@ namespace Cpu {
 
 	string cpuName;
 	string cpuHz;
-	bool has_battery = true;
+	bool has_battery = false;
 	tuple<int, float, long, string> current_bat;
 
 	const array<string, 10> time_names = {"user", "nice", "system", "idle"};
@@ -97,6 +97,8 @@ namespace Shared {
 	uint64_t totalMem;
 	long pageSize, clkTck, coreCount, bootTime;
 
+	kstat_ctl_t *kc;
+
 	void init() {
 		// Get CPU core count
 		coreCount = sysconf(_SC_NPROCESSORS_ONLN);
@@ -123,6 +125,11 @@ namespace Shared {
 		}
 		endutxent();
 
+		kc = kstat_open();
+		if (!kc) {
+			return;
+		}
+
 		// Initialize CPU structures
 		Cpu::current_cpu.core_percent.insert(Cpu::current_cpu.core_percent.begin(), coreCount, {});
 		Cpu::core_old_totals.insert(Cpu::core_old_totals.begin(), coreCount, 0);
@@ -140,21 +147,8 @@ namespace Shared {
 
 namespace Cpu {
 	bool get_sensors() {
-		kstat_ctl_t *kc = kstat_open();
-		if (!kc) return false;
-
-		kstat_t *ks = kstat_lookup(kc, "cpu_info", -1, NULL);
-		if (ks && kstat_read(kc, ks, NULL) != -1) {
-			got_sensors = true;
-			// Try to get temperature if available
-			kstat_named_t *kn = (kstat_named_t *)kstat_data_lookup(ks, "temperature");
-			if (kn) {
-				current_cpu.temp_max = kn->value.i32;
-			}
-		}
-
-		kstat_close(kc);
-		return got_sensors;
+		// Does Solaris have temperature sensors?
+		return false;
 	}
 
 	string get_cpuName() {
@@ -168,40 +162,19 @@ namespace Cpu {
 		return "Unknown";
 	}
 
-	void update_sensors() {
-		kstat_ctl_t *kc = kstat_open();
-		if (!kc) return;
-
-		for (int i = 0; i < Shared::coreCount; i++) {
-			kstat_t *ks = kstat_lookup(kc, "cpu_temp", i, NULL);
-			if (ks && kstat_read(kc, ks, NULL) != -1) {
-				kstat_named_t *kn = (kstat_named_t *)kstat_data_lookup(ks, "temperature");
-				if (kn) {
-					int temp = kn->value.i32;
-					if (i < current_cpu.temp.size()) {
-						current_cpu.temp.at(i).push_back(temp);
-						if (current_cpu.temp.at(i).size() > 20)
-							current_cpu.temp.at(i).pop_front();
-					}
-				}
-			}
-		}
-		kstat_close(kc);
-	}
+	void update_sensors() {	}
 
 	string get_cpuHz() {
-		kstat_ctl_t *kc = kstat_open();
+		kstat_ctl_t *kc = Shared::kc;
 		if (!kc) return "";
 
 		kstat_t *ks = kstat_lookup(kc, "cpu_info", 0, NULL);
 		if (ks && kstat_read(kc, ks, NULL) != -1) {
 			kstat_named_t *kn = (kstat_named_t *)kstat_data_lookup(ks, "current_clock_Hz");
 			if (kn) {
-				kstat_close(kc);
 				return to_string(kn->value.ui32 / 1e6).substr(0, 4);
 			}
 		}
-		kstat_close(kc);
 		return "";
 	}
 
@@ -249,8 +222,15 @@ namespace Cpu {
 	}
 
 	auto collect(bool no_update) -> cpu_info & {
-		kstat_ctl_t *kc = kstat_open();
-		if (!kc) return current_cpu;
+		kstat_ctl_t *kc = Shared::kc;
+		if (Runner::get_stopping() or !kc or (no_update and not current_cpu.cpu_percent.at("total").empty()))
+			return current_cpu;
+
+		const auto width = get_width();
+
+		if (getloadavg(current_cpu.load_avg.data(), current_cpu.load_avg.size()) < 0) {
+			Logger::error("failed to get load averages");
+		}
 
 		// Get CPU usage from kstat
 		cpu_stat_t cs;
@@ -278,7 +258,7 @@ namespace Cpu {
 					current_cpu.core_percent.at(i).push_back(
 						clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
 
-					if (current_cpu.core_percent.at(i).size() > 40)
+					while (cmp_greater(current_cpu.core_percent.at(i).size(), width * 2))
 						current_cpu.core_percent.at(i).pop_front();
 				}
 			}
@@ -294,15 +274,16 @@ namespace Cpu {
 		current_cpu.cpu_percent.at("total").push_back(
 			clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
 
-		// Get load averages
-		double loadavg[3];
-		if (getloadavg(loadavg, 3) == 3) {
-			for (size_t i = 0; i < min(current_cpu.load_avg.size(), (size_t)3); i++) {
-				current_cpu.load_avg[i] = loadavg[i];
+		while (cmp_greater(current_cpu.cpu_percent.at("total").size(), width * 2))
+			current_cpu.cpu_percent.at("total").pop_front();
+
+		if (Config::getB("show_cpu_freq")) {
+			auto hz = get_cpuHz();
+			if (hz != "") {
+				cpuHz = hz;
 			}
 		}
 
-		kstat_close(kc);
 		return current_cpu;
 	}
 }
@@ -342,7 +323,7 @@ namespace Mem {
 	void collect_disk(std::unordered_map<string, disk_info> &disks,
 					 std::unordered_map<string, string> &mapping) {
 		// Solaris disk stats via kstat
-		kstat_ctl_t *kc = kstat_open();
+		kstat_ctl_t *kc = Shared::kc;
 		if (!kc) return;
 
 		for (kstat_t *ks = kc->kc_chain; ks; ks = ks->ks_next) {
@@ -375,28 +356,19 @@ namespace Mem {
 				}
 			}
 		}
-		kstat_close(kc);
 	}
 
 	auto collect(bool no_update) -> mem_info & {
-		kstat_ctl_t *kc = kstat_open();
+		kstat_ctl_t *kc = Shared::kc;
 		if (!kc) return current_mem;
 
 		// Get memory stats
 		kstat_t *ks = kstat_lookup(kc, "unix", 0, "system_pages");
 		if (ks && kstat_read(kc, ks, NULL) != -1) {
-			kstat_named_t *kn;
-
-			kn = (kstat_named_t *)kstat_data_lookup(ks, "freemem");
-			current_mem.stats["free"] = kn->value.ul * Shared::pageSize;
-
-			kn = (kstat_named_t *)kstat_data_lookup(ks, "physmem");
-			uint64_t physmem = kn->value.ul * Shared::pageSize;
-
-			kn = (kstat_named_t *)kstat_data_lookup(ks, "pages_locked");
-			current_mem.stats["used"] = kn->value.ul * Shared::pageSize;
-
-			current_mem.stats["available"] = physmem - current_mem.stats["used"];
+			kstat_named_t *kn = (kstat_named_t *)kstat_data_lookup(ks, "freemem");
+			uint64_t free = kn->value.ui64 * Shared::pageSize;
+			current_mem.stats["free"] = free;
+			current_mem.stats["used"] = Shared::totalMem - free;
 		}
 
 		// Get swap info
@@ -427,7 +399,6 @@ namespace Mem {
 			free(swt);
 		}
 
-		kstat_close(kc);
 		return current_mem;
 	}
 }
@@ -444,7 +415,7 @@ namespace Net {
 	uint64_t timestamp = 0;
 
 	auto collect(bool no_update) -> net_info & {
-		kstat_ctl_t *kc = kstat_open();
+		kstat_ctl_t *kc = Shared::kc;
 		if (!kc) return empty_net;
 
 		interfaces.clear();
@@ -500,7 +471,6 @@ namespace Net {
 			}
 		}
 
-		kstat_close(kc);
 		timestamp = time_ms();
 
 		// Interface selection logic (same as original)
@@ -572,7 +542,7 @@ namespace Proc {
 
 namespace Tools {
 	double system_uptime() {
-		kstat_ctl_t *kc = kstat_open();
+		kstat_ctl_t *kc = Shared::kc;
 		if (!kc) return 0.0;
 
 		kstat_t *ks = kstat_lookup(kc, "unix", 0, "system_misc");
@@ -580,11 +550,9 @@ namespace Tools {
 			kstat_named_t *kn = (kstat_named_t *)kstat_data_lookup(ks, "boot_time");
 			if (kn) {
 				time_t now = time(NULL);
-				kstat_close(kc);
 				return difftime(now, kn->value.ui32);
 			}
 		}
-		kstat_close(kc);
 		return 0.0;
 	}
 }
