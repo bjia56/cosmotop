@@ -245,7 +245,7 @@ jobs:
           arch: ${{ matrix.arch }}
           release: "10.0"
           prepare: |
-            /usr/sbin/pkg_add cmake clang git gmake
+            /usr/sbin/pkg_add cmake clang
 
       - name: Build plugin
         shell: netbsd {0}
@@ -282,7 +282,7 @@ jobs:
           arch: ${{ matrix.arch }}
           release: "7.6"
           prepare: |
-            pkg_add cmake gmake git
+            pkg_add cmake
 
       - name: Build plugin
         shell: openbsd {0}
@@ -298,6 +298,43 @@ jobs:
           name: plugin-openbsd-${{ matrix.arch }}
           path: ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
+  build_solaris_plugin:
+    name: Build plugin Solaris ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/solaris-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+          release: "11.4"
+          prepare: |
+            pkg install --accept cmake gcc
+
+      - name: Build plugin
+        shell: solaris {0}
+        run: |
+          cd ${{ github.workspace }}
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop-plugin.exe ./cosmotop-solaris-${{ matrix.arch }}.exe
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-solaris-${{ matrix.arch }}
+          path: ./cosmotop-solaris-${{ matrix.arch }}.exe
+
   bundle:
     name: Bundle plugins into cosmotop.exe
     runs-on: ubuntu-latest
@@ -309,6 +346,7 @@ jobs:
       - build_freebsd_plugin
       - build_netbsd_plugin
       - build_openbsd_plugin
+      - build_solaris_plugin
 
     steps:
       - name: Checkout
@@ -357,6 +395,9 @@ jobs:
 
           wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-openbsd7.6-x86_64-stripped -O blink-openbsd-x86_64
           chmod +x blink-openbsd-x86_64
+
+          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-solaris11.4-x86_64-stripped -O blink-solaris-x86_64
+          chmod +x blink-solaris-x86_64
 
           wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-linux-powerpc64le-stripped -O blink-linux-powerpc64le
           chmod +x blink-linux-powerpc64le
@@ -445,7 +486,8 @@ jobs:
           ./chimp/chimplink cosmotop.exe cosmotop.cmd ${{ github.sha }} \
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
-            --os OpenBSD /tmp/blink/blink-openbsd-*
+            --os OpenBSD /tmp/blink/blink-openbsd-* \
+            --os SunOS /tmp/blink/blink-solaris-* \
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
