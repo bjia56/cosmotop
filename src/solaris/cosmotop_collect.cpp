@@ -1,5 +1,21 @@
-/* Copyright 2025 Your Name (your@email.com)
-   Licensed under the Apache License, Version 2.0 */
+/* Copyright 2025 Brett Jia (dev.bjia56@gmail.com)
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+	   http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+indent = tab
+tab-size = 4
+*/
+
 #include <kstat.h>
 #include <sys/statvfs.h>
 #include <sys/swap.h>
@@ -37,6 +53,7 @@
 #include <string>
 #include <memory>
 #include <utility>
+#include <list>
 
 #include <range/v3/all.hpp>
 
@@ -88,9 +105,14 @@ namespace Cpu {
 
 namespace Mem {
 	double old_uptime;
+
+	FILE *mnttab;
 	int disk_ios = 0;
+	vector<string> last_found;
+
 	bool has_swap = false;
-	mem_info current_mem{};
+
+	mem_info current_mem;
 }
 
 namespace Shared {
@@ -125,9 +147,16 @@ namespace Shared {
 		}
 		endutxent();
 
+		// Initialize kstat
 		kc = kstat_open();
 		if (!kc) {
-			return;
+			Logger::error("Failed to initialize kstat: " + string(strerror(errno)));
+		}
+
+		// Initialize mnttab
+		Mem::mnttab = fopen("/etc/mnttab", "r");
+		if (!Mem::mnttab) {
+			Logger::error("Failed to open mnttab: " + string(strerror(errno)));
 		}
 
 		// Initialize CPU structures
@@ -135,11 +164,12 @@ namespace Shared {
 		Cpu::core_old_totals.insert(Cpu::core_old_totals.begin(), coreCount, 0);
 		Cpu::core_old_idles.insert(Cpu::core_old_idles.begin(), coreCount, 0);
 
-		// Initialize other components
+		// Initialize CPU
 		Cpu::collect();
 		Cpu::cpuName = Cpu::get_cpuName();
 		Cpu::got_sensors = Cpu::get_sensors();
 
+		// Initialize Mem
 		Mem::old_uptime = system_uptime();
 		Mem::collect();
 	}
@@ -288,6 +318,8 @@ namespace Cpu {
 	}
 }
 
+#include <iostream>
+
 namespace Mem {
 	uint64_t get_totalMem() {
 		return Shared::totalMem;
@@ -322,45 +354,21 @@ namespace Mem {
 
 	void collect_disk(std::unordered_map<string, disk_info> &disks,
 					 std::unordered_map<string, string> &mapping) {
-		// Solaris disk stats via kstat
-		kstat_ctl_t *kc = Shared::kc;
-		if (!kc) return;
-
-		for (kstat_t *ks = kc->kc_chain; ks; ks = ks->ks_next) {
-			if (strncmp(ks->ks_module, "sd", 2) == 0 ||
-				strncmp(ks->ks_module, "ssd", 3) == 0) {
-				if (kstat_read(kc, ks, NULL) == -1) continue;
-
-				kstat_named_t *kn;
-				string dev = string(ks->ks_name);
-
-				if (mapping.count(dev)) {
-					auto &disk = disks[mapping[dev]];
-
-					// Read operations
-					kn = (kstat_named_t *)kstat_data_lookup(ks, "reads");
-					long reads = kn ? kn->value.ui32 : 0;
-
-					// Write operations
-					kn = (kstat_named_t *)kstat_data_lookup(ks, "writes");
-					long writes = kn ? kn->value.ui32 : 0;
-
-					// Bytes read/written
-					kn = (kstat_named_t *)kstat_data_lookup(ks, "nread");
-					uint64_t nread = kn ? kn->value.ui32 : 0;
-
-					kn = (kstat_named_t *)kstat_data_lookup(ks, "nwritten");
-					uint64_t nwritten = kn ? kn->value.ui32 : 0;
-
-					assign_values(disk, nread, nwritten);
-				}
-			}
+		// Need a way to get stats
+		for (auto& [_, disk] : disks) {
+			assign_values(disk, 0, 0);
 		}
 	}
 
 	auto collect(bool no_update) -> mem_info & {
 		kstat_ctl_t *kc = Shared::kc;
-		if (!kc) return current_mem;
+		if (Runner::get_stopping() or !kc or (no_update and not current_mem.percent.at("used").empty()))
+			return current_mem;
+
+		const auto show_swap = Config::getB("show_swap");
+		const auto show_disks = Config::getB("show_disks");
+		const auto swap_disk = Config::getB("swap_disk");
+		const auto width = get_width();
 
 		// Get memory stats
 		kstat_t *ks = kstat_lookup(kc, "unix", 0, "system_pages");
@@ -369,34 +377,158 @@ namespace Mem {
 			uint64_t free = kn->value.ui64 * Shared::pageSize;
 			current_mem.stats["free"] = free;
 			current_mem.stats["used"] = Shared::totalMem - free;
+			current_mem.stats["available"] = free;
 		}
 
-		// Get swap info
-		struct swaptable *swt;
-		struct swapent *swp;
-		int nswap;
+		if (show_swap) {
+			// Get swap info
+			struct swaptable *swt;
+			struct swapent *swp;
+			int nswap;
 
-		if (nswap = swapctl(SC_GETNSWP, NULL)) {
-			swt = (struct swaptable *)malloc(sizeof(int) + nswap * sizeof(struct swapent));
-			swt->swt_n = nswap;
-			swp = swt->swt_ent;
+			if (nswap = swapctl(SC_GETNSWP, NULL)) {
+				swt = (struct swaptable *)malloc(sizeof(int) + nswap * sizeof(struct swapent));
+				swt->swt_n = nswap;
+				swp = swt->swt_ent;
 
-			for (int i = 0; i < nswap; i++) {
-				swp[i].ste_path = (char *)malloc(MAXPATHLEN);
-				swp[i].ste_length = MAXPATHLEN;
-			}
-
-			if (swapctl(SC_LIST, swt) != -1) {
-				uint64_t total = 0, used = 0;
 				for (int i = 0; i < nswap; i++) {
-					total += swp[i].ste_pages;
-					used += swp[i].ste_free;
-					free(swp[i].ste_path);
+					swp[i].ste_path = (char *)malloc(MAXPATHLEN);
+					swp[i].ste_length = MAXPATHLEN;
 				}
-				current_mem.stats["swap_total"] = total * Shared::pageSize;
-				current_mem.stats["swap_used"] = (total - used) * Shared::pageSize;
+
+				if (swapctl(SC_LIST, swt) != -1) {
+					uint64_t total = 0, free_swap = 0;
+					for (int i = 0; i < nswap; i++) {
+						total += swp[i].ste_pages;
+						free_swap += swp[i].ste_free;
+						free(swp[i].ste_path);
+					}
+					current_mem.stats["swap_total"] = total * Shared::pageSize;
+					current_mem.stats["swap_free"] = free_swap * Shared::pageSize;
+					current_mem.stats["swap_used"] = (total - free_swap) * Shared::pageSize;
+				}
+				free(swt);
 			}
-			free(swt);
+		}
+
+		//? Calculate percentages
+		for (const auto &name : mem_names) {
+			current_mem.percent.at(name).push_back(round((double)current_mem.stats.at(name) * 100 / Shared::totalMem));
+			while (cmp_greater(current_mem.percent.at(name).size(), width * 2))
+				current_mem.percent.at(name).pop_front();
+		}
+
+		if (show_disks && mnttab) {
+			std::unordered_map<string, string> mapping;
+			double uptime = system_uptime();
+			const auto disks_filter = Config::getS("disks_filter");
+			bool filter_exclude = false;
+			// auto only_physical = Config::getB("only_physical");
+			auto &disks = current_mem.disks;
+			vector<string> filter;
+			if (not disks_filter.empty()) {
+				filter = ssplit(disks_filter);
+				if (filter.at(0).starts_with("exclude=")) {
+					filter_exclude = true;
+					filter.at(0) = filter.at(0).substr(8);
+				}
+			}
+
+			struct mnttab mnt;
+			vector<string> found;
+			found.reserve(last_found.size());
+			while (getmntent(mnttab, &mnt) == 0) {
+				string fstype = mnt.mnt_fstype;
+				static std::list<string> rejectList = {
+					"autofs", "dev", "devfs", "ctfs", "proc", "mntfs",
+					"fd", "tmpfs", "lofs", "objfs", "sharefs"
+				};
+				if (auto it = std::find(rejectList.begin(), rejectList.end(), fstype); it != rejectList.end()) {
+					continue;
+				}
+
+				std::error_code ec;
+				string mountpoint = mnt.mnt_mountp;
+				string dev = mnt.mnt_special;
+				mapping[dev] = mountpoint;
+
+				//? Match filter if not empty
+				if (not filter.empty()) {
+					bool match = v_contains(filter, mountpoint);
+					if ((filter_exclude and match) or (not filter_exclude and not match))
+						continue;
+				}
+
+				found.push_back(mountpoint);
+				if (not disks.contains(mountpoint)) {
+					disks[mountpoint] = disk_info{std::filesystem::canonical(dev, ec), std::filesystem::path(mountpoint).filename()};
+
+					if (disks.at(mountpoint).dev.empty())
+						disks.at(mountpoint).dev = dev;
+
+					if (disks.at(mountpoint).name.empty())
+						disks.at(mountpoint).name = (mountpoint == "/" ? "root" : mountpoint);
+				}
+
+
+				if (not v_contains(last_found, mountpoint))
+					set_redraw(true);
+			}
+
+			//? Remove disks no longer mounted or filtered out
+			if (swap_disk and has_swap) found.push_back("swap");
+			for (auto it = disks.begin(); it != disks.end();) {
+				if (not v_contains(found, it->first))
+					it = disks.erase(it);
+				else
+					it++;
+			}
+			if (found.size() != last_found.size()) set_redraw(true);
+			last_found = std::move(found);
+
+			//? Get disk/partition stats
+			for (auto &[mountpoint, disk] : disks) {
+				if (std::error_code ec; not std::filesystem::exists(mountpoint, ec))
+					continue;
+				struct statvfs vfs;
+				if (statvfs(mountpoint.c_str(), &vfs) < 0) {
+					Logger::warning("Failed to get disk/partition stats with statvfs() for: " + mountpoint + " (" + string(strerror(errno)) + ")");
+					continue;
+				}
+				disk.total = vfs.f_blocks * vfs.f_frsize;
+				disk.free = vfs.f_bfree * vfs.f_frsize;
+				disk.used = disk.total - disk.free;
+				if (disk.total != 0) {
+					disk.used_percent = round((double)disk.used * 100 / disk.total);
+					disk.free_percent = 100 - disk.used_percent;
+				} else {
+					disk.used_percent = 0;
+					disk.free_percent = 0;
+				}
+			}
+
+			//? Setup disks order in UI and add swap if enabled
+			current_mem.disks_order.clear();
+			if (disks.contains("/"))
+				current_mem.disks_order.push_back("/");
+			if (swap_disk and has_swap) {
+				current_mem.disks_order.push_back("swap");
+				if (not disks.contains("swap"))
+					disks["swap"] = {"", "swap"};
+				disks.at("swap").total = current_mem.stats.at("swap_total");
+				disks.at("swap").used = current_mem.stats.at("swap_used");
+				disks.at("swap").free = current_mem.stats.at("swap_free");
+				disks.at("swap").used_percent = current_mem.percent.at("swap_used").back();
+				disks.at("swap").free_percent = current_mem.percent.at("swap_free").back();
+			}
+			for (const auto &name : last_found)
+				if (not is_in(name, "/", "swap", "/dev"))
+					current_mem.disks_order.push_back(name);
+
+			disk_ios = 0;
+			collect_disk(disks, mapping);
+
+			old_uptime = uptime;
 		}
 
 		return current_mem;
