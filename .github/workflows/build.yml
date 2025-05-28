@@ -482,12 +482,13 @@ jobs:
 
       - name: Chimplink
         run: |
-          git clone https://github.com/bjia56/chimp.git
-          ./chimp/chimplink cosmotop.exe cosmotop.cmd ${{ github.sha }} \
+          wget https://github.com/bjia56/chimp/releases/download/v0.1.0/chimplink
+          chmod +x chimplink
+          ./chimplink cosmotop.exe cosmotop.cmd ${{ github.sha }} \
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-* \
-            --os SunOS /tmp/blink/blink-solaris-* \
+            --os Solaris /tmp/blink/blink-solaris-* \
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
