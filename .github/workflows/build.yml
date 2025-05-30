@@ -442,7 +442,7 @@ jobs:
       - name: Chimplink
         run: |
           git clone https://github.com/bjia56/chimp.git
-          ./chimp/chimplink cosmotop.exe cosmotop.cmd ${{ github.sha }} \
+          ./chimp/chimplink cosmotop.exe cosmotop ${{ github.sha }} \
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-*
@@ -456,8 +456,8 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cosmotop.cmd
-          path: ./cosmotop.cmd
+          name: cosmotop
+          path: ./cosmotop
 
   check:
     name: Check ${{ matrix.executable }} ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
@@ -466,7 +466,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        executable: [cosmotop.exe, cosmotop.cmd]
+        executable: [cosmotop]
         platform:
           - runner: macos-13
             arch: x86_64
