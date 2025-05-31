@@ -379,7 +379,6 @@ jobs:
             -s \
             -S "V=${{ github.sha }}" \
             -l ${cosmo_bin}/ape-x86_64.elf \
-            -l ${cosmo_bin}/ape-aarch64.elf \
             -M ${cosmo_bin}/ape-m1.c \
             -o ${{ github.workspace }}/cosmotop.com \
             cosmotop.com.dbg \
@@ -441,9 +440,13 @@ jobs:
 
       - name: Chimplink
         run: |
-          wget https://github.com/bjia56/chimp/releases/download/v0.1.0/chimplink
+          wget https://github.com/bjia56/chimp/releases/download/v0.2.0/chimplink
           chmod +x chimplink
+          
+          cosmo_bin=$(dirname $(which cosmocc))
           ./chimplink cosmotop.exe cosmotop ${{ github.sha }} \
+            ${cosmo_bin}/ape-x86_64.elf \
+            ${cosmo_bin}/ape-aarch64.elf \
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-*
