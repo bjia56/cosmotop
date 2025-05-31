@@ -93,7 +93,7 @@ jobs:
           files: |
             cosmotop
             cosmotop-*.exe
-            debug.zip
+            ${{ inputs.beta && 'debug.zip' || '' }}
           tag_name: ${{ inputs.version }}
           generate_release_notes: true
           prerelease: ${{ inputs.beta }}
