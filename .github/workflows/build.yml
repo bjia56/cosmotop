@@ -463,13 +463,12 @@ jobs:
           path: ./cosmotop
 
   check:
-    name: Check ${{ matrix.executable }} ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
+    name: Check cosmotop ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
     needs: bundle
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
       matrix:
-        executable: [cosmotop]
         platform:
           - runner: macos-13
             arch: x86_64
@@ -498,13 +497,14 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.executable }}
+          name: cosmotop
           path: .
 
       - name: Mark executable
+        if: ${{ matrix.platform.os != 'Windows' }}
         shell: bash
         run: |
-          chmod +x ${{ matrix.executable }}
+          chmod +x cosmotop
 
       - name: Configure Windows
         if: ${{ matrix.platform.os == 'Windows' }}
@@ -513,18 +513,31 @@ jobs:
           Remove-MpPreference -ExclusionPath (Get-MpPreference).ExclusionPath
           Set-Service -Name wuauserv -StartupType Manual -Status Running
 
+      - name: Rename cosmotop
+        if: ${{ matrix.platform.os == 'Windows' }}
+        shell: bash
+        run: |
+          mv cosmotop cosmotop.cmd
+
       - name: Scan with Windows Defender
         if: ${{ matrix.platform.os == 'Windows' }}
         shell: cmd
         run: |
-          copy ${{ matrix.executable }} C:
+          copy cosmotop.cmd C:
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
-          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\${{ matrix.executable }}
+          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.cmd
 
-      - name: Check ${{ matrix.executable }}
+      - name: Check cosmotop
+        if: ${{ matrix.platform.os != 'Windows' }}
         shell: bash
         run: |
-          ./${{ matrix.executable }} --version
+          ./cosmotop --version
+
+      - name: Check cosmotop
+        if: ${{ matrix.platform.os == 'Windows' }}
+        shell: powershell
+        run: |
+          ./cosmotop.cmd --version
 
   docker:
     name: Build cosmotop Docker image
