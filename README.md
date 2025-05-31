@@ -18,6 +18,14 @@ brew tap bjia56/tap
 brew install cosmotop
 ```
 
+### Docker
+
+A Docker image is available for Linux x86_64 and aarch64 hosts.
+
+```bash
+docker run -it --rm --net=host --pid=host ghcr.io/bjia56/cosmotop:latest
+```
+
 ### Linux troubleshooting
 
 Some Linux systems might be configured to launch Windows-like executables in a specific way, such as under WINE or
