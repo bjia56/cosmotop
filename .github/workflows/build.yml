@@ -427,7 +427,6 @@ jobs:
           cp $(dirname $(which zig))/LICENSE "Zig Programming Language"
           cp $(dirname $(which zig))/lib/libc/musl/COPYRIGHT "musl libc"
           cp $(dirname $(which zig))/lib/libcxx/LICENSE.TXT "LLVM Project"
-          curl -L -o Info-ZIP https://raw.githubusercontent.com/jart/cosmopolitan/refs/tags/${{ env.cosmocc_version }}/third_party/zip/LICENSE
           curl -L -o Blink https://raw.githubusercontent.com/jart/blink/98f95e8383d1032eb4d2dc6aae937b23539e915e/LICENSE
           sudo mkdir -p /zip/licenses/
           sudo cp * /zip/licenses/
