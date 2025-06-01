@@ -6,12 +6,12 @@ A fork of [`btop++`](https://github.com/aristocratos/btop) and built with
 
 ## Installation
 
-Download `cosmotop.exe` from [GitHub releases](https://github.com/bjia56/cosmotop/releases/latest).
+Download `cosmotop` from [GitHub releases](https://github.com/bjia56/cosmotop/releases/latest).
 Place it anywhere and run!
 
 ### Homebrew
 
-The Homebrew tap [`bjia56/tap`](https://github.com/bjia56/homebrew-tap) supports installing the latest `cosmotop.exe` from GitHub releases on both MacOS and Linux.
+The Homebrew tap [`bjia56/tap`](https://github.com/bjia56/homebrew-tap) supports installing the latest `cosmotop` from GitHub releases on both MacOS and Linux.
 
 ```bash
 brew tap bjia56/tap
@@ -26,18 +26,9 @@ A Docker image is available for Linux x86_64 and aarch64 hosts.
 docker run -it --rm --net=host --pid=host ghcr.io/bjia56/cosmotop:latest
 ```
 
-### Linux troubleshooting
+### Windows setup notes
 
-Some Linux systems might be configured to launch Windows-like executables in a specific way, such as under WINE or
-with WSLInterop, while others may error with a message like "run-detectors: unable to find an interpreter". In
-such cases, register the file format that `cosmotop` uses with the following:
-
-```bash
-sudo wget -O /usr/bin/ape https://cosmo.zip/pub/cosmos/bin/ape-$(uname -m).elf
-sudo chmod +x /usr/bin/ape
-sudo sh -c "echo ':APE:M::MZqFpD::/usr/bin/ape:' >/proc/sys/fs/binfmt_misc/register"
-sudo sh -c "echo ':APE-jart:M::jartsr::/usr/bin/ape:' >/proc/sys/fs/binfmt_misc/register"
-```
+On Windows, rename `cosmotop` to either `cosmotop.cmd` or `cosmotop.bat` before running. This allows Windows to execute the file as a batch script, which can then properly self-extract and execute the embedded executable.
 
 ## Usage and features
 
@@ -91,12 +82,12 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 
 `cosmotop` supports the following operating systems and architectures:
 
-- Linux 2.6.18+ (x86_64, aarch64, and powerpc64le)
+- Linux 2.6.18+ (x86_64, aarch64, powerpc64le, s390x, and riscv64)
 - MacOS 13+ (x86_64 and aarch64)
 - Windows 10+ (x86_64)
 - FreeBSD 13+ (x86_64 and aarch64)
 - NetBSD 10.0+ (x86_64 and aarch64)
-- OpenBSD 7.6+ (x86_64)
+- OpenBSD 7.6+ (x86_64 and aarch64)
 
 Core platforms (Linux x86_64/aarch64, MacOS, Windows) are self-contained and require no additional tooling.
 Other platforms require that the host `PATH` contains either `curl`, `wget`, or `python3` to download required plugin components (see [below](#how-it-works)).
