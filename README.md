@@ -95,12 +95,12 @@ Other platforms require that the host `PATH` contains either `curl`, `wget`, or 
 ## How it works
 
 `cosmotop` uses [Cosmopolitan Libc](https://github.com/jart/cosmopolitan) and the
-[Actually Portable Executable](https://justine.lol/ape.html) file format to create a single executable capable of
+[Actually Portable Executable](https://justine.lol/ape.html) (APE) and [Chimp](https://github.com/bjia56/chimp) file formats to create a single executable capable of
 running on multiple operating systems and architectures. This multiplatform executable contains code to draw
-the terminal UI and handle generic systems metrics, like processes, memory, disk, etc. On Windows, the executable
-runs natively. On UNIX, the executable will self-extract a small loader binary to run the program.
+the terminal UI and handle generic systems metrics, like processes, memory, disk, etc. At runtime, the APE executable is extracted out to disk before execution. On Windows, the APE
+runs natively. On UNIX, a small loader binary is additionally extracted to run the APE executable.
 
-Collecting real data from the underlying system is done by helper [plugins](https://github.com/bjia56/libcosmo_plugin), which are built for each target platform using host-native compilers and libraries. On core platforms (see [above](#supported-platforms)), plugins are bundled into `cosmotop.exe` and extracted out onto the host under the path `~/.cosmotop`. On other platforms, plugins are downloaded from GitHub releases from the same release tag as `cosmotop.exe` and placed under `~/.cosmotop`, and are optionally re-bundled into the executable. Plugins are used at runtime to gather system metrics that are then displayed by the primary multiplatform executable process in the terminal.
+Collecting real data from the underlying system is done by helper [plugins](https://github.com/bjia56/libcosmo_plugin), which are built for each target platform using host-native compilers and libraries. On core platforms (see [above](#supported-platforms)), plugins are bundled into `cosmotop` and extracted out onto the host under the path `~/.cosmotop`. On other platforms, plugins are downloaded from GitHub releases from the same release tag as `cosmotop` and placed under `~/.cosmotop`, and are optionally re-bundled into the executable. Plugins are used at runtime to gather system metrics that are then displayed by the primary multiplatform executable process in the terminal.
 
 For platforms not supported natively by Cosmpolitan Libc, `cosmotop` uses the [Blink](https://github.com/jart/blink) lightweight virtual machine
 to run the x86_64 version of `cosmotop`. Data collection is still done by host-native plugin executables.
@@ -166,6 +166,39 @@ zip -r cosmotop.com themes/
 ```
 
 Optionally, rename `cosmotop.com` to `cosmotop.exe`.
+
+### Optional: Producing a Chimp executable
+
+Download `chimplink` from the Chimp [GitHub releases](https://github.com/bjia56/chimp/releases/latest) and add it to your `PATH`.
+
+Build Blink VMs for any platforms not natively supported by Cosmopolitan Libc. Prebuilts for a variety of platforms are available from Blinkverse [GitHub releases](https://github.com/bjia56/blinkverse/releases).
+
+Use `chimplink` to bundle `cosmotop.exe` with your selection of loaders, for example:
+
+```bash
+cosmo_bin=$(dirname $(which cosmocc))
+chimplink cosmotop.exe cosmotop some_string_here \
+  ${cosmo_bin}/ape-x86_64.elf \
+  ${cosmo_bin}/ape-aarch64.elf \
+  --os Linux blink-linux-* \
+  --os NetBSD blink-netbsd-* \
+  --os OpenBSD blink-openbsd-*
+```
+
+For optimal Chimp startup performance, instead of using `cosmotop.com` after the host build above, use `apelink` to produce a version that has a special embedded string:
+
+```bash
+cosmo_bin=$(dirname $(which cosmocc))
+apelink \
+  -S "V=some_string_here" \
+  -l ${cosmo_bin}/ape-x86_64.elf \
+  -M ${cosmo_bin}/ape-m1.c \
+  -o cosmotop.com \
+  build/cosmotop.com.dbg \
+  build/cosmotop.aarch64.elf
+```
+
+The final Chimp executable will check if the string matches before overwriting the extracted file on disk. A good choice for this string is a git SHA for uniqueness.
 
 ## Licensing
 
