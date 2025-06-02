@@ -359,24 +359,23 @@ jobs:
           mkdir -p /tmp/blink
           cd /tmp/blink
 
-          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-netbsd10.0-aarch64-stripped -O blink-netbsd-aarch64
-          chmod +x blink-netbsd-aarch64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-openbsd7.6-aarch64-stripped -O blink-openbsd-aarch64
-          chmod +x blink-openbsd-aarch64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-openbsd7.6-x86_64-stripped -O blink-openbsd-x86_64
-          chmod +x blink-openbsd-x86_64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-linux-powerpc64le-stripped -O blink-linux-powerpc64le
-          chmod +x blink-linux-powerpc64le
-          upx --best blink-linux-powerpc64le
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-linux-riscv64-stripped -O blink-linux-riscv64
-          chmod +x blink-linux-riscv64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v3/blink-tiny-linux-s390x-stripped -O blink-linux-s390x
-          chmod +x blink-linux-s390x
+          for item in \
+            "blink-tiny-netbsd10.0-aarch64-stripped blink-netbsd-aarch64" \
+            "blink-tiny-openbsd7.6-aarch64-stripped blink-openbsd-aarch64" \
+            "blink-tiny-openbsd7.6-x86_64-stripped blink-openbsd-x86_64" \
+            "blink-tiny-linux-powerpc64le-stripped blink-linux-powerpc64le" \
+            "blink-tiny-linux-i386-stripped blink-linux-i386" \
+            "blink-tiny-linux-riscv64-stripped blink-linux-riscv64" \
+            "blink-tiny-linux-loongarch64-stripped blink-linux-loongarch64" \
+            "blink-tiny-linux-s390x-stripped blink-linux-s390x"
+          do
+            set -- $item
+            wget "https://github.com/bjia56/blinkverse/releases/download/v6/$1" -O "$2"
+            chmod +x "$2"
+            if [[ "$2" == "blink-linux-powerpc64le" || "$2" == "blink-linux-i386" ]]; then
+              upx --best "$2"
+            fi
+          done
 
       - name: Inspect artifacts
         run: |
@@ -449,7 +448,7 @@ jobs:
 
       - name: Chimplink
         run: |
-          wget https://github.com/bjia56/chimp/releases/download/v0.2.0/chimplink
+          wget https://github.com/bjia56/chimp/releases/download/v0.3.0/chimplink
           chmod +x chimplink
           
           cosmo_bin=$(dirname $(which cosmocc))
