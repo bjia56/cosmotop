@@ -82,7 +82,7 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 
 `cosmotop` supports the following operating systems and architectures:
 
-- Linux 2.6.18+ (x86_64, aarch64, powerpc64le, s390x, and riscv64)
+- Linux 2.6.18+ (x86_64, i386, aarch64, powerpc64le, s390x, riscv64, and loongarch64)
 - MacOS 13+ (x86_64 and aarch64)
 - Windows 10+ (x86_64)
 - FreeBSD 13+ (x86_64 and aarch64)
@@ -136,7 +136,7 @@ cmake --build build
 # or: cmake --build build --parallel
 ```
 
-This should produce a `cosmotop-plugin.exe` (or `cosmotop-plugin.dll` on Windows). Rename it to one of the following, matching the target platform:
+This should produce a `cosmotop-plugin.exe` (or `cosmotop-plugin.dll` on Windows). Rename it to `cosmotop-<kernel>-<arch>.[exe|dll]` matching the target platform, for example:
 
 ```
 cosmotop-linux-x86_64.exe
@@ -149,6 +149,7 @@ cosmotop-freebsd-aarch64.exe
 cosmotop-netbsd-x86_64.exe
 cosmotop-netbsd-aarch64.exe
 cosmotop-openbsd-x86_64.exe
+cosmotop-openbsd-aarch64.exe
 ```
 
 ### Bundling everything together
