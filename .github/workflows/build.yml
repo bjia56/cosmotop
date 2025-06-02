@@ -81,6 +81,7 @@ jobs:
             upx: true
           - arch: riscv64
           - arch: s390x
+          - arch: loongarch64
 
     steps:
       - name: Checkout
