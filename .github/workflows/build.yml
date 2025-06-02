@@ -78,10 +78,13 @@ jobs:
             upx: true
           - arch: ppc64le
             gcc_arch: powerpc64le
+            zig_arch: powerpc64le
             upx: true
           - arch: riscv64
           - arch: s390x
-          - arch: loongarch64
+          - arch: loong64
+            gcc_arch: loongarch64
+            zig_arch: loongarch64
 
     steps:
       - name: Checkout
@@ -94,12 +97,6 @@ jobs:
         with:
           version: ${{ env.zig_version }}
 
-      - name: Install cross compilers
-        if: ${{ matrix.arch != 'x86_64' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
-
       - name: Build plugin
         shell: bash
         run: |
@@ -107,9 +104,23 @@ jobs:
           export CXX="${{ github.workspace }}/zigshim/zig c++ -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} ${{ matrix.arch == 'x86_64' && '-DRSMI_STATIC=ON' || '' }}
           cmake --build build --parallel 4
-          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.exe
           cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.dbg
-          ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.exe
+          if [ "${{ matrix.arch }}" = x86_64 ]; then
+            ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}.exe
+          fi
+
+      - name: Create stripped copy (non-x86_64)
+        if: ${{ matrix.arch != 'x86_64' }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: debian:sid
+          options: -v ${{ github.workspace }}:${{ github.workspace }} --workdir ${{ github.workspace }}
+          shell: bash
+          run: |
+            set -e
+            apt update && apt -y install gcc-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
+            ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Compress plugin
         if: ${{ matrix.upx }}
