@@ -62,30 +62,25 @@ jobs:
             ./build/cosmotop.aarch64.elf
 
   build_linux_plugin:
-    name: Build plugin Linux ${{ matrix.alias }}
+    name: Build plugin Linux ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x86_64
-            alias: x86_64
             upx: true
-          - arch: i686
-            alias: i386
+          - arch: i386
+            gcc_arch: i686
+            zig_arch: x86
             upx: true
           - arch: aarch64
-            alias: aarch64
             upx: true
-          - arch: powerpc64le
-            alias: ppc64le
+          - arch: ppc64le
+            gcc_arch: powerpc64le
             upx: true
           - arch: riscv64
-            alias: riscv64
-            upx: false
           - arch: s390x
-            alias: s390x
-            upx: false
 
     steps:
       - name: Checkout
@@ -102,35 +97,35 @@ jobs:
         if: ${{ matrix.arch != 'x86_64' }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-${{ matrix.arch }}-linux-gnu
+          sudo apt-get install -y gcc-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
 
       - name: Build plugin
         shell: bash
         run: |
-          export CC="${{ github.workspace }}/zigshim/zig cc -target ${{ matrix.arch == 'i686' && 'x86' || matrix.arch }}-linux-musl"
-          export CXX="${{ github.workspace }}/zigshim/zig c++ -target ${{ matrix.arch == 'i686' && 'x86' || matrix.arch }}-linux-musl"
+          export CC="${{ github.workspace }}/zigshim/zig cc -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
+          export CXX="${{ github.workspace }}/zigshim/zig c++ -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} ${{ matrix.arch == 'x86_64' && '-DRSMI_STATIC=ON' || '' }}
           cmake --build build --parallel 4
-          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.exe
-          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.dbg
-          ${{ matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.alias }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.dbg
+          ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Compress plugin
         if: ${{ matrix.upx }}
         run : |
-          upx --best ./cosmotop-linux-${{ matrix.alias }}.exe
+          upx --best ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-linux-${{ matrix.alias }}
-          path: ./cosmotop-linux-${{ matrix.alias }}.exe
+          name: plugin-linux-${{ matrix.arch }}
+          path: ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Upload debug plugin
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-linux-${{ matrix.alias }}.dbg
-          path: ./cosmotop-linux-${{ matrix.alias }}.dbg
+          name: plugin-linux-${{ matrix.arch }}.dbg
+          path: ./cosmotop-linux-${{ matrix.arch }}.dbg
 
   build_macos_plugin:
     name: Build plugin MacOS ${{ matrix.arch }}
