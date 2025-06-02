@@ -479,7 +479,7 @@ jobs:
           - runner: ubuntu-latest
             arch: x86_64
             os: Linux
-          - runner: ubuntu-latest
+          - runner: ubuntu-24.04-arm
             arch: aarch64
             os: Linux
           - runner: windows-latest
