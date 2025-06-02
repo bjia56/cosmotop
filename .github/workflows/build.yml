@@ -62,7 +62,7 @@ jobs:
             ./build/cosmotop.aarch64.elf
 
   build_linux_plugin:
-    name: Build plugin Linux ${{ matrix.arch }}
+    name: Build plugin Linux ${{ matrix.alias }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
