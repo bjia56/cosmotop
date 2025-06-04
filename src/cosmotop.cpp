@@ -130,10 +130,19 @@ static void print_version_with_build_info() {
 		if (tokens.size() >= 1) {
 			fmt::println("{}", trim(tokens[0]));
 		}
+		string platformHeading = "Host platform:";
+#ifdef __x86_64__
+		if (IsLinux()) {
+			string hyp = Tools::cpuid(0x40000000);
+			if (hyp == "GenuineBlink") {
+				platformHeading = "Blink platform:";
+			}
+		}
+#endif
 		if (tokens.size() >= 2) {
-			fmt::println("Host platform: {} {} {} {}", un.sysname, un.release, trim(tokens[1]), un.machine);
+			fmt::println("{} {} {} {} {}", platformHeading, un.sysname, un.release, trim(tokens[1]), un.machine);
 		} else {
-			fmt::println("Host platform: {} {} {}", un.sysname, un.release, un.machine);
+			fmt::println("{} {} {} {}", platformHeading, un.sysname, un.release, un.machine);
 		}
 	}
 
