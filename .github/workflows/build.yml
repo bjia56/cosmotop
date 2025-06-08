@@ -69,20 +69,22 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            alias: x86_64
+            upx: true
+          - arch: i386
+            gcc_arch: i686
+            zig_arch: x86
             upx: true
           - arch: aarch64
-            alias: aarch64
             upx: true
-          - arch: powerpc64le
-            alias: ppc64le
+          - arch: ppc64le
+            gcc_arch: powerpc64le
+            zig_arch: powerpc64le
             upx: true
           - arch: riscv64
-            alias: riscv64
-            upx: false
           - arch: s390x
-            alias: s390x
-            upx: false
+          - arch: loong64
+            gcc_arch: loongarch64
+            zig_arch: loongarch64
 
     steps:
       - name: Checkout
@@ -95,39 +97,47 @@ jobs:
         with:
           version: ${{ env.zig_version }}
 
-      - name: Install cross compilers
-        if: ${{ matrix.arch != 'x86_64' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-${{ matrix.arch }}-linux-gnu
-
       - name: Build plugin
         shell: bash
         run: |
-          export CC="${{ github.workspace }}/zigshim/zig cc -target ${{ matrix.arch }}-linux-musl"
-          export CXX="${{ github.workspace }}/zigshim/zig c++ -target ${{ matrix.arch }}-linux-musl"
+          export CC="${{ github.workspace }}/zigshim/zig cc -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
+          export CXX="${{ github.workspace }}/zigshim/zig c++ -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} ${{ matrix.arch == 'x86_64' && '-DRSMI_STATIC=ON' || '' }}
           cmake --build build --parallel 4
-          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.exe
-          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.alias }}.dbg
-          ${{ matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.alias }}.exe
+          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.dbg
+          cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.exe
+          if [ "${{ matrix.arch }}" = x86_64 ]; then
+            ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}.exe
+          fi
+
+      - name: Create stripped copy (non-x86_64)
+        if: ${{ matrix.arch != 'x86_64' }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: debian:sid
+          options: -v ${{ github.workspace }}:${{ github.workspace }} --workdir ${{ github.workspace }}
+          shell: bash
+          run: |
+            set -e
+            apt update && apt -y install gcc-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
+            ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Compress plugin
         if: ${{ matrix.upx }}
         run : |
-          upx --best ./cosmotop-linux-${{ matrix.alias }}.exe
+          upx --best ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-linux-${{ matrix.alias }}
-          path: ./cosmotop-linux-${{ matrix.alias }}.exe
+          name: plugin-linux-${{ matrix.arch }}
+          path: ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Upload debug plugin
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-linux-${{ matrix.alias }}.dbg
-          path: ./cosmotop-linux-${{ matrix.alias }}.dbg
+          name: plugin-linux-${{ matrix.arch }}.dbg
+          path: ./cosmotop-linux-${{ matrix.arch }}.dbg
 
   build_macos_plugin:
     name: Build plugin MacOS ${{ matrix.arch }}
@@ -387,27 +397,24 @@ jobs:
           mkdir -p /tmp/blink
           cd /tmp/blink
 
-          wget https://github.com/bjia56/blinkverse/releases/download/v4/blink-tiny-netbsd10.0-aarch64-stripped -O blink-netbsd-aarch64
-          chmod +x blink-netbsd-aarch64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v4/blink-tiny-openbsd7.6-aarch64-stripped -O blink-openbsd-aarch64
-          chmod +x blink-openbsd-aarch64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v4/blink-tiny-openbsd7.6-x86_64-stripped -O blink-openbsd-x86_64
-          chmod +x blink-openbsd-x86_64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v4/blink-tiny-solaris11.4-x86_64-stripped -O blink-solaris-x86_64
-          chmod +x blink-solaris-x86_64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v4/blink-tiny-linux-powerpc64le-stripped -O blink-linux-powerpc64le
-          chmod +x blink-linux-powerpc64le
-          upx --best blink-linux-powerpc64le
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v4/blink-tiny-linux-riscv64-stripped -O blink-linux-riscv64
-          chmod +x blink-linux-riscv64
-
-          wget https://github.com/bjia56/blinkverse/releases/download/v4/blink-tiny-linux-s390x-stripped -O blink-linux-s390x
-          chmod +x blink-linux-s390x
+          for item in \
+            "blink-tiny-netbsd10.0-aarch64-stripped blink-netbsd-aarch64" \
+            "blink-tiny-openbsd7.6-aarch64-stripped blink-openbsd-aarch64" \
+            "blink-tiny-openbsd7.6-x86_64-stripped blink-openbsd-x86_64" \
+            "blink-tiny-solaris11.4-x86_64-stripped blink-solaris-x86_64" \
+            "blink-tiny-linux-powerpc64le-stripped blink-linux-powerpc64le" \
+            "blink-tiny-linux-i386-stripped blink-linux-i386" \
+            "blink-tiny-linux-riscv64-stripped blink-linux-riscv64" \
+            "blink-tiny-linux-loongarch64-stripped blink-linux-loongarch64" \
+            "blink-tiny-linux-s390x-stripped blink-linux-s390x"
+          do
+            set -- $item
+            wget "https://github.com/bjia56/blinkverse/releases/download/v6/$1" -O "$2"
+            chmod +x "$2"
+            if [[ "$2" == "blink-linux-powerpc64le" || "$2" == "blink-linux-i386" ]]; then
+              upx --best "$2"
+            fi
+          done
 
       - name: Inspect artifacts
         run: |
@@ -420,7 +427,6 @@ jobs:
             -s \
             -S "V=${{ github.sha }}" \
             -l ${cosmo_bin}/ape-x86_64.elf \
-            -l ${cosmo_bin}/ape-aarch64.elf \
             -M ${cosmo_bin}/ape-m1.c \
             -o ${{ github.workspace }}/cosmotop.com \
             cosmotop.com.dbg \
@@ -469,7 +475,6 @@ jobs:
           cp $(dirname $(which zig))/LICENSE "Zig Programming Language"
           cp $(dirname $(which zig))/lib/libc/musl/COPYRIGHT "musl libc"
           cp $(dirname $(which zig))/lib/libcxx/LICENSE.TXT "LLVM Project"
-          curl -L -o Info-ZIP https://raw.githubusercontent.com/jart/cosmopolitan/refs/tags/${{ env.cosmocc_version }}/third_party/zip/LICENSE
           curl -L -o Blink https://raw.githubusercontent.com/jart/blink/98f95e8383d1032eb4d2dc6aae937b23539e915e/LICENSE
           sudo mkdir -p /zip/licenses/
           sudo cp * /zip/licenses/
@@ -482,9 +487,13 @@ jobs:
 
       - name: Chimplink
         run: |
-          wget https://github.com/bjia56/chimp/releases/download/v0.1.0/chimplink
+          wget https://github.com/bjia56/chimp/releases/download/v0.3.0/chimplink
           chmod +x chimplink
-          ./chimplink cosmotop.exe cosmotop.cmd ${{ github.sha }} \
+
+          cosmo_bin=$(dirname $(which cosmocc))
+          ./chimplink cosmotop.exe cosmotop ${{ github.sha }} \
+            ${cosmo_bin}/ape-x86_64.elf \
+            ${cosmo_bin}/ape-aarch64.elf \
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-* \
@@ -499,17 +508,16 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cosmotop.cmd
-          path: ./cosmotop.cmd
+          name: cosmotop
+          path: ./cosmotop
 
   check:
-    name: Check ${{ matrix.executable }} ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
+    name: Check cosmotop ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
     needs: bundle
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
       matrix:
-        executable: [cosmotop.exe, cosmotop.cmd]
         platform:
           - runner: macos-13
             arch: x86_64
@@ -520,7 +528,7 @@ jobs:
           - runner: ubuntu-latest
             arch: x86_64
             os: Linux
-          - runner: ubuntu-latest
+          - runner: ubuntu-24.04-arm
             arch: aarch64
             os: Linux
           - runner: windows-latest
@@ -538,13 +546,14 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.executable }}
+          name: cosmotop
           path: .
 
       - name: Mark executable
+        if: ${{ matrix.platform.os != 'Windows' }}
         shell: bash
         run: |
-          chmod +x ${{ matrix.executable }}
+          chmod +x cosmotop
 
       - name: Configure Windows
         if: ${{ matrix.platform.os == 'Windows' }}
@@ -553,18 +562,31 @@ jobs:
           Remove-MpPreference -ExclusionPath (Get-MpPreference).ExclusionPath
           Set-Service -Name wuauserv -StartupType Manual -Status Running
 
+      - name: Rename cosmotop
+        if: ${{ matrix.platform.os == 'Windows' }}
+        shell: bash
+        run: |
+          mv cosmotop cosmotop.cmd
+
       - name: Scan with Windows Defender
         if: ${{ matrix.platform.os == 'Windows' }}
         shell: cmd
         run: |
-          copy ${{ matrix.executable }} C:
+          copy cosmotop.cmd C:
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
-          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\${{ matrix.executable }}
+          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.cmd
 
-      - name: Check ${{ matrix.executable }}
+      - name: Check cosmotop
+        if: ${{ matrix.platform.os != 'Windows' }}
         shell: bash
         run: |
-          ./${{ matrix.executable }} --version
+          ./cosmotop --version
+
+      - name: Check cosmotop
+        if: ${{ matrix.platform.os == 'Windows' }}
+        shell: powershell
+        run: |
+          ./cosmotop.cmd --version
 
   docker:
     name: Build cosmotop Docker image

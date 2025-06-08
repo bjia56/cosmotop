@@ -54,7 +54,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: cosmotop.cmd
+          name: cosmotop
           path: .
 
       - name: Download artifact
@@ -83,6 +83,7 @@ jobs:
           mkdir debug
           cp *.dbg debug/
           cp cosmotop.aarch64.elf debug/
+          cp cosmotop.exe debug/
           zip -r debug.zip debug
 
       - name: Release
@@ -90,9 +91,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            cosmotop*.exe
-            cosmotop.cmd
-            debug.zip
+            cosmotop
+            cosmotop-*.exe
+            ${{ inputs.beta && 'debug.zip' || '' }}
           tag_name: ${{ inputs.version }}
           generate_release_notes: true
           prerelease: ${{ inputs.beta }}
