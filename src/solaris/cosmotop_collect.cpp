@@ -16,6 +16,8 @@ indent = tab
 tab-size = 4
 */
 
+#include <cosmo_plugin.hpp>
+
 #include <kstat.h>
 #include <sys/statvfs.h>
 #include <sys/swap.h>
@@ -60,6 +62,8 @@ tab-size = 4
 #include "../cosmotop_config.hpp"
 #include "../cosmotop_shared.hpp"
 #include "../cosmotop_tools.hpp"
+
+#include <iostream>
 
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
@@ -318,8 +322,6 @@ namespace Cpu {
 	}
 }
 
-#include <iostream>
-
 namespace Mem {
 	uint64_t get_totalMem() {
 		return Shared::totalMem;
@@ -437,6 +439,7 @@ namespace Mem {
 			struct mnttab mnt;
 			vector<string> found;
 			found.reserve(last_found.size());
+			resetmnttab(mnttab);
 			while (getmntent(mnttab, &mnt) == 0) {
 				string fstype = mnt.mnt_fstype;
 				static std::list<string> rejectList = {
