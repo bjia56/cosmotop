@@ -552,38 +552,35 @@ namespace Net {
 	auto collect(bool no_update) -> net_info & {
 		kstat_ctl_t *kc = Shared::kc;
 		if (!kc) return empty_net;
+		
+		const auto config_iface = Config::getS("net_iface");
+		const auto net_sync = Config::getB("net_sync");
+		const auto net_auto = Config::getB("net_auto");
+		auto new_timestamp = time_ms();
+		const auto width = get_width();
 
 		interfaces.clear();
 
 		// Get network interfaces
 		for (kstat_t *ks = kc->kc_chain; ks; ks = ks->ks_next) {
-			if (strcmp(ks->ks_class, "net") == 0) {
+			if (strcmp(ks->ks_class, "net") == 0 && strcmp(ks->ks_module, "link") == 0) {
+				if (kstat_read(kc, ks, NULL) == -1) continue;
+
 				string iface = ks->ks_name;
 				interfaces.push_back(iface);
 
-				if (kstat_read(kc, ks, NULL) == -1) continue;
+				uint64_t rbytes, obytes;
+				for (int i = 0; i < ks->ks_ndata; ++i) {
+					kstat_named_t *kn = &((kstat_named_t*)(ks->ks_data))[i];
+					if (strcmp(kn->name, "rbytes64") == 0) {
+						rbytes = kn->value.ui64;
+					} else if (strcmp(kn->name, "obytes64") == 0) {
+						obytes = kn->value.ui64;
+					}
+				}
 
 				kstat_named_t *kn;
 				net_info &ni = current_net[iface];
-
-				// Get IP addresses (simplified)
-				int s = socket(AF_INET, SOCK_DGRAM, 0);
-				if (s >= 0) {
-					struct lifreq ifr;
-					strncpy(ifr.lifr_name, iface.c_str(), IFNAMSIZ);
-
-					if (ioctl(s, SIOCGLIFADDR, &ifr) >= 0) {
-						ni.ipv4 = inet_ntoa(((struct sockaddr_in *)&ifr.lifr_addr)->sin_addr);
-					}
-					close(s);
-				}
-
-				// Get stats
-				kn = (kstat_named_t *)kstat_data_lookup(ks, "rbytes");
-				uint64_t rbytes = kn ? kn->value.ui32 : 0;
-
-				kn = (kstat_named_t *)kstat_data_lookup(ks, "obytes");
-				uint64_t obytes = kn ? kn->value.ui32 : 0;
 
 				// Update stats
 				auto &saved_dl = ni.stat["download"];
@@ -608,10 +605,62 @@ namespace Net {
 
 		timestamp = time_ms();
 
-		// Interface selection logic (same as original)
-		// ...
+		//? Find an interface to display if selected isn't set or valid
+		if (selected_iface.empty() or not v_contains(interfaces, selected_iface)) {
+			max_count["download"][0] = max_count["download"][1] = max_count["upload"][0] = max_count["upload"][1] = 0;
+			set_redraw(true);
+			if (net_auto) rescale = true;
+			if (not config_iface.empty() and v_contains(interfaces, config_iface))
+				selected_iface = config_iface;
+			else {
+				//? Sort interfaces by total upload + download bytes
+				auto sorted_interfaces = interfaces;
+				rng::sort(sorted_interfaces, [&](const auto &a, const auto &b) {
+					return cmp_greater(current_net.at(a).stat["download"].total + current_net.at(a).stat["upload"].total,
+									   current_net.at(b).stat["download"].total + current_net.at(b).stat["upload"].total);
+				});
+				selected_iface.clear();
+				//? Try to set to a connected interface
+				for (const auto &iface : sorted_interfaces) {
+					if (current_net.at(iface).connected) selected_iface = iface;
+					break;
+				}
+				//? If no interface is connected set to first available
+				if (selected_iface.empty() and not sorted_interfaces.empty())
+					selected_iface = sorted_interfaces.at(0);
+				else if (sorted_interfaces.empty())
+					return empty_net;
+			}
+		}
 
-		return current_net[selected_iface];
+		//? Calculate max scale for graphs if needed
+		if (net_auto) {
+			bool sync = false;
+			for (const auto &dir : {"download", "upload"}) {
+				for (const auto &sel : {0, 1}) {
+					if (rescale or max_count[dir][sel] >= 5) {
+						const long long avg_speed = (current_net[selected_iface].bandwidth[dir].size() > 5
+														? std::accumulate(current_net.at(selected_iface).bandwidth.at(dir).rbegin(), current_net.at(selected_iface).bandwidth.at(dir).rbegin() + 5, 0ll) / 5
+														: current_net[selected_iface].stat[dir].speed);
+						graph_max[dir] = max(uint64_t(avg_speed * (sel == 0 ? 1.3 : 3.0)), (uint64_t)10 << 10);
+						max_count[dir][0] = max_count[dir][1] = 0;
+						set_redraw(true);
+						if (net_sync) sync = true;
+						break;
+					}
+				}
+				//? Sync download/upload graphs if enabled
+				if (sync) {
+					const auto other = (string(dir) == "upload" ? "download" : "upload");
+					graph_max[other] = graph_max[dir];
+					max_count[other][0] = max_count[other][1] = 0;
+					break;
+				}
+			}
+		}
+
+		rescale = false;
+		return current_net.at(selected_iface);
 	}
 }
 
