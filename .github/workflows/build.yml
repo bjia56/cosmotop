@@ -497,7 +497,7 @@ jobs:
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-* \
-            --os Solaris /tmp/blink/blink-solaris-* \
+            --os Solaris /tmp/blink/blink-solaris-*
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
