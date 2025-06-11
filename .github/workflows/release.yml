@@ -57,6 +57,16 @@ jobs:
           name: cosmotop
           path: .
 
+      - name: Verify cosmotop version output
+        run: |
+          chmod +x ./cosmotop
+          expected_version=${{ inputs.version }}
+          actual_version=v$(./cosmotop -v | tr -d '\n' | awk '{print $NF;}')
+          if [ "$actual_version" != "$expected_version" ]; then
+            echo "Version mismatch: expected '$expected_version', got '$actual_version'"
+            exit 1
+          fi
+
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
@@ -79,6 +89,7 @@ jobs:
           rm cosmotop-windows-x86_64.dll
 
       - name: Make bundle from debug
+        if: ${{ inputs.beta }}
         run: |
           mkdir debug
           cp *.dbg debug/
