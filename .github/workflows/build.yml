@@ -476,6 +476,7 @@ jobs:
           cp $(dirname $(which zig))/lib/libc/musl/COPYRIGHT "musl libc"
           cp $(dirname $(which zig))/lib/libcxx/LICENSE.TXT "LLVM Project"
           curl -L -o Blink https://raw.githubusercontent.com/jart/blink/98f95e8383d1032eb4d2dc6aae937b23539e915e/LICENSE
+          curl -L -o Chimp https://raw.githubusercontent.com/bjia56/chimp/refs/tags/v0.3.0/LICENSE
           sudo mkdir -p /zip/licenses/
           sudo cp * /zip/licenses/
 
