@@ -754,60 +754,275 @@ metric_done:
 }
 
 namespace Proc {
+
 	vector<proc_info> current_procs;
+	string current_sort;
+	string current_filter;
+	bool current_rev = false;
+
 	int collapse = -1, expand = -1;
 	atomic<int> numpids = 0;
 	int filter_found = 0;
+
 	detail_container detailed;
 
+	string get_status(char s) {
+		if (s & SRUN || s & SONPROC) return "Running";
+		if (s & SSLEEP) return "Sleeping";
+		if (s & SIDL) return "Idle";
+		if (s & SSTOP) return "Stopped";
+		if (s & SZOMB) return "Zombie";
+		return "Unknown";
+	}
+
+	//* Get detailed info for selected process
+	void _collect_details(const size_t pid, vector<proc_info> &procs) {
+		if (pid != detailed.last_pid) {
+			detailed = {};
+			detailed.last_pid = pid;
+			detailed.skip_smaps = not Config::getB("proc_info_smaps");
+		}
+		const auto width = get_width();
+
+		//? Copy proc_info for process from proc vector
+		auto p_info = rng::find(procs, pid, &proc_info::pid);
+		detailed.entry = *p_info;
+
+		//? Update cpu percent deque for process cpu graph
+		if (not Config::getB("proc_per_core")) detailed.entry.cpu_p *= Shared::coreCount;
+		detailed.cpu_percent.push_back(clamp((long long)round(detailed.entry.cpu_p), 0ll, 100ll));
+		while (cmp_greater(detailed.cpu_percent.size(), width)) detailed.cpu_percent.pop_front();
+
+		//? Process runtime : current time - start time (both in unix time - seconds since epoch)
+		struct timeval currentTime;
+		gettimeofday(&currentTime, nullptr);
+		detailed.elapsed = sec_to_dhms(currentTime.tv_sec - detailed.entry.cpu_s); // only interested in second granularity, so ignoring tc_usec
+		if (detailed.elapsed.size() > 8) detailed.elapsed.resize(detailed.elapsed.size() - 3);
+
+		//? Get parent process name
+		if (detailed.parent.empty()) {
+			auto p_entry = rng::find(procs, detailed.entry.ppid, &proc_info::pid);
+			if (p_entry != procs.end()) detailed.parent = p_entry->name;
+		}
+
+		//? Expand process status from single char to explanative string
+		detailed.status = get_status(detailed.entry.state);
+
+		detailed.mem_bytes.push_back(detailed.entry.mem);
+		detailed.memory = floating_humanizer(detailed.entry.mem);
+
+		if (detailed.first_mem == -1 or detailed.first_mem < detailed.mem_bytes.back() / 2 or detailed.first_mem > detailed.mem_bytes.back() * 4) {
+			detailed.first_mem = min((uint64_t)detailed.mem_bytes.back() * 2, Mem::get_totalMem());
+			set_redraw(true);
+		}
+
+		while (cmp_greater(detailed.mem_bytes.size(), width)) detailed.mem_bytes.pop_front();
+	}
+
 	auto collect(bool no_update) -> vector<proc_info> & {
-		// Open /proc and scan for processes
-		DIR *dirp = opendir("/proc");
-		if (!dirp) return current_procs;
+		if (Runner::get_stopping()) return current_procs;
+		const auto sorting = Config::getS("proc_sorting");
+		const auto reverse = Config::getB("proc_reversed");
+		const auto filter = Config::getS("proc_filter");
+		const auto per_core = Config::getB("proc_per_core");
+		const auto should_filter_kernel = Config::getB("proc_filter_kernel");
+		const auto tree = Config::getB("proc_tree");
+		const auto show_detailed = Config::getB("show_detailed");
+		const size_t detailed_pid = Config::getI("detailed_pid");
+		bool should_filter = current_filter != filter;
+		if (should_filter) current_filter = filter;
+		bool sorted_change = (sorting != current_sort or reverse != current_rev or should_filter);
+		if (sorted_change) {
+			current_sort = sorting;
+			current_rev = reverse;
+		}
+		ifstream pread;
+		string long_string;
+		string short_str;
 
-		struct dirent *dent;
-		while ((dent = readdir(dirp))) {
-			if (dent->d_name[0] < '0' || dent->d_name[0] > '9') continue;
+		const int cmult = (per_core) ? Shared::coreCount : 1;
+		bool got_detailed = false;
 
-			pid_t pid = atoi(dent->d_name);
-			psinfo_t psinfo;
-			char path[PATH_MAX];
+		static vector<size_t> found;
 
-			snprintf(path, sizeof(path), "/proc/%d/psinfo", pid);
-			int fd = open(path, O_RDONLY);
-			if (fd == -1) continue;
+		//* Use pids from last update if only changing filter, sorting or tree options
+		if (no_update and not current_procs.empty()) {
+			if (show_detailed and detailed_pid != detailed.last_pid) _collect_details(detailed_pid, current_procs);
+		}
+		//* ---------------------------------------------Collection start----------------------------------------------
+		else {
+			should_filter = true;
+			found.clear();
+			struct timeval currentTime;
+			gettimeofday(&currentTime, nullptr);
+			const double timeNow = currentTime.tv_sec + (currentTime.tv_usec / 1'000'000);
 
-			if (read(fd, &psinfo, sizeof(psinfo)) == sizeof(psinfo)) {
-				// Find or create proc_info
-				auto p = rng::find(current_procs, pid, &proc_info::pid);
-				if (p == current_procs.end()) {
-					current_procs.push_back({pid});
-					p = current_procs.end() - 1;
-					p->name = psinfo.pr_fname;
-					p->cmd = psinfo.pr_psargs;
-					p->ppid = psinfo.pr_ppid;
+			// Open /proc and scan for processes
+			DIR *dirp = opendir("/proc");
+			if (!dirp) return current_procs;
 
-					struct passwd *pwd = getpwuid(psinfo.pr_uid);
-					if (pwd) {
-						p->user = pwd->pw_name;
+			struct dirent *dent;
+			while ((dent = readdir(dirp))) {
+				if (dent->d_name[0] < '0' || dent->d_name[0] > '9') continue;
+
+				pid_t pid = atoi(dent->d_name);
+				psinfo_t psinfo;
+				char path[PATH_MAX];
+
+				snprintf(path, sizeof(path), "/proc/%d/psinfo", pid);
+				int fd = open(path, O_RDONLY);
+				if (fd == -1) continue;
+
+				if (read(fd, &psinfo, sizeof(psinfo)) == sizeof(psinfo)) {
+					found.push_back(pid);
+
+					//? Check if pid already exists in current_procs
+					bool no_cache = false;
+					auto find_old = rng::find(current_procs, pid, &proc_info::pid);
+					if (find_old == current_procs.end()) {
+						current_procs.push_back({pid});
+						find_old = current_procs.end() - 1;
+						no_cache = true;
+					}
+
+					auto &new_proc = *find_old;
+
+					//? Get program name, command, parent pid, start, username
+					if (no_cache) {
+						new_proc.name = psinfo.pr_fname;
+						new_proc.cmd = psinfo.pr_psargs;
+						if (new_proc.cmd.size() > 1000) {
+							new_proc.cmd.resize(1000);
+							new_proc.cmd.shrink_to_fit();
+						}
+						new_proc.ppid = psinfo.pr_ppid;
+						new_proc.cpu_s = round(psinfo.pr_start.tv_sec);
+						struct passwd *pwd = getpwuid(psinfo.pr_uid);
+						if (pwd) {
+							new_proc.user = pwd->pw_name;
+						}
+					}
+					new_proc.p_nice = psinfo.pr_lwp.pr_nice;
+					new_proc.state = psinfo.pr_lwp.pr_state;
+
+					int cpu_t = psinfo.pr_time.tv_sec * 1'000'000 + psinfo.pr_time.tv_nsec / 1'000;
+					new_proc.mem = psinfo.pr_rssize * Shared::pageSize;
+					new_proc.threads = psinfo.pr_nlwp;
+
+					//? Process cpu usage since last update
+					new_proc.cpu_p = clamp((100.0 * psinfo.pr_pctcpu / (double)0x8000) * cmult, 0.0, 100.0 * Shared::coreCount);
+
+					//? Process cumulative cpu usage since process start
+					new_proc.cpu_c = (double)(cpu_t * Shared::clkTck / 1'000'000) / max(1.0, timeNow - new_proc.cpu_s);
+
+					//? Update cached value with latest cpu times
+					new_proc.cpu_t = cpu_t;
+
+					if (show_detailed and not got_detailed and new_proc.pid == detailed_pid) {
+						got_detailed = true;
 					}
 				}
-
-				// Update stats
-				p->cpu_p = (100.0 * psinfo.pr_pctcpu / 0x8000) * (Config::getB("proc_per_core") ? 1 : Shared::coreCount);
-				p->cpu_c = psinfo.pr_pctcpu;
-				p->mem = psinfo.pr_rssize * 1024;
-				p->state = psinfo.pr_lwp.pr_state;
-				p->threads = psinfo.pr_nlwp;
-				p->p_nice = psinfo.pr_lwp.pr_nice;
+				close(fd);
 			}
-			close(fd);
-		}
-		closedir(dirp);
+			closedir(dirp);
 
-		// Process filtering, sorting, tree view logic
-		// (Same as original implementation)
-		// ...
+			//? Clear dead processes from current_procs
+			current_procs |= rng::actions::remove_if([&](const auto &element) { return not v_contains(found, element.pid); });
+
+			//? Update the details info box for process if active
+			if (show_detailed and got_detailed) {
+				_collect_details(detailed_pid, current_procs);
+			} else if (show_detailed and not got_detailed and detailed.status != "Dead") {
+				detailed.status = "Dead";
+				set_redraw(true);
+			}
+		}
+		//* ---------------------------------------------Collection done-----------------------------------------------
+
+		//* Match filter if defined
+		if (should_filter) {
+			filter_found = 0;
+			for (auto& p : current_procs) {
+				if (not tree and not filter.empty()) {
+					if (!matches_filter(p, filter)) {
+						p.filtered = true;
+						filter_found++;
+					} else {
+						p.filtered = false;
+					}
+				} else {
+					p.filtered = false;
+				}
+			}
+		}
+
+		//* Sort processes
+		if (sorted_change or not no_update) {
+			proc_sorter(current_procs, sorting, reverse, tree);
+		}
+
+		//* Generate tree view if enabled
+		if (tree and (not no_update or should_filter or sorted_change)) {
+			const auto config_ints = Config::get_ints();
+			bool locate_selection = false;
+			if (auto find_pid = (collapse != -1 ? collapse : expand); find_pid != -1) {
+				auto collapser = rng::find(current_procs, find_pid, &proc_info::pid);
+				if (collapser != current_procs.end()) {
+					if (collapse == expand) {
+						collapser->collapsed = not collapser->collapsed;
+					}
+					else if (collapse > -1) {
+						collapser->collapsed = true;
+					}
+					else if (expand > -1) {
+						collapser->collapsed = false;
+					}
+					if (config_ints.at("proc_selected") > 0) locate_selection = true;
+				}
+				collapse = expand = -1;
+			}
+			if (should_filter or not filter.empty()) filter_found = 0;
+
+			vector<tree_proc> tree_procs;
+			tree_procs.reserve(current_procs.size());
+
+			for (auto& p : current_procs) {
+				if (not v_contains(found, p.ppid)) p.ppid = 0;
+			}
+
+			//? Stable sort to retain selected sorting among processes with the same parent
+			rng::stable_sort(current_procs, rng::less{}, & proc_info::ppid);
+
+			//? Start recursive iteration over processes with the lowest shared parent pids
+			for (auto& p : rng::equal_range(current_procs, current_procs.at(0).ppid, rng::less{}, &proc_info::ppid)) {
+				_tree_gen(p, current_procs, tree_procs, 0, false, filter, false, no_update, should_filter);
+			}
+
+			//? Recursive sort over tree structure to account for collapsed processes in the tree
+			int index = 0;
+			tree_sort(tree_procs, sorting, reverse, index, current_procs.size());
+
+			//? Add tree begin symbol to first item if childless
+			if (tree_procs.front().children.empty())
+				tree_procs.front().entry.get().prefix.replace(tree_procs.front().entry.get().prefix.size() - 8, 8, " ┌─ ");
+
+			//? Add tree terminator symbol to last item if childless
+			if (tree_procs.back().children.empty())
+				tree_procs.back().entry.get().prefix.replace(tree_procs.back().entry.get().prefix.size() - 8, 8, " └─ ");
+
+			//? Final sort based on tree index
+			rng::sort(current_procs, rng::less{}, & proc_info::tree_index);
+
+			//? Move current selection/view to the selected process when collapsing/expanding in the tree
+			if (locate_selection) {
+				int loc = rng::find(current_procs, Proc::get_selected_pid(), &proc_info::pid)->tree_index;
+				if (config_ints.at("proc_start") >= loc or config_ints.at("proc_start") <= loc - Proc::get_select_max())
+					Config::ints_set_at("proc_start", max(0, loc - 1));
+				Config::ints_set_at("proc_selected", loc - config_ints.at("proc_start") + 1);
+			}
+		}
+
+		numpids = (int)current_procs.size() - filter_found;
 
 		return current_procs;
 	}

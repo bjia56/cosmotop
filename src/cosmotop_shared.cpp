@@ -162,6 +162,7 @@ namespace Proc {
 			if (collapsed and not filtering) {
 				cur_proc.filtered = true;
 			}
+			if (p.pid == cur_proc.pid) continue;
 
 			_tree_gen(p, in_procs, out_procs.back().children, cur_depth + 1, (collapsed or cur_proc.collapsed), filter, found, no_update, should_filter);
 
