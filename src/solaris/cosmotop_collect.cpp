@@ -275,9 +275,9 @@ namespace Cpu {
 			kstat_t *ks = kstat_lookup(kc, "cpu_stat", i, NULL);
 			if (ks && kstat_read(kc, ks, &cs) != -1) {
 				long long totals = cs.cpu_sysinfo.cpu[CPU_USER] +
-								 cs.cpu_sysinfo.cpu[CPU_KERNEL] +
-								 cs.cpu_sysinfo.cpu[CPU_IDLE] +
-								 cs.cpu_sysinfo.cpu[CPU_WAIT];
+								   cs.cpu_sysinfo.cpu[CPU_KERNEL] +
+								   cs.cpu_sysinfo.cpu[CPU_IDLE] +
+								   cs.cpu_sysinfo.cpu[CPU_WAIT];
 				long long idles = cs.cpu_sysinfo.cpu[CPU_IDLE];
 
 				global_totals += totals;
@@ -551,97 +551,186 @@ namespace Net {
 
 	auto collect(bool no_update) -> net_info & {
 		kstat_ctl_t *kc = Shared::kc;
-		if (!kc) return empty_net;
-		
+		if (Runner::get_stopping() or !kc) return empty_net;
+
+		auto& net = current_net;
 		const auto config_iface = Config::getS("net_iface");
 		const auto net_sync = Config::getB("net_sync");
 		const auto net_auto = Config::getB("net_auto");
 		auto new_timestamp = time_ms();
 		const auto width = get_width();
 
-		interfaces.clear();
+		if (not no_update and errors < 3) {
+			//? Get interface list using getifaddrs() wrapper
+			IfAddrsPtr if_addrs {};
+			if (if_addrs.get_status() != 0) {
+				errors++;
+				Logger::error("Net::collect() -> getifaddrs() failed with id " + to_string(if_addrs.get_status()));
+				set_redraw(true);
+				return empty_net;
+			}
+			int family = 0;
+			static_assert(INET6_ADDRSTRLEN >= INET_ADDRSTRLEN); // 46 >= 16, compile-time assurance.
+			enum { IPBUFFER_MAXSIZE = INET6_ADDRSTRLEN }; // manually using the known biggest value, guarded by the above static_assert
+			char ip[IPBUFFER_MAXSIZE];
+			interfaces.clear();
+			string ipv4, ipv6;
 
-		// Get network interfaces
-		for (kstat_t *ks = kc->kc_chain; ks; ks = ks->ks_next) {
-			if (strcmp(ks->ks_class, "net") == 0 && strcmp(ks->ks_module, "link") == 0) {
-				if (kstat_read(kc, ks, NULL) == -1) continue;
+			//? Iteration over all items in getifaddrs() list
+			for (auto* ifa = if_addrs.get(); ifa != nullptr; ifa = ifa->ifa_next) {
+				if (ifa->ifa_addr == nullptr) continue;
+				family = ifa->ifa_addr->sa_family;
+				const auto& iface = ifa->ifa_name;
 
-				string iface = ks->ks_name;
-				interfaces.push_back(iface);
+				//? Update available interfaces vector and get status of interface
+				if (not v_contains(interfaces, iface)) {
+					interfaces.push_back(iface);
+					net[iface].connected = (ifa->ifa_flags & IFF_RUNNING);
 
-				uint64_t rbytes, obytes;
-				for (int i = 0; i < ks->ks_ndata; ++i) {
-					kstat_named_t *kn = &((kstat_named_t*)(ks->ks_data))[i];
-					if (strcmp(kn->name, "rbytes64") == 0) {
-						rbytes = kn->value.ui64;
-					} else if (strcmp(kn->name, "obytes64") == 0) {
-						obytes = kn->value.ui64;
-					}
+					// An interface can have more than one IP of the same family associated with it,
+					// but we pick only the first one to show in the NET box.
+					// Note: Interfaces without any IPv4 and IPv6 set are still valid and monitorable!
+					net[iface].ipv4.clear();
+					net[iface].ipv6.clear();
 				}
 
-				kstat_named_t *kn;
-				net_info &ni = current_net[iface];
 
-				// Update stats
-				auto &saved_dl = ni.stat["download"];
-				auto &saved_ul = ni.stat["upload"];
-
-				if (rbytes < saved_dl.last) saved_dl.rollover += saved_dl.last;
-				if (obytes < saved_ul.last) saved_ul.rollover += saved_ul.last;
-
-				saved_dl.speed = (rbytes - saved_dl.last) / ((time_ms() - timestamp) / 1000);
-				saved_ul.speed = (obytes - saved_ul.last) / ((time_ms() - timestamp) / 1000);
-
-				saved_dl.last = rbytes;
-				saved_ul.last = obytes;
-
-				saved_dl.total = rbytes + saved_dl.rollover - saved_dl.offset;
-				saved_ul.total = obytes + saved_ul.rollover - saved_ul.offset;
-
-				ni.bandwidth["download"].push_back(saved_dl.speed);
-				ni.bandwidth["upload"].push_back(saved_ul.speed);
+				//? Get IPv4 address
+				if (family == AF_INET) {
+					if (net[iface].ipv4.empty()) {
+						if (nullptr != inet_ntop(family, &(reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr)->sin_addr), ip, IPBUFFER_MAXSIZE)) {
+							net[iface].ipv4 = ip;
+						} else {
+							int errsv = errno;
+							Logger::error("Net::collect() -> Failed to convert IPv4 to string for iface " + string(iface) + ", errno: " + strerror(errsv));
+						}
+					}
+				}
+				//? Get IPv6 address
+				else if (family == AF_INET6) {
+					if (net[iface].ipv6.empty()) {
+						if (nullptr != inet_ntop(family, &(reinterpret_cast<struct sockaddr_in6*>(ifa->ifa_addr)->sin6_addr), ip, IPBUFFER_MAXSIZE)) {
+							net[iface].ipv6 = ip;
+						} else {
+							int errsv = errno;
+							Logger::error("Net::collect() -> Failed to convert IPv6 to string for iface " + string(iface) + ", errno: " + strerror(errsv));
+						}
+					}
+				} //else, ignoring family==AF_PACKET (see man 3 getifaddrs) which is the first one in the `for` loop.
 			}
+
+			//? Get total received and transmitted bytes
+			for (const auto& iface : interfaces) {
+				for (const string dir : {"download", "upload"}) {
+					auto& saved_stat = net.at(iface).stat.at(dir);
+					auto& bandwidth = net.at(iface).bandwidth.at(dir);
+					uint64_t val{};
+
+					//? Search for metrics in kstat
+					for (kstat_t *ks = kc->kc_chain; ks; ks = ks->ks_next) {
+						if (strcmp(ks->ks_class, "net") == 0 && strcmp(ks->ks_module, "link") == 0) {
+							if (kstat_read(kc, ks, NULL) == -1) continue;
+							if (iface != ks->ks_name) continue;
+
+							const char *key = dir == "download" ? "rbytes64" : "obytes64";
+							for (int i = 0; i < ks->ks_ndata; ++i) {
+								kstat_named_t *kn = &((kstat_named_t*)(ks->ks_data))[i];
+								if (strcmp(kn->name, key) == 0) {
+									val = kn->value.ui64;
+									goto metric_done;
+								}
+							}
+						}
+					}
+metric_done:
+
+					//? Update speed, total and top values
+					if (val < saved_stat.last) {
+						saved_stat.rollover += saved_stat.last;
+						saved_stat.last = 0;
+					}
+					if (cmp_greater((unsigned long long)saved_stat.rollover + (unsigned long long)val, numeric_limits<uint64_t>::max())) {
+						saved_stat.rollover = 0;
+						saved_stat.last = 0;
+					}
+					saved_stat.speed = round((double)(val - saved_stat.last) / ((double)(new_timestamp - timestamp) / 1000));
+					if (saved_stat.speed > saved_stat.top) saved_stat.top = saved_stat.speed;
+					if (saved_stat.offset > val + saved_stat.rollover) saved_stat.offset = 0;
+					saved_stat.total = (val + saved_stat.rollover) - saved_stat.offset;
+					saved_stat.last = val;
+
+					//? Add values to graph
+					bandwidth.push_back(saved_stat.speed);
+					while (cmp_greater(bandwidth.size(), width * 2)) bandwidth.pop_front();
+
+					//? Set counters for auto scaling
+					if (net_auto and selected_iface == iface) {
+						if (net_sync and saved_stat.speed < net.at(iface).stat.at(dir == "download" ? "upload" : "download").speed) continue;
+						if (saved_stat.speed > graph_max[dir]) {
+							++max_count[dir][0];
+							if (max_count[dir][1] > 0) --max_count[dir][1];
+						}
+						else if (graph_max[dir] > 10 << 10 and saved_stat.speed < graph_max[dir] / 10) {
+							++max_count[dir][1];
+							if (max_count[dir][0] > 0) --max_count[dir][0];
+						}
+
+					}
+				}
+			}
+
+			//? Clean up net map if needed
+			if (net.size() > interfaces.size()) {
+				for (auto it = net.begin(); it != net.end();) {
+					if (not v_contains(interfaces, it->first))
+						it = net.erase(it);
+					else
+						it++;
+				}
+			}
+
+			timestamp = new_timestamp;
 		}
 
-		timestamp = time_ms();
+		//? Return empty net_info struct if no interfaces was found
+		if (net.empty())
+			return empty_net;
 
 		//? Find an interface to display if selected isn't set or valid
 		if (selected_iface.empty() or not v_contains(interfaces, selected_iface)) {
 			max_count["download"][0] = max_count["download"][1] = max_count["upload"][0] = max_count["upload"][1] = 0;
 			set_redraw(true);
 			if (net_auto) rescale = true;
-			if (not config_iface.empty() and v_contains(interfaces, config_iface))
-				selected_iface = config_iface;
+			if (not config_iface.empty() and v_contains(interfaces, config_iface)) selected_iface = config_iface;
 			else {
 				//? Sort interfaces by total upload + download bytes
 				auto sorted_interfaces = interfaces;
-				rng::sort(sorted_interfaces, [&](const auto &a, const auto &b) {
-					return cmp_greater(current_net.at(a).stat["download"].total + current_net.at(a).stat["upload"].total,
-									   current_net.at(b).stat["download"].total + current_net.at(b).stat["upload"].total);
+				rng::sort(sorted_interfaces, [&](const auto& a, const auto& b){
+					return 	cmp_greater(net.at(a).stat["download"].total + net.at(a).stat["upload"].total,
+										net.at(b).stat["download"].total + net.at(b).stat["upload"].total);
 				});
 				selected_iface.clear();
 				//? Try to set to a connected interface
-				for (const auto &iface : sorted_interfaces) {
-					if (current_net.at(iface).connected) selected_iface = iface;
+				for (const auto& iface : sorted_interfaces) {
+					if (net.at(iface).connected) selected_iface = iface;
 					break;
 				}
 				//? If no interface is connected set to first available
-				if (selected_iface.empty() and not sorted_interfaces.empty())
-					selected_iface = sorted_interfaces.at(0);
-				else if (sorted_interfaces.empty())
-					return empty_net;
+				if (selected_iface.empty() and not sorted_interfaces.empty()) selected_iface = sorted_interfaces.at(0);
+				else if (sorted_interfaces.empty()) return empty_net;
+
 			}
 		}
 
 		//? Calculate max scale for graphs if needed
 		if (net_auto) {
 			bool sync = false;
-			for (const auto &dir : {"download", "upload"}) {
-				for (const auto &sel : {0, 1}) {
+			for (const auto& dir: {"download", "upload"}) {
+				for (const auto& sel : {0, 1}) {
 					if (rescale or max_count[dir][sel] >= 5) {
-						const long long avg_speed = (current_net[selected_iface].bandwidth[dir].size() > 5
-														? std::accumulate(current_net.at(selected_iface).bandwidth.at(dir).rbegin(), current_net.at(selected_iface).bandwidth.at(dir).rbegin() + 5, 0ll) / 5
-														: current_net[selected_iface].stat[dir].speed);
+						const long long avg_speed = (net[selected_iface].bandwidth[dir].size() > 5
+							? std::accumulate(net.at(selected_iface).bandwidth.at(dir).rbegin(), net.at(selected_iface).bandwidth.at(dir).rbegin() + 5, 0ll) / 5
+							: net[selected_iface].stat[dir].speed);
 						graph_max[dir] = max(uint64_t(avg_speed * (sel == 0 ? 1.3 : 3.0)), (uint64_t)10 << 10);
 						max_count[dir][0] = max_count[dir][1] = 0;
 						set_redraw(true);
@@ -660,7 +749,7 @@ namespace Net {
 		}
 
 		rescale = false;
-		return current_net.at(selected_iface);
+		return net.at(selected_iface);
 	}
 }
 
