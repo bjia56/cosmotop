@@ -175,15 +175,17 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
       - name: Start VM
         uses: bjia56/custom-actions/macppc-vm@main
-        with:
-          prerun_copy_from: .
+
+      - name: Checkout
+        shell: macppc {0}
+        run: |
+          git init .
+          git remote add origin https://github.com/${GITHUB_REPOSITORY}.git
+          git fetch --depth=1 origin $GITHUB_SHA
+          git checkout $GITHUB_SHA
+          git submodule update --init --recursive
 
       - name: Build plugin
         shell: macppc {0}
