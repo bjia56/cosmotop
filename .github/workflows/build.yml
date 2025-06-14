@@ -183,8 +183,13 @@ jobs:
         run: |
           git init .
           git remote add origin https://github.com/${{ github.repository }}.git
-          git fetch --depth=1 origin ${{ github.sha }}
-          git checkout ${{ github.sha }}
+          if [[ "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
+            git fetch origin "refs/pull/${{ github.event.pull_request.number }}/merge"
+            git checkout FETCH_HEAD
+          else
+            git fetch --depth=1 origin ${{ github.sha }}
+            git checkout ${{ github.sha }}
+          fi
           git submodule update --init --recursive
 
       - name: Build plugin
