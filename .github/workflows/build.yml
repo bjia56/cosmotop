@@ -170,6 +170,38 @@ jobs:
           name: plugin-macos-${{ matrix.arch }}
           path: ./cosmotop-macos-${{ matrix.arch }}.exe
 
+  build_macppc_plugin:
+    name: Build plugin MacOS ppc
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: bjia56/custom-actions/macppc-vm@main
+        with:
+          prerun_copy_from: .
+
+      - name: Build plugin
+        shell: macppc {0}
+        run: |
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop-plugin.exe ./cosmotop-macos-ppc.exe
+
+      - name: Copy out of VM
+        run: |
+          scp macppc:/Users/macuser/cosmotop-macos-ppc.exe .
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-macos-ppc
+          path: ./cosmotop-macos-ppc.exe
+
   build_windows_plugin:
     name: Build plugin Windows ${{ matrix.arch }}
     runs-on: windows-latest
@@ -352,6 +384,7 @@ jobs:
       - build
       - build_linux_plugin
       - build_macos_plugin
+      - build_macppc_plugin
       - build_windows_plugin
       - build_freebsd_plugin
       - build_netbsd_plugin
