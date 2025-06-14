@@ -182,9 +182,9 @@ jobs:
         shell: macppc {0}
         run: |
           git init .
-          git remote add origin https://github.com/${GITHUB_REPOSITORY}.git
-          git fetch --depth=1 origin $GITHUB_SHA
-          git checkout $GITHUB_SHA
+          git remote add origin https://github.com/${{ github.repository }}.git
+          git fetch --depth=1 origin ${{ github.sha }}
+          git checkout ${{ github.sha }}
           git submodule update --init --recursive
 
       - name: Build plugin
