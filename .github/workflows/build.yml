@@ -195,7 +195,9 @@ jobs:
       - name: Build plugin
         shell: macppc {0}
         run: |
-          CC=gcc-mp-14 CXX=g++-mp-14 CFLAGS="-I/opt/local/include/LegacySupport" LDFLAGS="/opt/local/lib/libMacportsLegacySupport.a" cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          CC=gcc-mp-14 CXX=g++-mp-14 cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} \
+            -DCMAKE_C_FLAGS="-I/opt/local/include/LegacySupport" -DCMAKE_CXX_FLAGS="-I/opt/local/include/LegacySupport" \
+            -DCMAKE_EXE_LINKER_FLAGS="/opt/local/lib/libMacportsLegacySupport.a"
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-macos-ppc.exe
 
