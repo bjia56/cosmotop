@@ -234,7 +234,14 @@ elseif(${TARGET} STREQUAL "plugin")
   if(CMAKE_SYSTEM MATCHES "Linux" AND RSMI_STATIC)
     target_link_libraries(${BINARY_NAME} PRIVATE ROCm)
   elseif(CMAKE_SYSTEM MATCHES "Darwin")
-    target_link_libraries(${BINARY_NAME} PRIVATE $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> $<LINK_LIBRARY:FRAMEWORK,IOKit> IOReport)
+    set(PLUGIN_LIBRARIES
+      $<LINK_LIBRARY:FRAMEWORK,CoreFoundation>
+      $<LINK_LIBRARY:FRAMEWORK,IOKit>
+    )
+    if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+      list(APPEND PLUGIN_LIBRARIES IOReport)
+    endif()
+    target_link_libraries(${BINARY_NAME} PRIVATE ${PLUGIN_LIBRARIES} IOReport)
   elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
     target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm elf::elf)
   elseif(CMAKE_SYSTEM MATCHES "NetBSD")
