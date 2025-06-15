@@ -20,6 +20,9 @@ tab-size = 4
 
 #include <vector>
 
+/* Only available on M series Macs */
+#ifdef __aarch64__
+
 static std::string CFStringRefToString(CFStringRef str, UInt32 encoding = kCFStringEncodingUTF8) {
 	if (str == nullptr) {
 		return "";
@@ -115,3 +118,5 @@ namespace Npu {
 		return ane_power;
 	}
 }  // namespace Npu
+
+#endif // __aarch64__
