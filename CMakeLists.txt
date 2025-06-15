@@ -238,7 +238,8 @@ elseif(${TARGET} STREQUAL "plugin")
       $<LINK_LIBRARY:FRAMEWORK,CoreFoundation>
       $<LINK_LIBRARY:FRAMEWORK,IOKit>
     )
-    if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+      message(STATUS "Target is arm64/aarch64, adding IOReport")
       list(APPEND PLUGIN_LIBRARIES IOReport)
     endif()
     target_link_libraries(${BINARY_NAME} PRIVATE ${PLUGIN_LIBRARIES})
