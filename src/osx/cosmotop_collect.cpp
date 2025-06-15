@@ -21,7 +21,12 @@ tab-size = 4
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <arpa/inet.h>
+#if __MAC_OS_X_VERSION_MIN_REQUIRED > 1040 && !defined(__ppc__)
+// libproc.h not available on ppc Tiger and wouldn't work anyways
+// https://trac.macports.org/ticket/58160#comment:18
 #include <libproc.h>
+#define USE_LIBPROC
+#endif
 #include <mach/mach.h>
 #include <mach/mach_host.h>
 #include <mach/mach_init.h>
@@ -36,9 +41,11 @@ tab-size = 4
 #include <net/if.h>
 #include <ifaddrs.h>
 #include <net/if_dl.h>
+#include <net/route.h>
 #include <netdb.h>
 #include <netinet/tcp_fsm.h>
 #include <pwd.h>
+#include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/statvfs.h>
 #include <sys/sysctl.h>
@@ -1307,14 +1314,18 @@ namespace Proc {
 
 					//? Get program name, command, username, parent pid, nice and status
 					if (no_cache) {
+						string f_name = "<defunct>";
+#ifdef USE_LIBPROC
 						char fullname[PROC_PIDPATHINFO_MAXSIZE];
 						int rc = proc_pidpath(pid, fullname, sizeof(fullname));
-						string f_name = "<defunct>";
 						if (rc != 0) {
 							f_name = std::string(fullname);
 							size_t lastSlash = f_name.find_last_of('/');
 							f_name = f_name.substr(lastSlash + 1);
 						}
+#else
+						f_name = kproc.kp_proc.p_comm;
+#endif
 						new_proc.name = f_name;
 						//? Get process arguments if possible, fallback to process path in case of failure
 						if (Shared::arg_max > 0) {
@@ -1355,6 +1366,7 @@ namespace Proc {
 					new_proc.state = kproc.kp_proc.p_stat;
 
 					//? Get threads, mem and cpu usage
+#ifdef USE_LIBPROC
 					struct proc_taskinfo pti;
 					if (sizeof(pti) == proc_pidinfo(new_proc.pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti))) {
 						new_proc.threads = pti.pti_threadnum;
@@ -1363,6 +1375,29 @@ namespace Proc {
 
 						if (new_proc.cpu_t == 0) new_proc.cpu_t = cpu_t;
 					}
+#else
+					task_t tt;
+					if (task_for_pid(mach_task_self(), pid, &tt) == KERN_SUCCESS) {
+						thread_array_t thread_table;
+						unsigned table_size;
+						if (task_threads(tt, &thread_table, &table_size) == KERN_SUCCESS) {
+							new_proc.threads = table_size;
+						} else {
+							// zombie
+							new_proc.threads = 0;
+						}
+
+						mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;
+						task_basic_info_data_t ti;
+						if (task_info(tt, TASK_BASIC_INFO, (task_info_t)&ti, &count) == KERN_SUCCESS) {
+							new_proc.mem = ti.resident_size;
+							cpu_t = ti.user_time.seconds * 1'000'000 + ti.user_time.microseconds
+									+ ti.system_time.seconds * 1'000'000 + ti.system_time.microseconds;
+							cpu_t = uint64_t(((double)cpu_t / 1'000'000) / Shared::machTck);
+							if (new_proc.cpu_t == 0) new_proc.cpu_t = cpu_t;
+						}
+					}
+#endif
 
 					//? Process cpu usage since last update
 					new_proc.cpu_p = clamp(round(((cpu_t - new_proc.cpu_t) * Shared::machTck) / ((cputimes - old_cputimes) * Shared::clkTck)) * cmult / 1000.0, 0.0, 100.0 * Shared::coreCount);
