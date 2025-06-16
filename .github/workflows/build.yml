@@ -190,7 +190,7 @@ jobs:
             git fetch --depth=1 origin ${{ github.sha }}
             git checkout ${{ github.sha }}
           fi
-          git submodule update --init --recursive
+          git submodule update --init --depth 1 --recursive
 
       - name: Build plugin
         shell: macppc {0}
