@@ -201,7 +201,7 @@ jobs:
           cmake --build build --parallel 4
 
           # Prepare for patching
-          FILES="/opt/local/lib/libgcc/libstdc++.6.dylib /opt/local/lib/libgcc/libgcc_s.1.1.dylib /opt/local/lib/libiconv.2.dylib"
+          FILES="build/cosmotop-plugin.exe /opt/local/lib/libgcc/libstdc++.6.dylib /opt/local/lib/libgcc/libgcc_s.1.1.dylib /opt/local/lib/libiconv.2.dylib"
           for file in "$FILES"; do
             # Check if file exists and is executable
             if [[ -f "$file" ]]; then
@@ -222,7 +222,7 @@ jobs:
 
           # Bundle together dependencies
           python3.12 tools/mkbundle.py -o cosmotop-macos-ppc.exe \
-            build/cosmotop-plugin.exe \
+            cosmotop-plugin.exe \
             libstdc++.6.dylib \
             libgcc_s.1.1.dylib \
             libiconv.2.dylib
