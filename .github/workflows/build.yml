@@ -202,7 +202,7 @@ jobs:
 
           # Prepare for patching
           FILES="build/cosmotop-plugin.exe /opt/local/lib/libgcc/libstdc++.6.dylib /opt/local/lib/libgcc/libgcc_s.1.1.dylib /opt/local/lib/libiconv.2.dylib"
-          for file in "$FILES"; do
+          for file in $FILES; do
             # Check if file exists and is executable
             if [[ -f "$file" ]]; then
               cp $file .
