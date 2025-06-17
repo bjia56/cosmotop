@@ -28,7 +28,7 @@ return 1
 if needs_extract "{files_list}"; then
 {extract_section}
 fi
-exec "$OUTDIR/{first_file_name}" "$@"
+cd "$OUTDIR"; exec "$OUTDIR/{first_file_name}" "$@"
 """
 
 EXTRACT_FILE_SNIPPET = r"""

@@ -200,13 +200,32 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="/opt/local/lib/libMacportsLegacySupport.a"
           cmake --build build --parallel 4
 
+          # Prepare for patching
+          FILES="/opt/local/lib/libgcc/libstdc++.6.dylib /opt/local/lib/libgcc/libgcc_s.1.1.dylib /opt/local/lib/libiconv.2.dylib"
+          for file in "$FILES"; do
+            # Check if file exists and is executable
+            if [[ -f "$file" && -x "$file" ]]; then
+              cp $file .
+              file=$(basename "$file")
+              # Get dependent libraries under /opt/local/lib
+              for lib in $(otool -L "$file" | awk '/\/opt\/local\/lib\// {print $1}'); do
+                # Extract just the library basename
+                libname=$(basename "$lib")
+                echo "Fixing $lib in $file -> $libname"
+                # Change the install name to remove the /opt/local/lib path
+                install_name_tool -change "$lib" "$libname" "$file"
+              done
+            else
+              echo "Warning: $file does not exist or is not executable."
+            fi
+          done
+
           # Bundle together dependencies
-          install_name_tool -change /opt/local/lib/libgcc/libstdc++.6.dylib libstdc++.6.dylib build/cosmotop-plugin.exe
-          install_name_tool -change /opt/local/lib/libgcc/libgcc_s.1.1.dylib libgcc_s.1.1.dylib build/cosmotop-plugin.exe
           python3.12 tools/mkbundle.py -o cosmotop-macos-ppc.exe \
             build/cosmotop-plugin.exe \
-            /opt/local/lib/libgcc/libstdc++.6.dylib \
-            /opt/local/lib/libgcc/libgcc_s.1.1.dylib
+            libstdc++.6.dylib \
+            libgcc_s.1.1.dylib \
+            libiconv.2.dylib
 
       - name: Copy out of VM
         run: |
