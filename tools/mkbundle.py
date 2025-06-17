@@ -9,6 +9,13 @@ set -e
 OUTDIR="$HOME/.cosmotop"
 SCRIPT="$0"
 mkdir -p "$OUTDIR"
+b64() {{
+if command -v base64 >/dev/null 2>&1; then
+base64 -d
+else
+python -c 'import sys,base64;sys.stdout.write(base64.decodestring(sys.stdin.read()))'
+fi
+}}
 needs_extract() {{
 for f in "$@"; do
 TARGET="$OUTDIR/$(basename "$f")"
@@ -25,7 +32,7 @@ exec "$OUTDIR/{first_file_name}" "$@"
 """
 
 EXTRACT_FILE_SNIPPET = r"""
-tail -n +{start_line} "$SCRIPT" | head -n {num_lines} | base64 -d | gzip -d > "$OUTDIR/{filename}"
+tail -n +{start_line} "$SCRIPT" | head -n {num_lines} | b64 | gzip -d > "$OUTDIR/{filename}"
 chmod +x "$OUTDIR/{filename}"
 """.strip()
 
