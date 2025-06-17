@@ -204,7 +204,7 @@ jobs:
           FILES="/opt/local/lib/libgcc/libstdc++.6.dylib /opt/local/lib/libgcc/libgcc_s.1.1.dylib /opt/local/lib/libiconv.2.dylib"
           for file in "$FILES"; do
             # Check if file exists and is executable
-            if [[ -f "$file" && -x "$file" ]]; then
+            if [[ -f "$file" ]]; then
               cp $file .
               file=$(basename "$file")
               # Get dependent libraries under /opt/local/lib
@@ -216,7 +216,7 @@ jobs:
                 install_name_tool -change "$lib" "$libname" "$file"
               done
             else
-              echo "Warning: $file does not exist or is not executable."
+              echo "Warning: $file does not exist."
             fi
           done
 
