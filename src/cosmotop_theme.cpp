@@ -48,6 +48,47 @@ namespace Theme {
 	std::unordered_map<string, array<string, 101>> gradients;
 
 	const std::unordered_map<string, string> Default_theme = {
+		{ "main_bg", "#0a0e1a" },
+		{ "main_fg", "#e6e6fa" },
+		{ "title", "#fefeff" },
+		{ "hi_fg", "#a259ec" },
+		{ "selected_bg", "#200354" },
+		{ "selected_fg", "#e6e6fa" },
+		{ "inactive_fg", "#525b6c" },
+		{ "graph_text", "#8cb5f7" },
+		{ "proc_misc", "#39ff14" },
+		{ "cpu_box", "#3b4261" },
+		{ "mem_box", "#3b4261" },
+		{ "net_box", "#3b4261" },
+		{ "proc_box", "#3b4261" },
+		{ "div_line", "#273043" },
+		{ "temp_start", "#7928ca" },
+		{ "temp_mid", "#ff0080" },
+		{ "temp_end", "#f7971e" },
+		{ "cpu_start", "#2f80ed" },
+		{ "cpu_mid", "#56ffb2" },
+		{ "cpu_end", "#39ff14" },
+		{ "free_start", "#222b45" },
+		{ "free_mid", "#4f8edc" },
+		{ "free_end", "#b237ff" },
+		{ "cached_start", "#234e52" },
+		{ "cached_mid", "#5eead4" },
+		{ "cached_end", "#e0f2fe" },
+		{ "available_start", "#49470f" },
+		{ "available_mid", "#ffe066" },
+		{ "available_end", "#fff9db" },
+		{ "used_start", "#6a0f1d" },
+		{ "used_mid", "#ff0054" },
+		{ "used_end", "#ffb6c1" },
+		{ "download_start", "#2d1b4a" },
+		{ "download_mid", "#845ec2" },
+		{ "download_end", "#b8e1ff" },
+		{ "upload_start", "#3a1c71" },
+		{ "upload_mid", "#d76d77" },
+		{ "upload_end", "#ffaf7b" }
+	};
+
+	const std::unordered_map<string, string> Classic_theme = {
 		{ "main_bg", "#00" },
 		{ "main_fg", "#cc" },
 		{ "title", "#ee" },
@@ -424,6 +465,7 @@ namespace Theme {
 	vector<string> getSystemThemes() {
 		vector<string> themes;
 		themes.push_back("Default");
+		themes.push_back("Classic");
 		themes.push_back("TTY");
 		return themes;
 	}
@@ -463,7 +505,13 @@ namespace Theme {
 		if (theme == "TTY" or Config::getB("tty_mode"))
 			generateTTYColors();
 		else {
-			generateColors((theme == "Default" or theme_path.empty() ? Default_theme : loadFile(theme_path)));
+			if (theme == "Default" or theme_path.empty()) {
+				generateColors(Default_theme);
+			} else if (theme == "Classic") {
+				generateColors(Classic_theme);
+			} else {
+				generateColors(loadFile(theme_path));
+			}
 			generateGradients();
 		}
 		Term::fg = colors.at("main_fg");
