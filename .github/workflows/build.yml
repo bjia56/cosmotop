@@ -475,7 +475,7 @@ jobs:
             "blink-tiny-linux-riscv64-stripped blink-linux-riscv64" \
             "blink-tiny-linux-loongarch64-stripped blink-linux-loongarch64" \
             "blink-tiny-linux-s390x-stripped blink-linux-s390x" \
-            "blink-tiny-macos10.4-powerpc-stripped"
+            "blink-tiny-macos10.4-powerpc-stripped blink-macos-powerpc"
           do
             set -- $item
             wget "https://github.com/bjia56/blinkverse/releases/download/v7/$1" -O "$2"
@@ -571,7 +571,7 @@ jobs:
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-* \
             --os Solaris /tmp/blink/blink-solaris-* \
-            --os Darwin blink-tiny-macos10.4-powerpc*
+            --os Darwin /tmp/blink/blink-macos-*
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
