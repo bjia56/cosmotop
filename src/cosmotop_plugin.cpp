@@ -473,9 +473,10 @@ void create_plugin_host() {
 		// Check if we are running under Blink
 		string hyp = Tools::cpuid(0x40000000);
 		if (hyp == "GenuineBlink") {
-			string hostOS = Tools::cpuid(0x40031337);
-			string hostArch = Tools::cpuid(0x40031338);
-			pluginName << Tools::str_to_lower(hostOS) << "-" << Tools::str_to_lower(hostArch);
+			string hostOS = Tools::str_to_lower(Tools::cpuid(0x40031337));
+			string hostArch = Tools::str_to_lower(Tools::cpuid(0x40031338));
+            if (hostOS == "xnu") hostOS = "macos";
+			pluginName << hostOS << "-" << hostArch;
 			goto choose_extension;
 		}
 #endif

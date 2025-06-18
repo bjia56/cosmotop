@@ -100,8 +100,8 @@ jobs:
       - name: Build plugin
         shell: bash
         run: |
-          export CC="${{ github.workspace }}/zigshim/zig cc -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
-          export CXX="${{ github.workspace }}/zigshim/zig c++ -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
+          export CC="${{ github.workspace }}/tools/zig cc -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
+          export CXX="${{ github.workspace }}/tools/zig c++ -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
           cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} ${{ matrix.arch == 'x86_64' && '-DRSMI_STATIC=ON' || '' }}
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-linux-${{ matrix.arch }}.dbg
@@ -169,6 +169,73 @@ jobs:
         with:
           name: plugin-macos-${{ matrix.arch }}
           path: ./cosmotop-macos-${{ matrix.arch }}.exe
+
+  build_macppc_plugin:
+    name: Build plugin MacOS ppc
+    runs-on: self-hosted
+
+    steps:
+      - name: Start VM
+        uses: bjia56/custom-actions/macppc-vm@main
+
+      - name: Checkout
+        shell: macppc {0}
+        run: |
+          git init .
+          git remote add origin https://github.com/${{ github.repository }}.git
+          if [[ "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
+            git fetch origin "refs/pull/${{ github.event.pull_request.number }}/merge"
+            git checkout FETCH_HEAD
+          else
+            git fetch --depth=1 origin ${{ github.sha }}
+            git checkout ${{ github.sha }}
+          fi
+          git submodule update --init --depth 1 --recursive
+
+      - name: Build plugin
+        shell: macppc {0}
+        run: |
+          CC=gcc-mp-14 CXX=g++-mp-14 cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }} \
+            -DCMAKE_C_FLAGS="-I/opt/local/include/LegacySupport" -DCMAKE_CXX_FLAGS="-I/opt/local/include/LegacySupport" \
+            -DCMAKE_EXE_LINKER_FLAGS="/opt/local/lib/libMacportsLegacySupport.a"
+          cmake --build build --parallel 4
+
+          # Prepare for patching
+          FILES="build/cosmotop-plugin.exe /opt/local/lib/libgcc/libstdc++.6.dylib /opt/local/lib/libgcc/libgcc_s.1.1.dylib /opt/local/lib/libiconv.2.dylib"
+          for file in $FILES; do
+            # Check if file exists and is executable
+            if [[ -f "$file" ]]; then
+              cp $file .
+              file=$(basename "$file")
+              # Get dependent libraries under /opt/local/lib
+              for lib in $(otool -L "$file" | awk '/\/opt\/local\/lib\// {print $1}'); do
+                # Extract just the library basename
+                libname=$(basename "$lib")
+                echo "Fixing $lib in $file -> $libname"
+                # Change the install name to remove the /opt/local/lib path
+                install_name_tool -change "$lib" "$libname" "$file"
+              done
+            else
+              echo "Warning: $file does not exist."
+            fi
+          done
+
+          # Bundle together dependencies
+          python3.12 tools/mkbundle.py -o cosmotop-macos-ppc.exe \
+            cosmotop-plugin.exe \
+            libstdc++.6.dylib \
+            libgcc_s.1.1.dylib \
+            libiconv.2.dylib
+
+      - name: Copy out of VM
+        run: |
+          scp macppc:/Users/macuser/cosmotop-macos-ppc.exe .
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-macos-ppc
+          path: ./cosmotop-macos-ppc.exe
 
   build_windows_plugin:
     name: Build plugin Windows ${{ matrix.arch }}
@@ -352,6 +419,7 @@ jobs:
       - build
       - build_linux_plugin
       - build_macos_plugin
+      - build_macppc_plugin
       - build_windows_plugin
       - build_freebsd_plugin
       - build_netbsd_plugin

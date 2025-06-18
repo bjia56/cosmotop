@@ -40,6 +40,8 @@ enum {
 	kIOReportFormatSimpleArray = 4
 };
 
+// hide this since we use gcc on Tiger, leading to confusion with the clang block closure syntax
+#ifndef __POWERPC__
 typedef CFDictionaryRef IOReportSampleRef;
 typedef int (^ioreportiterateblock)(IOReportSampleRef sample);
 
@@ -62,6 +64,7 @@ extern "C" {
 	extern uint64_t IOReportArrayGetValueAtIndex(CFDictionaryRef sample, uint32_t index);
 	extern CFStringRef IOReportChannelGetUnitLabel(CFDictionaryRef sample);
 }
+#endif // __POWERPC__
 
 namespace Npu {
 	// todo: neoasitop appears to use different max wattages
