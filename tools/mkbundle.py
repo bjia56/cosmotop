@@ -32,7 +32,7 @@ cd "$OUTDIR"; exec "$OUTDIR/{first_file_name}" "$@"
 """
 
 EXTRACT_FILE_SNIPPET = r"""
-tail -n +{start_line} "$SCRIPT" | head -n {num_lines} | b64 | gzip -d > "$OUTDIR/{filename}"
+tail -n +{start_line} "$SCRIPT" 2>/dev/null | head -n {num_lines} | b64 | gzip -d > "$OUTDIR/{filename}"
 chmod +x "$OUTDIR/{filename}"
 """.strip()
 
