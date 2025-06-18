@@ -474,10 +474,11 @@ jobs:
             "blink-tiny-linux-i386-stripped blink-linux-i386" \
             "blink-tiny-linux-riscv64-stripped blink-linux-riscv64" \
             "blink-tiny-linux-loongarch64-stripped blink-linux-loongarch64" \
-            "blink-tiny-linux-s390x-stripped blink-linux-s390x"
+            "blink-tiny-linux-s390x-stripped blink-linux-s390x" \
+            "blink-tiny-macos10.4-powerpc-stripped"
           do
             set -- $item
-            wget "https://github.com/bjia56/blinkverse/releases/download/v6/$1" -O "$2"
+            wget "https://github.com/bjia56/blinkverse/releases/download/v7/$1" -O "$2"
             chmod +x "$2"
             if [[ "$2" == "blink-linux-powerpc64le" || "$2" == "blink-linux-i386" ]]; then
               upx --best "$2"
@@ -545,6 +546,9 @@ jobs:
           cp $(dirname $(which zig))/lib/libcxx/LICENSE.TXT "LLVM Project"
           curl -L -o Blink https://raw.githubusercontent.com/jart/blink/98f95e8383d1032eb4d2dc6aae937b23539e915e/LICENSE
           curl -L -o Chimp https://raw.githubusercontent.com/bjia56/chimp/refs/tags/v0.3.0/LICENSE
+          curl -L -o "GCC Runtime Library Exception" https://raw.githubusercontent.com/gcc-mirror/gcc/refs/tags/releases/gcc-14.3.0/COPYING.RUNTIME
+          curl -L -o "MacPorts Legacy Support" https://raw.githubusercontent.com/macports/macports-legacy-support/refs/tags/v1.5.0/LICENSE
+          curl -L -o libiconv "https://gitweb.git.savannah.gnu.org/gitweb/?p=libiconv.git;a=blob_plain;f=COPYING.LIB;hb=ed5a57cfedda75a6abbe4d0fb89a6f7b832f073e"
           sudo mkdir -p /zip/licenses/
           sudo cp * /zip/licenses/
 
@@ -556,7 +560,7 @@ jobs:
 
       - name: Chimplink
         run: |
-          wget https://github.com/bjia56/chimp/releases/download/v0.3.0/chimplink
+          wget https://github.com/bjia56/chimp/releases/download/v0.4.0/chimplink
           chmod +x chimplink
 
           cosmo_bin=$(dirname $(which cosmocc))
@@ -566,7 +570,8 @@ jobs:
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-* \
-            --os Solaris /tmp/blink/blink-solaris-*
+            --os Solaris /tmp/blink/blink-solaris-* \
+            --os Darwin blink-tiny-macos10.4-powerpc*
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
