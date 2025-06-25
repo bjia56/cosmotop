@@ -560,7 +560,7 @@ jobs:
 
       - name: Chimplink
         run: |
-          wget https://github.com/bjia56/chimp/releases/download/v0.4.0/chimplink
+          wget https://github.com/bjia56/chimp/releases/download/v0.4.1/chimplink
           chmod +x chimplink
 
           cosmo_bin=$(dirname $(which cosmocc))
