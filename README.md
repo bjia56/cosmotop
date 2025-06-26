@@ -82,14 +82,16 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 
 `cosmotop` supports the following operating systems and architectures:
 
-- Linux 2.6.18+ (x86_64, i386, aarch64, powerpc64le, s390x, riscv64, and loongarch64)
-- MacOS 13+ (x86_64 and aarch64)
-- MacOS 10.4+ (powerpc)
-- Windows 10+ (x86_64)
-- FreeBSD 13+ (x86_64 and aarch64)
-- NetBSD 10.0+ (x86_64 and aarch64)
-- OpenBSD 7.6+ (x86_64 and aarch64)
-- Solaris 11.4+ (x86_64)
+| Operating system | Hardware architecture |
+|-|-|
+| Linux 2.6.18+ | x86_64, i386, aarch64, powerpc64le, s390x, riscv64, loongarch64 |
+| Windows 10+ | x86_64 |
+| MacOS 13+ | x86_64, aarch64 |
+| MacOS 10.4+ | powerpc |
+| FreeBSD 13+ | x86_64, aarch64 |
+| NetBSD 10.0+ | x86_64, aarch64 |
+| OpenBSD 7.6+ | x86_64, aarch64 |
+| Solaris 11.4+ | x86_64 |
 
 Core platforms (Linux x86_64/aarch64, MacOS, Windows) are self-contained and require no additional tooling.
 Other platforms require that the host `PATH` contains either `curl`, `wget`, or `python3` to download required plugin components (see [below](#how-it-works)).
