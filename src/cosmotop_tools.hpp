@@ -78,6 +78,8 @@ namespace rng = std::ranges;
 namespace rng = ranges;
 #endif
 
+#include "cosmotop_variadic.h"
+
 using std::array;
 using std::atomic;
 using std::string;
@@ -85,6 +87,31 @@ using std::to_string;
 using std::tuple;
 using std::vector;
 using namespace fmt::literals;
+
+
+template<typename T>
+inline void append_one(std::string& s, const T& value) {
+    s.append(std::to_string(value));
+}
+
+inline void append_one(std::string& s, const std::string& value) {
+    s.append(value);
+}
+
+inline void append_one(std::string& s, const char* value) {
+    s.append(value);
+}
+
+inline void append_one(std::string& s, const char value) {
+	s.push_back(value);
+}
+
+#define APPEND_STR(x) append_one(__append_one_buf, x)
+#define APPEND_ALL(str, ...) \
+	do { \
+		string &__append_one_buf = str; \
+		COSMOTOP_APPLY_SEMICOLON(APPEND_STR, __VA_ARGS__); \
+	} while(0)
 
 //? ------------------------------------------------- NAMESPACES ------------------------------------------------------
 
@@ -125,19 +152,39 @@ namespace Fx {
 //* Collection of escape codes and functions for cursor manipulation
 namespace Mv {
 	//* Move cursor to <line>, <column>
-	inline string to(int line, int col) { return Fx::e + to_string(line) + ';' + to_string(col) + 'f'; }
+	inline string to(int line, int col) {
+		string result;
+		APPEND_ALL(result, Fx::e, line, ';', col, 'f');
+		return result;
+	}
 
 	//* Move cursor right <x> columns
-	inline string r(int x) { return Fx::e + to_string(x) + 'C'; }
+	inline string r(int x) {
+		string result;
+		APPEND_ALL(result, Fx::e, x, 'C');
+		return result;
+	}
 
 	//* Move cursor left <x> columns
-	inline string l(int x) { return Fx::e + to_string(x) + 'D'; }
+	inline string l(int x) {
+		string result;
+		APPEND_ALL(result, Fx::e, x, 'D');
+		return result;
+	}
 
 	//* Move cursor up x lines
-	inline string u(int x) { return Fx::e + to_string(x) + 'A'; }
+	inline string u(int x) {
+		string result;
+		APPEND_ALL(result, Fx::e, x, 'A');
+		return result;
+	}
 
 	//* Move cursor down x lines
-	inline string d(int x) { return Fx::e + to_string(x) + 'B'; }
+	inline string d(int x) {
+		string result;
+		APPEND_ALL(result, Fx::e, x, 'B');
+		return result;
+	}
 
 	//* Save cursor position
 	const string save = Fx::e + "s";

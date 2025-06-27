@@ -288,7 +288,7 @@ namespace Cpu {
 	auto collect(bool no_update = false) -> cpu_info&;
 
 	//* Draw contents of cpu box using <cpu> as source
-    string draw(const cpu_info& cpu, const vector<Gpu::gpu_info>& gpu, const vector<Npu::npu_info>& npu, bool force_redraw = false, bool data_same = false);
+	string draw(const cpu_info& cpu, const vector<Gpu::gpu_info>& gpu, const vector<Npu::npu_info>& npu, bool force_redraw = false, bool data_same = false);
 
 	//* Parse /proc/cpu info for mapping of core ids
 	auto get_core_mapping() -> std::unordered_map<int, int>;

@@ -378,14 +378,14 @@ namespace Draw {
 		auto& out = cache.at(value);
 		for (const int& i : iota(1, width + 1)) {
 			int y = round((double)i * 100.0 / width);
-			if (value >= y)
-				out += Theme::g(color_gradient).at(invert ? 100 - y : y) + Symbols::meter;
-			else {
-				out += Theme::c("meter_bg") + Symbols::meter * (width + 1 - i);
+			if (value >= y) {
+				APPEND_ALL(out, Theme::g(color_gradient).at(invert ? 100 - y : y), Symbols::meter);
+			} else {
+				APPEND_ALL(out, Theme::c("meter_bg"), Symbols::meter * (width + 1 - i));
 				break;
 			}
 		}
-		out += Fx::reset;
+		APPEND_ALL(out, Fx::reset);
 		return out;
 	}
 
@@ -593,17 +593,17 @@ namespace Cpu {
 				graph_low_height = height - 2 - graph_up_height - mid_line;
 				const int button_y = cpu_bottom ? y + height - 1 : y;
 				lavg_str_len = 0;
-				out += box;
+				APPEND_ALL(out, box);
 
 				//? Buttons on title
-				out += Mv::to(button_y, x + 10) + title_left + Theme::c("hi_fg") + Fx::b + 'm' + Theme::c("title") + "enu" + Fx::ub + title_right;
+				APPEND_ALL(out, Mv::to(button_y, x + 10), title_left, Theme::c("hi_fg"), Fx::b, 'm', Theme::c("title"), "enu", Fx::ub, title_right);
 				Input::mouse_mappings["m"] = {button_y, x + 11, 1, 4};
-				out += Mv::to(button_y, x + 16) + title_left + Theme::c("hi_fg") + Fx::b + 'p' + Theme::c("title") + "reset "
-					+ (Config::current_preset < 0 ? "*" : to_string(Config::current_preset)) + Fx::ub + title_right;
+				APPEND_ALL(out, Mv::to(button_y, x + 16), title_left, Theme::c("hi_fg"), Fx::b, 'p', Theme::c("title"), "reset ",
+					(Config::current_preset < 0 ? "*" : to_string(Config::current_preset)), Fx::ub, title_right);
 				Input::mouse_mappings["p"] = {button_y, x + 17, 1, 8};
 				const string update = to_string(Config::getI("update_ms")) + "ms";
-				out += Mv::to(button_y, x + width - update.size() - 8) + title_left + Fx::b + Theme::c("hi_fg") + "- " + Theme::c("title") + update
-					+ Theme::c("hi_fg") + " +" + Fx::ub + title_right;
+				APPEND_ALL(out, Mv::to(button_y, x + width - update.size() - 8), title_left, Fx::b, Theme::c("hi_fg"), "- ", Theme::c("title"), update,
+					Theme::c("hi_fg"), " +", Fx::ub, title_right);
 				Input::mouse_mappings["-"] = {button_y, x + width - (int)update.size() - 7, 1, 2};
 				Input::mouse_mappings["+"] = {button_y, x + width - 5, 1, 2};
 
@@ -721,10 +721,10 @@ namespace Cpu {
 				cpu_meter = Draw::Meter{b_width - (show_temps ? 23 - (b_column_size <= 1 and b_columns == 1 ? 6 : 0) : 11), "cpu"};
 
 				if (mid_line) {
-					out += Mv::to(y + graph_up_height + 1, x) + Fx::ub + Theme::c("cpu_box") + Symbols::div_left + Theme::c("div_line")
-						+ Symbols::h_line * (width - b_width - 2) + Symbols::div_right
-						+ Mv::to(y + graph_up_height + 1, x + ((width - b_width) / 2) - ((graph_up_field.size() + graph_lo_field.size()) / 2) - 4)
-						+ Theme::c("main_fg") + graph_up_field + Mv::r(1) + "▲▼" + Mv::r(1) + graph_lo_field;
+					APPEND_ALL(out, Mv::to(y + graph_up_height + 1, x), Fx::ub, Theme::c("cpu_box"), Symbols::div_left, Theme::c("div_line"),
+						Symbols::h_line * (width - b_width - 2), Symbols::div_right,
+						Mv::to(y + graph_up_height + 1, x + ((width - b_width) / 2) - ((graph_up_field.size() + graph_lo_field.size()) / 2) - 4),
+						Theme::c("main_fg"), graph_up_field, Mv::r(1), "▲▼", Mv::r(1), graph_lo_field);
 				}
 
 				if (b_column_size > 0 or extra_width > 0) {
@@ -777,18 +777,21 @@ namespace Cpu {
 					const int current_len = (Term::width >= 100 ? 11 : 0) + str_time.size() + str_percent.size() + str_watts.size() + to_string(Config::getI("update_ms")).size();
 					const int current_pos = Term::width - current_len - 17;
 
-					if ((bat_pos != current_pos or bat_len != current_len) and bat_pos > 0 and not redraw)
-						out += Mv::to(y, bat_pos) + Fx::ub + Theme::c("cpu_box") + Symbols::h_line * (bat_len + 4);
+					if ((bat_pos != current_pos or bat_len != current_len) and bat_pos > 0 and not redraw) {
+						APPEND_ALL(out, Mv::to(y, bat_pos), Fx::ub, Theme::c("cpu_box"), Symbols::h_line * (bat_len + 4));
+					}
 					bat_pos = current_pos;
 					bat_len = current_len;
 
-					out += Mv::to(y, bat_pos) + title_left + Theme::c("title") + Fx::b + "BAT" + bat_symbol + ' ' + str_percent
-						+ (Term::width >= 100 ? Fx::ub + ' ' + bat_meter(percent) + Fx::b : "")
-						+ (not str_time.empty() ? ' ' + Theme::c("title") + str_time : "") + (not str_watts.empty() ? " " + Theme::c("title") + Fx::b + str_watts : "") + Fx::ub + title_right;
+					APPEND_ALL(out, Mv::to(y, bat_pos), title_left, Theme::c("title"), Fx::b, "BAT", bat_symbol, ' ', str_percent,
+						(Term::width >= 100 ? Fx::ub + ' ' + bat_meter(percent) + Fx::b : ""),
+						(not str_time.empty() ? ' ' + Theme::c("title") + str_time : ""),
+						(not str_watts.empty() ? " " + Theme::c("title") + Fx::b + str_watts : ""),
+						Fx::ub, title_right);
 				}
 			}
 			else if (bat_pos > 0) {
-				out += Mv::to(y, bat_pos) + Fx::ub + Theme::c("cpu_box") + Symbols::h_line * (bat_len + 4);
+				APPEND_ALL(out, Mv::to(y, bat_pos), Fx::ub, Theme::c("cpu_box"), Symbols::h_line * (bat_len + 4));
 				bat_pos = bat_len = 0;
 			}
 		} catch (const std::exception& e) {
@@ -797,7 +800,7 @@ namespace Cpu {
 
 		//? Cpu/Gpu/Npu graphs
 		try {
-			out += Fx::ub + Mv::to(y + 1, x + 1);
+			APPEND_ALL(out, Fx::ub, Mv::to(y + 1, x + 1));
 			auto draw_graphs = [&](vector<Draw::Graph>& graphs, const int graph_height, const int graph_width, const string& graph_field) {
 				if (graph_field.starts_with("gpu")) {
 					if (graph_field.ends_with("totals")) {
@@ -805,18 +808,18 @@ namespace Cpu {
 						for (size_t i = 0; i < gpus.size(); i++) {
 							if (gpu_auto and v_contains(Gpu::shown_panels, i))
 								continue;
-							out += graphs[i](safeVal(gpus[i].gpu_percent, graph_field), (data_same or redraw));
+							APPEND_ALL(out, graphs[i](safeVal(gpus[i].gpu_percent, graph_field), (data_same or redraw)));
 							if (gpu_count - (gpu_auto ? Gpu::shown : 0) > 1) {
 								auto i_str = to_string(i);
-								out += Mv::l(graph_width-1) + Mv::u(graph_height/2) + (graph_width > 5 ? "GPU" : "") + i_str
-									+ Mv::d(graph_height/2) + Mv::r(graph_width - 1 - (graph_width > 5)*3 - i_str.size());
+								APPEND_ALL(out, Mv::l(graph_width-1), Mv::u(graph_height/2), (graph_width > 5 ? "GPU" : ""), i_str,
+									Mv::d(graph_height/2), Mv::r(graph_width - 1 - (graph_width > 5)*3 - i_str.size()));
 							}
 
 							if (++gpu_drawn < gpu_count - (gpu_auto ? Gpu::shown : 0))
-								out += Theme::c("div_line") + (Symbols::v_line + Mv::l(1) + Mv::u(1))*graph_height + Mv::r(1) + Mv::d(1);
+								APPEND_ALL(out, Theme::c("div_line"), (Symbols::v_line + Mv::l(1) + Mv::u(1))*graph_height, Mv::r(1), Mv::d(1));
 						}
 					} else {
-						out += graphs[0](safeVal(Gpu::get_shared_gpu_percent(), graph_field), (data_same or redraw));
+						APPEND_ALL(out, graphs[0](safeVal(Gpu::get_shared_gpu_percent(), graph_field), (data_same or redraw)));
 					}
 				} else if (graph_field.starts_with("npu")) {
 					if (graph_field.ends_with("totals")) {
@@ -824,27 +827,27 @@ namespace Cpu {
 						for (size_t i = 0; i < npus.size(); i++) {
 							if (npu_auto and v_contains(Npu::shown_panels, i))
 								continue;
-							out += graphs[i](safeVal(npus[i].npu_percent, graph_field), (data_same or redraw));
+							APPEND_ALL(out, graphs[i](safeVal(npus[i].npu_percent, graph_field), (data_same or redraw)));
 							if (npu_count - (npu_auto ? Npu::shown : 0) > 1) {
 								auto i_str = to_string(i);
-								out += Mv::l(graph_width-1) + Mv::u(graph_height/2) + (graph_width > 5 ? "NPU" : "") + i_str
-									+ Mv::d(graph_height/2) + Mv::r(graph_width - 1 - (graph_width > 5)*3 - i_str.size());
+								APPEND_ALL(out, Mv::l(graph_width-1), Mv::u(graph_height/2), (graph_width > 5 ? "NPU" : ""), i_str,
+									Mv::d(graph_height/2), Mv::r(graph_width - 1 - (graph_width > 5)*3 - i_str.size()));
 							}
 
 							if (++npu_drawn < npu_count - (npu_auto ? Npu::shown : 0))
-								out += Theme::c("div_line") + (Symbols::v_line + Mv::l(1) + Mv::u(1))*graph_height + Mv::r(1) + Mv::d(1);
+								APPEND_ALL(out, Theme::c("div_line"), (Symbols::v_line + Mv::l(1) + Mv::u(1))*graph_height, Mv::r(1), Mv::d(1));
 						}
 					} else {
-						out += graphs[0](safeVal(Npu::get_shared_npu_percent(), graph_field), (data_same or redraw));
+						APPEND_ALL(out, graphs[0](safeVal(Npu::get_shared_npu_percent(), graph_field), (data_same or redraw)));
 					}
 				} else {
-					out += graphs[0](safeVal(cpu.cpu_percent, graph_field), (data_same or redraw));
+					APPEND_ALL(out, graphs[0](safeVal(cpu.cpu_percent, graph_field), (data_same or redraw)));
 				}
 			};
 
 			draw_graphs(graphs_upper, graph_up_height, graph_up_width, graph_up_field);
 			if (not single_graph) {
-				out += Mv::to(y + graph_up_height + 1 + mid_line, x + 1);
+				APPEND_ALL(out, Mv::to(y + graph_up_height + 1 + mid_line, x + 1));
 				draw_graphs(graphs_lower, graph_low_height, graph_low_width, graph_lo_field);
 			}
 
@@ -855,26 +858,26 @@ namespace Cpu {
 					upstr.resize(upstr.size() - 3);
 					upstr = trans(upstr);
 				}
-				out += Mv::to(y + (single_graph or not Config::getB("cpu_invert_lower") ? 1 : height - 2), x + 2)
-					+ Theme::c("graph_text") + "up" + Mv::r(1) + upstr;
+				APPEND_ALL(out, Mv::to(y + (single_graph or not Config::getB("cpu_invert_lower") ? 1 : height - 2), x + 2),
+					Theme::c("graph_text"), "up", Mv::r(1), upstr);
 			}
 
 			//? Cpu clock and cpu meter
 			if (Config::getB("show_cpu_freq") and not cpuHz.empty())
-				out += Mv::to(b_y, b_x + b_width - 10) + Fx::ub + Theme::c("div_line") + Symbols::h_line * (7 - cpuHz.size())
-					+ Symbols::title_left + Fx::b + Theme::c("title") + cpuHz + Fx::ub + Theme::c("div_line") + Symbols::title_right;
+				APPEND_ALL(out, Mv::to(b_y, b_x + b_width - 10), Fx::ub, Theme::c("div_line"), Symbols::h_line * (7 - cpuHz.size()),
+					Symbols::title_left, Fx::b, Theme::c("title"), cpuHz, Fx::ub, Theme::c("div_line"), Symbols::title_right);
 
-			out += Mv::to(b_y + 1, b_x + 1) + Theme::c("main_fg") + Fx::b + "CPU " + cpu_meter(safeVal(cpu.cpu_percent, "total"s).back())
-				+ Theme::g("cpu").at(clamp(safeVal(cpu.cpu_percent, "total"s).back(), 0ll, 100ll)) + rjust(to_string(safeVal(cpu.cpu_percent, "total"s).back()), 4) + Theme::c("main_fg") + '%';
+			APPEND_ALL(out, Mv::to(b_y + 1, b_x + 1), Theme::c("main_fg"), Fx::b, "CPU ", cpu_meter(safeVal(cpu.cpu_percent, "total"s).back()),
+				Theme::g("cpu").at(clamp(safeVal(cpu.cpu_percent, "total"s).back(), 0ll, 100ll)), rjust(to_string(safeVal(cpu.cpu_percent, "total"s).back()), 4), Theme::c("main_fg"), '%');
 			if (show_temps) {
 				const auto [temp, unit] = celsius_to(safeVal(cpu.temp, 0).back(), temp_scale);
 				const auto& temp_color = Theme::g("temp").at(clamp(safeVal(cpu.temp, 0).back() * 100 / cpu.temp_max, 0ll, 100ll));
 				if ((b_column_size > 1 or b_columns > 1) and temp_graphs.size() >= 1ll)
-					out += ' ' + Theme::c("inactive_fg") + graph_bg * 5 + Mv::l(5) + temp_color
-						+ temp_graphs.at(0)(safeVal(cpu.temp, 0), data_same or redraw);
-				out += rjust(to_string(temp), 4) + Theme::c("main_fg") + unit;
+					APPEND_ALL(out, ' ', Theme::c("inactive_fg"), graph_bg * 5, Mv::l(5), temp_color,
+						temp_graphs.at(0)(safeVal(cpu.temp, 0), data_same or redraw));
+				APPEND_ALL(out, rjust(to_string(temp), 4), Theme::c("main_fg"), unit);
 			}
-			out += Theme::c("div_line") + Symbols::v_line;
+			APPEND_ALL(out, Theme::c("div_line"), Symbols::v_line);
 		} catch (const std::exception& e) {
 			throw std::runtime_error("Error in graphs, clock, meter: "s + e.what());
 		}
@@ -884,25 +887,24 @@ namespace Cpu {
 		try {
 			if (coreCount >= 100) core_width++;
 			for (const auto& n : iota(0, coreCount)) {
-				out += Mv::to(b_y + cy + 1, b_x + cx + 1) + Theme::c("main_fg") + (coreCount < 100 ? Fx::b + 'C' + Fx::ub : "")
-					+ ljust(to_string(n), core_width);
+				APPEND_ALL(out, Mv::to(b_y + cy + 1, b_x + cx + 1), Theme::c("main_fg"), (coreCount < 100 ? Fx::b + 'C' + Fx::ub : ""),
+					ljust(to_string(n), core_width));
 				if ((b_column_size > 0 or extra_width > 0) and cmp_less(n, core_graphs.size()))
-					out += Theme::c("inactive_fg") + graph_bg * (5 * b_column_size + extra_width) + Mv::l(5 * b_column_size + extra_width)
-						+ core_graphs.at(n)(safeVal(cpu.core_percent, n), data_same or redraw);
+					APPEND_ALL(out, Theme::c("inactive_fg"), graph_bg * (5 * b_column_size + extra_width), Mv::l(5 * b_column_size + extra_width),
+						core_graphs.at(n)(safeVal(cpu.core_percent, n), data_same or redraw));
 
-				out += Theme::g("cpu").at(clamp(safeVal(cpu.core_percent, n).back(), 0ll, 100ll));
-				out += rjust(to_string(safeVal(cpu.core_percent, n).back()), (b_column_size < 2 ? 3 : 4)) + Theme::c("main_fg") + '%';
+				APPEND_ALL(out, Theme::g("cpu").at(clamp(safeVal(cpu.core_percent, n).back(), 0ll, 100ll)), rjust(to_string(safeVal(cpu.core_percent, n).back()), (b_column_size < 2 ? 3 : 4)), Theme::c("main_fg"), '%');
 
 				if (show_temps and not hide_cores) {
 					const auto [temp, unit] = celsius_to(safeVal(cpu.temp, n+1).back(), temp_scale);
 					const auto& temp_color = Theme::g("temp").at(clamp(safeVal(cpu.temp, n+1).back() * 100 / cpu.temp_max, 0ll, 100ll));
 					if (b_column_size > 1 and std::cmp_greater_equal(temp_graphs.size(), n))
-						out += ' ' + Theme::c("inactive_fg") + graph_bg * 5 + Mv::l(5)
-							+ temp_graphs.at(n+1)(safeVal(cpu.temp, n+1), data_same or redraw);
-					out += temp_color + rjust(to_string(temp), 4) + Theme::c("main_fg") + unit;
+						APPEND_ALL(out, ' ', Theme::c("inactive_fg"), graph_bg * 5, Mv::l(5),
+							temp_graphs.at(n+1)(safeVal(cpu.temp, n+1), data_same or redraw));
+					APPEND_ALL(out, temp_color, rjust(to_string(temp), 4), Theme::c("main_fg"), unit);
 				}
 
-				out += Theme::c("div_line") + Symbols::v_line;
+				APPEND_ALL(out, Theme::c("div_line"), Symbols::v_line);
 
 				if ((++cy > ceil((double)coreCount / b_columns) or cy == b_height - 2) and n != coreCount - 1) {
 					if (++cc >= b_columns) break;
@@ -933,7 +935,7 @@ namespace Cpu {
 					lavg_str_len = lavg_str.length();
 				}
 				cy = b_height - 2 - (show_gpu ? (gpus.size() - (gpu_always ? 0 : Gpu::shown)) : 0) - (show_npu ? (npus.size() - (npu_always ? 0 : Npu::shown)) : 0);
-				out += Mv::to(b_y + cy, b_x + cx + 1) + Theme::c("main_fg") + lavg_str;
+				APPEND_ALL(out, Mv::to(b_y + cy, b_x + cx + 1), Theme::c("main_fg"), lavg_str);
 			}
 		} catch (const std::exception& e) {
 			throw std::runtime_error("Error in load average: "s + e.what());
@@ -945,41 +947,39 @@ namespace Cpu {
 				for (unsigned long i = 0; i < gpus.size(); ++i) {
 					if (gpu_auto and v_contains(Gpu::shown_panels, i))
 						continue;
-					out += Mv::to(b_y + ++cy, b_x + 1) + Theme::c("main_fg") + Fx::b + "GPU";
-					if (gpus.size() > 1) out += rjust(to_string(i), 1 + (gpus.size() > 9));
+					APPEND_ALL(out, Mv::to(b_y + ++cy, b_x + 1), Theme::c("main_fg"), Fx::b, "GPU");
+					if (gpus.size() > 1) APPEND_ALL(out, rjust(to_string(i), 1 + (gpus.size() > 9)));
 					if (gpus[i].supported_functions.gpu_utilization) {
-						out += ' ';
+						APPEND_ALL(out, ' ');
 						if (b_columns > 1) {
-							out += gpu_meters[i](safeVal(gpus[i].gpu_percent, "gpu-totals"s).back())
-								+ Theme::g("cpu").at(clamp(safeVal(gpus[i].gpu_percent, "gpu-totals"s).back(), 0ll, 100ll));
+							APPEND_ALL(out, gpu_meters[i](safeVal(gpus[i].gpu_percent, "gpu-totals"s).back()), Theme::g("cpu").at(clamp(safeVal(gpus[i].gpu_percent, "gpu-totals"s).back(), 0ll, 100ll)));
 						}
-						out += rjust(to_string(safeVal(gpus[i].gpu_percent, "gpu-totals"s).back()), 4) + Theme::c("main_fg") + '%';
+						APPEND_ALL(out, rjust(to_string(safeVal(gpus[i].gpu_percent, "gpu-totals"s).back()), 4), Theme::c("main_fg"), '%');
 						if (b_columns == 1)
-							out += ' ';
+							APPEND_ALL(out, ' ');
 					}
 					if (gpus[i].supported_functions.mem_used and gpus[i].supported_functions.mem_total and b_columns > 1) {
-						out += ' ' + Theme::c("inactive_fg") + graph_bg * 5 + Mv::l(5) + Theme::g("used").at(safeVal(gpus[i].gpu_percent, "gpu-vram-totals"s).back())
-							+ gpu_mem_graphs[i](safeVal(gpus[i].gpu_percent, "gpu-vram-totals"s), data_same or redraw);
+						APPEND_ALL(out, ' ', Theme::c("inactive_fg"), graph_bg * 5, Mv::l(5), Theme::g("used").at(safeVal(gpus[i].gpu_percent, "gpu-vram-totals"s).back()),
+							gpu_mem_graphs[i](safeVal(gpus[i].gpu_percent, "gpu-vram-totals"s), data_same or redraw));
 					}
 					if (gpus[i].supported_functions.mem_used) {
-							out += Theme::c("main_fg")
-							+ rjust(floating_humanizer(gpus[i].mem_used, true), 5);
+						APPEND_ALL(out, Theme::c("main_fg"), rjust(floating_humanizer(gpus[i].mem_used, true), 5));
 					}
 					if (gpus[i].supported_functions.mem_total) {
-							out += Theme::c("inactive_fg") + '/' + Theme::c("main_fg") + ljust(floating_humanizer(gpus[i].mem_total, true), 4);
+						APPEND_ALL(out, Theme::c("inactive_fg"), '/', Theme::c("main_fg"), ljust(floating_humanizer(gpus[i].mem_total, true), 4));
 					}
 					if (show_temps and gpus[i].supported_functions.temp_info) {
 						const auto [temp, unit] = celsius_to(gpus[i].temp.back(), temp_scale);
-						out += ' ';
+						APPEND_ALL(out, ' ');
 						if (b_columns > 1)
-							out += Theme::c("inactive_fg") + graph_bg * 5 + Mv::l(5) + Theme::g("temp").at(clamp(gpus[i].temp.back() * 100 / gpus[i].temp_max, 0ll, 100ll))
-								+ gpu_temp_graphs[i](gpus[i].temp, data_same or redraw);
-						else out += Theme::g("temp").at(clamp(gpus[i].temp.back() * 100 / gpus[i].temp_max, 0ll, 100ll));
-						out += rjust(to_string(temp), 3) + Theme::c("main_fg") + unit;
+							APPEND_ALL(out, Theme::c("inactive_fg"), graph_bg * 5, Mv::l(5), Theme::g("temp").at(clamp(gpus[i].temp.back() * 100 / gpus[i].temp_max, 0ll, 100ll)),
+								gpu_temp_graphs[i](gpus[i].temp, data_same or redraw));
+						else APPEND_ALL(out, Theme::g("temp").at(clamp(gpus[i].temp.back() * 100 / gpus[i].temp_max, 0ll, 100ll)));
+						APPEND_ALL(out, rjust(to_string(temp), 3), Theme::c("main_fg"), unit);
 					}
 					if (gpus[i].supported_functions.pwr_usage) {
-						out += ' ' + Theme::g("cached").at(clamp(safeVal(gpus[i].gpu_percent, "gpu-pwr-totals"s).back(), 0ll, 100ll))
-							+ fmt::format("{:>4.{}f}", gpus[i].pwr_usage / 1000.0, gpus[i].pwr_usage < 10'000 ? 2 : gpus[i].pwr_usage < 100'000 ? 1 : 0) + Theme::c("main_fg") + 'W';
+						APPEND_ALL(out, ' ', Theme::g("cached").at(clamp(safeVal(gpus[i].gpu_percent, "gpu-pwr-totals"s).back(), 0ll, 100ll)),
+							fmt::format("{:>4.{}f}", gpus[i].pwr_usage / 1000.0, gpus[i].pwr_usage < 10'000 ? 2 : gpus[i].pwr_usage < 100'000 ? 1 : 0), Theme::c("main_fg"), 'W');
 					}
 
 					if (cy > b_height - 1) break;
@@ -995,15 +995,14 @@ namespace Cpu {
 				for (unsigned long i = 0; i < npus.size(); ++i) {
 					if (npu_auto and v_contains(Npu::shown_panels, i))
 						continue;
-					out += Mv::to(b_y + ++cy, b_x + 1) + Theme::c("main_fg") + Fx::b + "NPU";
-					if (npus.size() > 1) out += rjust(to_string(i), 1 + (npus.size() > 9));
+					APPEND_ALL(out, Mv::to(b_y + ++cy, b_x + 1), Theme::c("main_fg"), Fx::b, "NPU");
+					if (npus.size() > 1) APPEND_ALL(out, rjust(to_string(i), 1 + (npus.size() > 9)));
 					if (npus[i].supported_functions.npu_utilization) {
-						out += ' ';
+						APPEND_ALL(out, ' ');
 						if (b_columns > 1) {
-							out += npu_meters[i](safeVal(npus[i].npu_percent, "npu-totals"s).back())
-								+ Theme::g("cpu").at(clamp(safeVal(npus[i].npu_percent, "npu-totals"s).back(), 0ll, 100ll));
+							APPEND_ALL(out, npu_meters[i](safeVal(npus[i].npu_percent, "npu-totals"s).back()), Theme::g("cpu").at(clamp(safeVal(npus[i].npu_percent, "npu-totals"s).back(), 0ll, 100ll)));
 						}
-						out += rjust(to_string(safeVal(npus[i].npu_percent, "npu-totals"s).back()), 4) + Theme::c("main_fg") + '%';
+						APPEND_ALL(out, rjust(to_string(safeVal(npus[i].npu_percent, "npu-totals"s).back()), 4), Theme::c("main_fg"), '%');
 					}
 					if (cy > b_height - 1) break;
 				}
@@ -1013,7 +1012,8 @@ namespace Cpu {
 		}
 
 		redraw = false;
-		return out + Fx::reset;
+		APPEND_ALL(out, Fx::reset);
+		return out;
 	}
 
 }
@@ -1773,7 +1773,7 @@ namespace Proc {
 
 		//* Redraw elements not needed to be updated every cycle
 		if (redraw) {
-			out = box;
+			APPEND_ALL(out, box);
 			const string title_left = Theme::c("proc_box") + Symbols::title_left;
 			const string title_right = Theme::c("proc_box") + Symbols::title_right;
 			const string title_left_down = Theme::c("proc_box") + Symbols::title_left_down;
@@ -1809,28 +1809,28 @@ namespace Proc {
 
 				//? Draw structure of details box
 				const string pid_str = to_string(detailed.entry.pid);
-				out += Mv::to(y, x) + Theme::c("proc_box") + Symbols::div_left + Symbols::h_line + title_left + Theme::c("hi_fg") + Fx::b
-				+ (tty_mode ? "4" : Symbols::superscript.at(4)) + Theme::c("title") + "proc"
-					+ Fx::ub + title_right + Symbols::h_line * (width - 10) + Symbols::div_right
-					+ Mv::to(d_y, dgraph_x + 2) + title_left + Fx::b + Theme::c("title") + pid_str + Fx::ub + title_right
-					+ title_left + Fx::b + Theme::c("title") + uresize(detailed.entry.name, dgraph_width - pid_str.size() - 7, true) + Fx::ub + title_right;
+				APPEND_ALL(out, Mv::to(y, x), Theme::c("proc_box"), Symbols::div_left, Symbols::h_line, title_left, Theme::c("hi_fg"), Fx::b,
+					(tty_mode ? "4" : Symbols::superscript.at(4)), Theme::c("title"), "proc",
+					Fx::ub, title_right, Symbols::h_line * (width - 10), Symbols::div_right,
+					Mv::to(d_y, dgraph_x + 2), title_left, Fx::b, Theme::c("title"), pid_str, Fx::ub, title_right,
+					title_left, Fx::b, Theme::c("title"), uresize(detailed.entry.name, dgraph_width - pid_str.size() - 7, true), Fx::ub, title_right);
 
-				out += Mv::to(d_y, d_x - 1) + Theme::c("proc_box") + Symbols::div_up + Mv::to(y, d_x - 1) + Symbols::div_down + Theme::c("div_line");
-				for (const int& i : iota(1, 8)) out += Mv::to(d_y + i, d_x - 1) + Symbols::v_line;
+				APPEND_ALL(out, Mv::to(d_y, d_x - 1), Theme::c("proc_box"), Symbols::div_up, Mv::to(y, d_x - 1), Symbols::div_down, Theme::c("div_line"));
+				for (const int& i : iota(1, 8)) APPEND_ALL(out, Mv::to(d_y + i, d_x - 1), Symbols::v_line);
 
 				const string& t_color = (not alive or selected > 0 ? Theme::c("inactive_fg") : Theme::c("title"));
 				const string& hi_color = (not alive or selected > 0 ? t_color : Theme::c("hi_fg"));
 				const string hide = (selected > 0 ? t_color + "hide " : Theme::c("title") + "hide " + Theme::c("hi_fg"));
 				int mouse_x = d_x + 2;
-				out += Mv::to(d_y, d_x + 1);
+				APPEND_ALL(out, Mv::to(d_y, d_x + 1));
 				if (width > 55) {
-					out += Fx::ub + title_left + hi_color + Fx::b + 't' + t_color + "erminate" + Fx::ub + title_right;
+					APPEND_ALL(out, Fx::ub, title_left, hi_color, Fx::b, 't', t_color, "erminate", Fx::ub, title_right);
 					if (alive and selected == 0) Input::mouse_mappings["t"] = {d_y, mouse_x, 1, 9};
 					mouse_x += 11;
 				}
-				out += title_left + hi_color + Fx::b + (vim_keys ? 'K' : 'k') + t_color + "ill" + Fx::ub + title_right
-					+ title_left + hi_color + Fx::b + 's' + t_color + "ignals" + Fx::ub + title_right
-					+ Mv::to(d_y, d_x + d_width - 10) + title_left + t_color + Fx::b + hide + Symbols::enter + Fx::ub + title_right;
+				APPEND_ALL(out, title_left, hi_color, Fx::b, (vim_keys ? 'K' : 'k'), t_color, "ill", Fx::ub, title_right);
+				APPEND_ALL(out, title_left, hi_color, Fx::b, 's', t_color, "ignals", Fx::ub, title_right);
+				APPEND_ALL(out, Mv::to(d_y, d_x + d_width - 10), title_left, t_color, Fx::b, hide, Symbols::enter, Fx::ub, title_right);
 				if (alive and selected == 0) {
 					Input::mouse_mappings["k"] = {d_y, mouse_x, 1, 4};
 					mouse_x += 6;
@@ -1841,26 +1841,26 @@ namespace Proc {
 				//? Labels
 				const int item_fit = floor((double)(d_width - 2) / 10);
 				const int item_width = floor((double)(d_width - 2) / min(item_fit, 8));
-				out += Mv::to(d_y + 1, d_x + 1) + Fx::b + Theme::c("title")
-										+ cjust("Status:", item_width)
-										+ cjust("Elapsed:", item_width);
-				if (item_fit >= 3) out += cjust("IO/R:", item_width);
-				if (item_fit >= 4) out += cjust("IO/W:", item_width);
-				if (item_fit >= 5) out += cjust("Parent:", item_width);
-				if (item_fit >= 6) out += cjust("User:", item_width);
-				if (item_fit >= 7) out += cjust("Threads:", item_width);
-				if (item_fit >= 8) out += cjust("Nice:", item_width);
+				APPEND_ALL(out, Mv::to(d_y + 1, d_x + 1), Fx::b, Theme::c("title"),
+													  cjust("Status:", item_width),
+													  cjust("Elapsed:", item_width));
+				if (item_fit >= 3) APPEND_ALL(out, cjust("IO/R:", item_width));
+				if (item_fit >= 4) APPEND_ALL(out, cjust("IO/W:", item_width));
+				if (item_fit >= 5) APPEND_ALL(out, cjust("Parent:", item_width));
+				if (item_fit >= 6) APPEND_ALL(out, cjust("User:", item_width));
+				if (item_fit >= 7) APPEND_ALL(out, cjust("Threads:", item_width));
+				if (item_fit >= 8) APPEND_ALL(out, cjust("Nice:", item_width));
 
 
 				//? Command line
 				for (int i = 0; const auto& l : {'C', 'M', 'D'})
-				out += Mv::to(d_y + 5 + i++, d_x + 1) + l;
+					APPEND_ALL(out, Mv::to(d_y + 5 + i++, d_x + 1), l);
 
-				out += Theme::c("main_fg") + Fx::ub;
+				APPEND_ALL(out, Theme::c("main_fg"), Fx::ub);
 				const int cmd_size = ulen(detailed.entry.cmd, true);
 				for (int num_lines = min(3, (int)ceil((double)cmd_size / (d_width - 5))), i = 0; i < num_lines; i++) {
-					out += Mv::to(d_y + 5 + (num_lines == 1 ? 1 : i), d_x + 3)
-						+ cjust(luresize(detailed.entry.cmd, cmd_size - (d_width - 5) * i, true), d_width - 5, true, true);
+					APPEND_ALL(out, Mv::to(d_y + 5 + (num_lines == 1 ? 1 : i), d_x + 3),
+						cjust(luresize(detailed.entry.cmd, cmd_size - (d_width - 5) * i, true), d_width - 5, true, true));
 				}
 
 			}
@@ -1868,10 +1868,10 @@ namespace Proc {
 			//? Filter
 			auto filtering = Config::getB("proc_filtering"); // ? filter(20) : Config::getS("proc_filter"))
 			const auto filter_text = (filtering) ? filter(max(6, width - 58)) : uresize(Config::getS("proc_filter"), max(6, width - 58));
-			out += Mv::to(y, x+9) + title_left + (not filter_text.empty() ? Fx::b : "") + Theme::c("hi_fg") + 'f'
-				+ Theme::c("title") + (not filter_text.empty() ? ' ' + filter_text : "ilter")
-				+ (not filtering and not filter_text.empty() ? Theme::c("hi_fg") + " del" : "")
-				+ (filtering ? Theme::c("hi_fg") + ' ' + Symbols::enter : "") + Fx::ub + title_right;
+			APPEND_ALL(out, Mv::to(y, x+9), title_left, (not filter_text.empty() ? Fx::b : ""), Theme::c("hi_fg"), 'f',
+				Theme::c("title"), (not filter_text.empty() ? ' ' + filter_text : "ilter"),
+				(not filtering and not filter_text.empty() ? Theme::c("hi_fg") + " del" : ""),
+				(filtering ? Theme::c("hi_fg") + ' ' + Symbols::enter : ""), Fx::ub, title_right);
 			if (not filtering) {
 				int f_len = (filter_text.empty() ? 6 : ulen(filter_text) + 2);
 				Input::mouse_mappings["f"] = {y, x + 10, 1, f_len};
@@ -1887,22 +1887,22 @@ namespace Proc {
 			const int sort_pos = x + width - sort_len - 8;
 
 			if (width > 55 + sort_len) {
-				out += Mv::to(y, sort_pos - 25) + title_left + (Config::getB("proc_per_core") ? Fx::b : "") + Theme::c("title")
-					+ "per-" + Theme::c("hi_fg") + 'c' + Theme::c("title") + "ore" + Fx::ub + title_right;
+				APPEND_ALL(out, Mv::to(y, sort_pos - 25), title_left, (Config::getB("proc_per_core") ? Fx::b : ""), Theme::c("title"),
+					"per-", Theme::c("hi_fg"), 'c', Theme::c("title"), "ore", Fx::ub, title_right);
 				Input::mouse_mappings["c"] = {y, sort_pos - 24, 1, 8};
 			}
 			if (width > 45 + sort_len) {
-				out += Mv::to(y, sort_pos - 15) + title_left + (Config::getB("proc_reversed") ? Fx::b : "") + Theme::c("hi_fg")
-					+ 'r' + Theme::c("title") + "everse" + Fx::ub + title_right;
+				APPEND_ALL(out, Mv::to(y, sort_pos - 15), title_left, (Config::getB("proc_reversed") ? Fx::b : ""), Theme::c("hi_fg"),
+					'r', Theme::c("title"), "everse", Fx::ub, title_right);
 				Input::mouse_mappings["r"] = {y, sort_pos - 14, 1, 7};
 			}
 			if (width > 35 + sort_len) {
-				out += Mv::to(y, sort_pos - 6) + title_left + (Config::getB("proc_tree") ? Fx::b : "") + Theme::c("title") + "tre"
-					+ Theme::c("hi_fg") + 'e' + Fx::ub + title_right;
+				APPEND_ALL(out, Mv::to(y, sort_pos - 6), title_left, (Config::getB("proc_tree") ? Fx::b : ""), Theme::c("title"), "tre",
+					Theme::c("hi_fg"), 'e', Fx::ub, title_right);
 				Input::mouse_mappings["e"] = {y, sort_pos - 5, 1, 4};
 			}
-			out += Mv::to(y, sort_pos) + title_left + Fx::b + Theme::c("hi_fg") + "< " + Theme::c("title") + sorting + Theme::c("hi_fg")
-				+ " >" + Fx::ub + title_right;
+			APPEND_ALL(out, Mv::to(y, sort_pos), title_left, Fx::b, Theme::c("hi_fg"), "< ", Theme::c("title"), sorting, Theme::c("hi_fg"),
+				" >", Fx::ub, title_right);
 				Input::mouse_mappings["left"] = {y, sort_pos + 1, 1, 2};
 				Input::mouse_mappings["right"] = {y, sort_pos + sort_len + 3, 1, 2};
 
@@ -1911,37 +1911,37 @@ namespace Proc {
 			const string t_color = (selected == 0 ? Theme::c("inactive_fg") : Theme::c("title"));
 			const string hi_color = (selected == 0 ? Theme::c("inactive_fg") : Theme::c("hi_fg"));
 			int mouse_x = x + 14;
-			out += Mv::to(y + height - 1, x + 1) + title_left_down + Fx::b + hi_color + Symbols::up + Theme::c("title") + " select " + down_button + Fx::ub + title_right_down
-				+ title_left_down + Fx::b + t_color + "info " + hi_color + Symbols::enter + Fx::ub + title_right_down;
+			APPEND_ALL(out, Mv::to(y + height - 1, x + 1), title_left_down, Fx::b, hi_color, Symbols::up, Theme::c("title"), " select ", down_button, Fx::ub, title_right_down,
+				title_left_down, Fx::b, t_color, "info ", hi_color, Symbols::enter, Fx::ub, title_right_down);
 				if (selected > 0) Input::mouse_mappings["enter"] = {y + height - 1, mouse_x, 1, 6};
 				mouse_x += 8;
 			if (width > 60) {
-				out += title_left_down + Fx::b + hi_color + 't' + t_color + "erminate" + Fx::ub + title_right_down;
+				APPEND_ALL(out, title_left_down, Fx::b, hi_color, 't', t_color, "erminate", Fx::ub, title_right_down);
 				if (selected > 0) Input::mouse_mappings["t"] = {y + height - 1, mouse_x, 1, 9};
 				mouse_x += 11;
 			}
 			if (width > 55) {
-				out += title_left_down + Fx::b + hi_color + (vim_keys ? 'K' : 'k') + t_color + "ill" + Fx::ub + title_right_down;
+				APPEND_ALL(out, title_left_down, Fx::b, hi_color, (vim_keys ? 'K' : 'k'), t_color, "ill", Fx::ub, title_right_down);
 				if (selected > 0) Input::mouse_mappings["k"] = {y + height - 1, mouse_x, 1, 4};
 				mouse_x += 6;
 			}
-			out += title_left_down + Fx::b + hi_color + 's' + t_color + "ignals" + Fx::ub + title_right_down;
+			APPEND_ALL(out, title_left_down, Fx::b, hi_color, 's', t_color, "ignals", Fx::ub, title_right_down);
 			if (selected > 0) Input::mouse_mappings["s"] = {y + height - 1, mouse_x, 1, 7};
 
 			//? Labels for fields in list
 			if (not proc_tree)
-				out += Mv::to(y+1, x+1) + Theme::c("title") + Fx::b
-					+ rjust("Pid:", 8) + ' '
-					+ ljust("Program:", prog_size) + ' '
-					+ (cmd_size > 0 ? ljust("Command:", cmd_size) : "") + ' ';
+				APPEND_ALL(out, Mv::to(y+1, x+1), Theme::c("title"), Fx::b,
+					rjust("Pid:", 8), ' ',
+					ljust("Program:", prog_size), ' ',
+					(cmd_size > 0 ? ljust("Command:", cmd_size) : ""), ' ');
 			else
-				out += Mv::to(y+1, x+1) + Theme::c("title") + Fx::b
-					+ ljust("Tree:", tree_size) + ' ';
+				APPEND_ALL(out, Mv::to(y+1, x+1), Theme::c("title"), Fx::b,
+					ljust("Tree:", tree_size), ' ');
 
-			out += (thread_size > 0 ? Mv::l(4) + "Threads: " : "")
-					+ ljust("User:", user_size) + ' '
-					+ rjust((mem_bytes ? "MemB" : "Mem%"), 5) + ' '
-					+ rjust("Cpu%", (show_graphs ? 10 : 5)) + Fx::ub;
+			APPEND_ALL(out, (thread_size > 0 ? Mv::l(4) + "Threads: " : ""),
+					ljust("User:", user_size), ' ',
+					rjust((mem_bytes ? "MemB" : "Mem%"), 5), ' ',
+					rjust("Cpu%", (show_graphs ? 10 : 5)), Fx::ub);
 		}
 		//* End of redraw block
 
@@ -1957,31 +1957,31 @@ namespace Proc {
 				cpu_str.resize((detailed.entry.cpu_p < 10 or detailed.entry.cpu_p >= 100 ? 3 : 4));
 				cpu_str += '%';
 			}
-			out += Mv::to(d_y + 1, dgraph_x + 1) + Fx::ub + detailed_cpu_graph(detailed.cpu_percent, (redraw or data_same or not alive))
-				+ Mv::to(d_y + 1, dgraph_x + 1) + Theme::c("title") + Fx::b + cpu_str;
+			APPEND_ALL(out, Mv::to(d_y + 1, dgraph_x + 1), Fx::ub, detailed_cpu_graph(detailed.cpu_percent, (redraw or data_same or not alive)),
+				Mv::to(d_y + 1, dgraph_x + 1), Theme::c("title"), Fx::b, cpu_str);
 			for (int i = 0; const auto& l : {'C', 'P', 'U'})
-					out += Mv::to(d_y + 3 + i++, dgraph_x + 1) + l;
+					APPEND_ALL(out, Mv::to(d_y + 3 + i++, dgraph_x + 1), l);
 
 			//? Info part of box
 			const string stat_color = (not alive ? Theme::c("inactive_fg") : (detailed.status == "Running" ? Theme::c("proc_misc") : Theme::c("main_fg")));
-			out += Mv::to(d_y + 2, d_x + 1) + stat_color + Fx::ub
-									+ cjust(detailed.status, item_width) + Theme::c("main_fg")
-									+ cjust(detailed.elapsed, item_width);
-			if (item_fit >= 3) out += cjust(detailed.io_read, item_width);
-			if (item_fit >= 4) out += cjust(detailed.io_write, item_width);
-			if (item_fit >= 5) out += cjust(detailed.parent, item_width, true);
-			if (item_fit >= 6) out += cjust(detailed.entry.user, item_width, true);
-			if (item_fit >= 7) out += cjust(to_string(detailed.entry.threads), item_width);
-			if (item_fit >= 8) out += cjust(to_string(detailed.entry.p_nice), item_width);
+			APPEND_ALL(out, Mv::to(d_y + 2, d_x + 1), stat_color + Fx::ub,
+												  cjust(detailed.status, item_width) + Theme::c("main_fg"),
+												  cjust(detailed.elapsed, item_width));
+			if (item_fit >= 3) APPEND_ALL(out, cjust(detailed.io_read, item_width));
+			if (item_fit >= 4) APPEND_ALL(out, cjust(detailed.io_write, item_width));
+			if (item_fit >= 5) APPEND_ALL(out, cjust(detailed.parent, item_width, true));
+			if (item_fit >= 6) APPEND_ALL(out, cjust(detailed.entry.user, item_width, true));
+			if (item_fit >= 7) APPEND_ALL(out, cjust(to_string(detailed.entry.threads), item_width));
+			if (item_fit >= 8) APPEND_ALL(out, cjust(to_string(detailed.entry.p_nice), item_width));
 
 
 			const double mem_p = (double)detailed.mem_bytes.back() * 100 / totalMem;
 			string mem_str = to_string(mem_p);
 			mem_str.resize((mem_p < 10 or mem_p >= 100 ? 3 : 4));
-			out += Mv::to(d_y + 4, d_x + 1) + Theme::c("title") + Fx::b + rjust((item_fit > 4 ? "Memory: " : "M:") + mem_str + "% ", (d_width / 3) - 2)
-				+ Theme::c("inactive_fg") + Fx::ub + graph_bg * (d_width / 3) + Mv::l(d_width / 3)
-				+ Theme::c("proc_misc") + detailed_mem_graph(detailed.mem_bytes, (redraw or data_same or not alive)) + ' '
-				+ Theme::c("title") + Fx::b + detailed.memory;
+			APPEND_ALL(out, Mv::to(d_y + 4, d_x + 1), Theme::c("title"), Fx::b, rjust((item_fit > 4 ? "Memory: " : "M:") + mem_str + "% ", (d_width / 3) - 2),
+				Theme::c("inactive_fg"), Fx::ub, graph_bg * (d_width / 3), Mv::l(d_width / 3),
+				Theme::c("proc_misc"), detailed_mem_graph(detailed.mem_bytes, (redraw or data_same or not alive)), ' ',
+				Theme::c("title"), Fx::b, detailed.memory);
 		}
 
 		//? Check bounds of current selection and view
@@ -2044,14 +2044,14 @@ namespace Proc {
 					p_counters[p.pid] = 0;
 			}
 
-			out += Fx::reset;
+			APPEND_ALL(out, Fx::reset);
 
 			//? Set correct gradient colors if enabled
 			string c_color, m_color, t_color, g_color, end;
 			if (is_selected) {
 				c_color = m_color = t_color = g_color = Fx::b;
 				end = Fx::ub;
-				out += Theme::c("selected_bg") + Theme::c("selected_fg") + Fx::b;
+				APPEND_ALL(out, Theme::c("selected_bg"), Theme::c("selected_fg"), Fx::b);
 			}
 			else {
 				int calc = (selected > process_count) ? selected - process_count : process_count - selected;
@@ -2123,49 +2123,51 @@ namespace Proc {
 				if (proc_tree) { // Tree view (single line)
 					const string prefix_pid = p.prefix + to_string(p.pid);
 					int width_left = tree_size;
-					line_content = g_color + uresize(prefix_pid, width_left) + ' ';
+					APPEND_ALL(line_content, g_color, uresize(prefix_pid, width_left, true), ' ');
 					width_left -= ulen(prefix_pid);
 
 					if (width_left > 0) {
-						line_content += c_color + uresize(p.name, width_left - 1) + end + ' ';
+						APPEND_ALL(line_content, c_color, uresize(p.name, width_left - 1), end, ' ');
 						width_left -= (ulen(p.name) + 1);
 					}
 					if (width_left > 7) {
 						const string& cmd = width_left > 40 ? rtrim(p.cmd) : p.short_cmd;
 						if (!cmd.empty() && cmd != p.name) {
-							line_content += g_color + '(' + uresize(cmd, width_left - 3, p_wide_cmd[p.pid]) + ") ";
+							APPEND_ALL(line_content, g_color, '(', uresize(cmd, width_left - 3, p_wide_cmd[p.pid]), ") ");
 							width_left -= (ulen(cmd, true) + 3);
 						}
 					}
-					line_content += string(max(0, width_left), ' ');
+					APPEND_ALL(line_content, string(max(0, width_left), ' '));
 				}
 				else { // Normal view (multi-line)
 					if (i == 0) { // First line with full info
-						line_content = g_color + rjust(to_string(p.pid), 8) + ' '
-									+ c_color + ljust(p.name, prog_size, true) + ' ' + end
-									+ (cmd_size > 0 ? g_color + ljust(cmd_lines[i], cmd_size, true, p_wide_cmd[p.pid]) + ' ' : "")
-									+ (thread_size > 0 ? t_color + rjust(proc_threads_string, thread_size) + ' ' + end : "")
-									+ g_color + ljust((cmp_greater(p.user.size(), user_size) ? p.user.substr(0, user_size - 1) + '+' : p.user), user_size) + ' '
-									+ m_color + rjust(mem_str, 5) + end + ' '
-									+ (is_selected ? "" : Theme::c("inactive_fg")) + (show_graphs ? graph_bg * 5 : "")
-									+ (p_graphs.contains(p.pid) ? Mv::l(5) + c_color + p_graphs.at(p.pid)({(p.cpu_p >= 0.1 && p.cpu_p < 5 ? 5ll : static_cast<long long>(round(p.cpu_p)))}, data_same) : "") + end + ' '
-									+ c_color + rjust(cpu_str, 4) + "  " + end;
+						APPEND_ALL(line_content, g_color, rjust(to_string(p.pid), 8), ' ',
+									c_color, ljust(p.name, prog_size, true), ' ', end,
+									(cmd_size > 0 ? g_color + ljust(cmd_lines[i], cmd_size, true, p_wide_cmd[p.pid]) + ' ' : ""),
+									(thread_size > 0 ? t_color + rjust(proc_threads_string, thread_size) + ' ' + end : ""),
+									g_color + ljust((cmp_greater(p.user.size(), user_size) ? p.user.substr(0, user_size - 1) + '+' : p.user), user_size) + ' ',
+									m_color + rjust(mem_str, 5), end, ' ',
+									(is_selected ? "" : Theme::c("inactive_fg")) + (show_graphs ? graph_bg * 5 : ""),
+									(p_graphs.contains(p.pid) ? Mv::l(5) + c_color + p_graphs.at(p.pid)({(p.cpu_p >= 0.1 && p.cpu_p < 5 ? 5ll : static_cast<long long>(round(p.cpu_p)))}, data_same) : ""),
+									c_color + rjust(cpu_str, 4), "  ", end);
 					}
 					else { // Additional command lines
 						const string cmd_part = i < cmd_lines.size() ? cmd_lines[i] : "";
-						line_content = string(8, ' ') + ' ' // PID space
-									+ string(prog_size, ' ') + ' ' // Name space
-									+ g_color + ljust(cmd_part, cmd_size, true, p_wide_cmd[p.pid])
-									+ string(width - 2 - 8 - 1 - prog_size - 1 - cmd_size, ' ');
+						APPEND_ALL(line_content, string(8, ' '), ' ', // PID space
+									string(prog_size, ' '), ' ', // Name space
+									g_color, ljust(cmd_part, cmd_size, true, p_wide_cmd[p.pid]),
+									string(width - 2 - 8 - 1 - prog_size - 1 - cmd_size, ' '));
 					}
 				}
 
 				//? Apply selection highlighting
 				if (is_selected) {
-					line_content = Theme::c("selected_bg") + Theme::c("selected_fg") + Fx::b + line_content + Fx::ub;
+					string unselected_line_content = line_content;
+					line_content.clear();
+					APPEND_ALL(line_content, Theme::c("selected_bg"), Theme::c("selected_fg"), Fx::b, unselected_line_content, Fx::ub);
 				}
 
-				out += Mv::to(line_y, x + 1) + line_content;
+				APPEND_ALL(out, Mv::to(line_y, x + 1), line_content);
 				current_line++;
 			}
 
@@ -2173,27 +2175,27 @@ namespace Proc {
 			if (current_line >= height - 3) break;
 		}
 
-		out += Fx::reset;
-		while (current_line++ < height - 3) out += Mv::to(y+current_line+1, x+1) + string(width - 2, ' ');
+		APPEND_ALL(out, Fx::reset);
+		while (current_line++ < height - 3) APPEND_ALL(out, Mv::to(y+current_line+1, x+1), string(width - 2, ' '));
 
 		//? Draw scrollbar if needed
 		if (numpids > select_max) {
 			const int all_proc_height = accumulate(all_proc_heights.begin(), all_proc_heights.end(), 0);
 			const int up_to_start = accumulate(all_proc_heights.begin(), all_proc_heights.begin() + start, 0);
 			const int scroll_pos = clamp((int)round((height - 3) * (double)up_to_start / all_proc_height), 0, height - 3);
-			out += Mv::to(y + 1, x + width - 2) + Fx::b + Theme::c("main_fg") + Symbols::up
-				+ Mv::to(y + height - 2, x + width - 2) + Symbols::down;
+			APPEND_ALL(out, Mv::to(y + 1, x + width - 2), Fx::b, Theme::c("main_fg"), Symbols::up,
+				Mv::to(y + height - 2, x + width - 2), Symbols::down);
 
 			for (int i = y + 2; i < y + height - 2; i++) {
-				out += Mv::to(i, x + width - 2) + ((i == y + 2 + scroll_pos) ? "█" : " ");
+				APPEND_ALL(out, Mv::to(i, x + width - 2), ((i == y + 2 + scroll_pos) ? "█" : " "));
 			}
 		}
 
 		//? Current selection and number of processes
 		string location = to_string(start + selected) + '/' + to_string(numpids);
 		string loc_clear = Symbols::h_line * max((size_t)0, 9 - location.size());
-		out += Mv::to(y + height - 1, x+width - 3 - max(9, (int)location.size())) + Fx::ub + Theme::c("proc_box") + loc_clear
-			+ Symbols::title_left_down + Theme::c("title") + Fx::b + location + Fx::ub + Theme::c("proc_box") + Symbols::title_right_down;
+		APPEND_ALL(out, Mv::to(y + height - 1, x+width - 3 - max(9, (int)location.size())), Fx::ub, Theme::c("proc_box"), loc_clear,
+			Symbols::title_left_down, Theme::c("title"), Fx::b, location, Fx::ub, Theme::c("proc_box"), Symbols::title_right_down);
 
 		//? Clear out left over graphs from dead processes at a regular interval
 		if (not data_same and ++counter >= 100) {
@@ -2217,7 +2219,8 @@ namespace Proc {
 			selected_name.clear();
 		}
 		redraw = false;
-		return out + Fx::reset;
+		APPEND_ALL(out, Fx::reset);
+		return out;
 	}
 
 }
