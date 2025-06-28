@@ -18,6 +18,8 @@ tab-size = 4
 
 #pragma once
 
+#ifndef _WIN32
+
 // Helper macros for counting arguments
 #define COSMOTOP_EXPAND(x) x
 #define COSMOTOP_GET_MACRO(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, NAME, ...) NAME
@@ -220,3 +222,5 @@ tab-size = 4
 #define COSMOTOP_IF_ARGS_IMPL(...) COSMOTOP_IF_ARGS_IMPL_(__VA_ARGS__, ,)
 #define COSMOTOP_IF_ARGS_IMPL_(x, ...) COSMOTOP_IF_ARGS_IMPL__(x, __VA_ARGS__)
 #define COSMOTOP_IF_ARGS_IMPL__(x, y, ...) y
+
+#endif // !_WIN32

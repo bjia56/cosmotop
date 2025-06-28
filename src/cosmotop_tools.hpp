@@ -149,6 +149,7 @@ namespace Fx {
 
 }
 
+#ifndef _WIN32
 //* Collection of escape codes and functions for cursor manipulation
 namespace Mv {
 	//* Move cursor to <line>, <column>
@@ -192,6 +193,7 @@ namespace Mv {
 	//* Restore saved cursor position
 	const string restore = Fx::e + "u";
 }
+#endif // !_WIN32
 
 //* Collection of escape codes and functions for terminal manipulation
 namespace Term {
