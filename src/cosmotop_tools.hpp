@@ -157,6 +157,7 @@ namespace Mv {
 	//* Move cursor to <line>, <column>
 	inline string to(int line, int col) {
 		string result;
+		result.reserve(32);
 		append_one(result, Fx::e);
 		append_one(result, line);
 		append_one(result, ';');
@@ -168,6 +169,7 @@ namespace Mv {
 	//* Move cursor right <x> columns
 	inline string r(int x) {
 		string result;
+		result.reserve(32);
 		append_one(result, Fx::e);
 		append_one(result, x);
 		append_one(result, 'C');
@@ -177,6 +179,7 @@ namespace Mv {
 	//* Move cursor left <x> columns
 	inline string l(int x) {
 		string result;
+		result.reserve(32);
 		append_one(result, Fx::e);
 		append_one(result, x);
 		append_one(result, 'D');
@@ -186,6 +189,7 @@ namespace Mv {
 	//* Move cursor up x lines
 	inline string u(int x) {
 		string result;
+		result.reserve(32);
 		append_one(result, Fx::e);
 		append_one(result, x);
 		append_one(result, 'A');
@@ -195,6 +199,7 @@ namespace Mv {
 	//* Move cursor down x lines
 	inline string d(int x) {
 		string result;
+		result.reserve(32);
 		append_one(result, Fx::e);
 		append_one(result, x);
 		append_one(result, 'B');
