@@ -106,12 +106,15 @@ inline void append_one(std::string& s, const char value) {
 	s.push_back(value);
 }
 
+#ifndef _WIN32
+// Variadic macro expansions don't seem to work on Windows
 #define APPEND_STR(x) append_one(__append_one_buf, x)
 #define APPEND_ALL(str, ...) \
 	do { \
 		string &__append_one_buf = str; \
 		COSMOTOP_APPLY_SEMICOLON(APPEND_STR, __VA_ARGS__); \
 	} while(0)
+#endif // !_WIN32
 
 //? ------------------------------------------------- NAMESPACES ------------------------------------------------------
 
@@ -149,41 +152,52 @@ namespace Fx {
 
 }
 
-#ifndef _WIN32
 //* Collection of escape codes and functions for cursor manipulation
 namespace Mv {
 	//* Move cursor to <line>, <column>
 	inline string to(int line, int col) {
 		string result;
-		APPEND_ALL(result, Fx::e, line, ';', col, 'f');
+		append_one(result, Fx::e);
+		append_one(result, line);
+		append_one(result, ';');
+		append_one(result, col);
+		append_one(result, 'f');
 		return result;
 	}
 
 	//* Move cursor right <x> columns
 	inline string r(int x) {
 		string result;
-		APPEND_ALL(result, Fx::e, x, 'C');
+		append_one(result, Fx::e);
+		append_one(result, x);
+		append_one(result, 'C');
 		return result;
 	}
 
 	//* Move cursor left <x> columns
 	inline string l(int x) {
 		string result;
-		APPEND_ALL(result, Fx::e, x, 'D');
+		append_one(result, Fx::e);
+		append_one(result, x);
+		append_one(result, 'D');
 		return result;
 	}
 
 	//* Move cursor up x lines
 	inline string u(int x) {
 		string result;
-		APPEND_ALL(result, Fx::e, x, 'A');
+		append_one(result, Fx::e);
+		append_one(result, x);
+		append_one(result, 'A');
 		return result;
 	}
 
 	//* Move cursor down x lines
 	inline string d(int x) {
 		string result;
-		APPEND_ALL(result, Fx::e, x, 'B');
+		append_one(result, Fx::e);
+		append_one(result, x);
+		append_one(result, 'B');
 		return result;
 	}
 
@@ -193,7 +207,6 @@ namespace Mv {
 	//* Restore saved cursor position
 	const string restore = Fx::e + "u";
 }
-#endif // !_WIN32
 
 //* Collection of escape codes and functions for terminal manipulation
 namespace Term {
