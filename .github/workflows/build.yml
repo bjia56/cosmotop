@@ -553,11 +553,17 @@ jobs:
           sudo mkdir -p /zip/licenses/
           sudo cp * /zip/licenses/
 
+          cp ${{ github.workspace }}/cosmotop.com ${{ github.workspace }}/cosmotop.big.com
+
           cd /zip
           zip -r ${{ github.workspace }}/cosmotop.com *
 
+          sudo cp /tmp/cosmotop-plugin/cosmotop-*.exe /zip/
+          zip -r ${{ github.workspace }}/cosmotop.big.com *
+
           cd ${{ github.workspace }}
           mv cosmotop.com cosmotop.exe
+          mv cosmotop.big.com cosmotop.big.exe
 
       - name: Chimplink
         run: |
@@ -566,6 +572,16 @@ jobs:
 
           cosmo_bin=$(dirname $(which cosmocc))
           ./chimplink cosmotop.exe cosmotop ${{ github.sha }} \
+            ${cosmo_bin}/ape-x86_64.elf \
+            ${cosmo_bin}/ape-aarch64.elf \
+            --os Linux /tmp/blink/blink-linux-* \
+            --os NetBSD /tmp/blink/blink-netbsd-* \
+            --os OpenBSD /tmp/blink/blink-openbsd-* \
+            --os Solaris /tmp/blink/blink-solaris-* \
+            --os Darwin /tmp/blink/blink-macos-*
+
+          cosmo_bin=$(dirname $(which cosmocc))
+          ./chimplink cosmotop.big.exe cosmotop.big ${{ github.sha }} \
             ${cosmo_bin}/ape-x86_64.elf \
             ${cosmo_bin}/ape-aarch64.elf \
             --os Linux /tmp/blink/blink-linux-* \
@@ -585,6 +601,12 @@ jobs:
         with:
           name: cosmotop
           path: ./cosmotop
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop.big
+          path: ./cosmotop.big
 
   check:
     name: Check cosmotop ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
