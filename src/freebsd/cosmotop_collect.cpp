@@ -183,6 +183,7 @@ namespace Shared {
 		Cpu::got_sensors = Cpu::get_sensors();
 		Logger::debug("Init -> Cpu::get_core_mapping()");
 		Cpu::core_mapping = Cpu::get_core_mapping();
+		Cpu::current_bat = Cpu::get_battery();
 
 		//? Init for namespace Mem
 		Mem::old_uptime = system_uptime();

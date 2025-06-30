@@ -1079,6 +1079,7 @@ namespace Shared {
 			if (not vec.empty()) Cpu::available_fields.push_back(field);
 		}
 		Cpu::cpuName = Cpu::get_cpuName();
+		Cpu::current_bat = Cpu::get_battery();
 
 		Logger::debug("GPU Init");
 		//? Init for namespace Gpu
@@ -1252,6 +1253,9 @@ namespace Cpu {
 	};
 
 	auto get_battery() -> tuple<int, float, long, string> {
+		if (not has_battery) {
+			return { 0, 0, 0, "" };
+		}
 
 		int percent = -1;
 		long long seconds = 0;

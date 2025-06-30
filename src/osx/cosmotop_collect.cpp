@@ -200,6 +200,7 @@ namespace Shared {
 		Cpu::cpuName = Cpu::get_cpuName();
 		Cpu::got_sensors = Cpu::get_sensors();
 		Cpu::core_mapping = Cpu::get_core_mapping();
+		Cpu::current_bat = Cpu::get_battery();
 
 		//? Init for namespace Npu
 		Npu::init();

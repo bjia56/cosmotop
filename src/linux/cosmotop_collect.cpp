@@ -351,6 +351,7 @@ namespace Shared {
 			Cpu::available_sensors.push_back(sensor);
 		}
 		Cpu::core_mapping = Cpu::get_core_mapping();
+		Cpu::current_bat = Cpu::get_battery();
 
 		//? Init for namespace Gpu
 		Gpu::Nvml::init();
