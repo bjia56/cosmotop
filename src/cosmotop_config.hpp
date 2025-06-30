@@ -62,6 +62,8 @@ namespace Config {
 
 	void push_back_available_batteries(const string& battery);
 	std::unordered_map<std::string, int>& get_ints();
+	std::unordered_map<std::string, bool>& get_bools();
+	std::unordered_map<std::string, string>& get_strings();
 	void ints_set_at(const std::string_view name, const int value);
 
 	constexpr int ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
@@ -84,14 +86,21 @@ namespace Config {
 
 	bool _locked(const std::string_view name);
 
+#ifdef __COSMOPOLITAN__
 	//* Return bool for config key <name>
-	bool getB(const std::string_view name);
+	const bool& getB(const std::string_view name);
 
 	//* Return integer for config key <name>
 	const int& getI(const std::string_view name);
 
 	//* Return string for config key <name>
 	const string& getS(const std::string_view name);
+#else
+	// Versions of getB, getI, and getS using std::string
+	const bool& getB(const string& name);
+	const int& getI(const string& name);
+	const string& getS(const string& name);
+#endif // __COSMOPOLITAN__
 
 	string getAsString(const std::string_view name);
 

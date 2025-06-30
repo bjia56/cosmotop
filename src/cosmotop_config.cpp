@@ -419,7 +419,7 @@ namespace Config {
 		return locked.load();
 	}
 
-	bool getB(const std::string_view name) {
+	const bool& getB(const std::string_view name) {
 		if (boolsOverrides.contains(name)) return boolsOverrides.at(name);
 		return bools.at(name);
 	}

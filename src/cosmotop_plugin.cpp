@@ -45,7 +45,8 @@ namespace Shared {
 	}
 }
 
-Plugin* plugin = nullptr;
+static Plugin* plugin = nullptr;
+static int plugin_cache_counter = 0;
 
 void plugin_initializer(Plugin* plugin) {
 	::plugin = plugin;
@@ -54,6 +55,10 @@ void plugin_initializer(Plugin* plugin) {
 		std::stringstream ss;
 		ss << "Host-native plugin compiled with: " << COMPILER << " (" << COMPILER_VERSION << ")";
 		return ss.str();
+	}));
+	plugin->registerHandler<bool>("reset_cache", std::function([]() {
+		plugin_cache_counter++;
+		return true;
 	}));
 
 	plugin->registerHandler<bool>("register_cosmotop_directory", std::function([](std::string dir) {
@@ -254,24 +259,39 @@ void plugin_initializer(Plugin* plugin) {
 namespace Config {
 	unordered_map<string, int>& get_ints() {
 		static unordered_map<string, int> result;
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter) return result;
 		result = plugin->call<unordered_map<string, int>>("Config::get_ints");
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
 	void ints_set_at(const std::string_view name, const int value) {
 		plugin->call<bool>("Config::ints_set_at", std::string(name), value);
 	}
-	bool getB(const std::string_view name) {
-		return plugin->call<bool>("Config::getB", std::string(name));
-	}
-	const int& getI(const std::string_view name) {
-		static int result;
-		result = plugin->call<int>("Config::getI", std::string(name));
+	unordered_map<string, bool>& get_bools() {
+		static unordered_map<string, bool> result;
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter) return result;
+		result = plugin->call<unordered_map<string, bool>>("Config::get_bools");
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
-	const string& getS(const std::string_view name) {
-		static string result;
-		result = plugin->call<string>("Config::getS", std::string(name));
+	unordered_map<string, string>& get_strings() {
+		static unordered_map<string, string> result;
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter) return result;
+		result = plugin->call<unordered_map<string, string>>("Config::get_strings");
+		cache_counter = plugin_cache_counter;
 		return result;
+	}
+	const bool& getB(const std::string& name) {
+		return get_bools().at(name);
+	}
+	const int& getI(const std::string& name) {
+		return get_ints().at(name);
+	}
+	const string& getS(const std::string& name) {
+		return get_strings().at(name);
 	}
 	void push_back_available_batteries(const string& battery) {
 		plugin->call<bool>("Config::push_back_available_batteries", battery);
@@ -580,31 +600,40 @@ choose_extension:
 	auto launchMethod = IsWindows() ? PluginHost::DLOPEN : PluginHost::FORK;
 	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
 
-	pluginHost->registerHandler<std::unordered_map<std::string, int>>("Config::get_ints", std::function([]() {
-		// convert map of string_view to map of string
-		std::unordered_map<std::string, int> result;
+	pluginHost->registerHandler<std::unordered_map<string, int>>("Config::get_ints", std::function([]() {
+		std::unordered_map<string, int> result;
 		for (const auto& [key, value] : Config::ints) {
-			result[std::string(key)] = value;
+			result[string(key)] = value;
 		}
-		// overrides
 		for (const auto& [key, value] : Config::intsOverrides) {
-			result[std::string(key)] = value;
+			result[string(key)] = value;
 		}
 		return result;
 	}));
-	pluginHost->registerHandler<bool, std::string, int>("Config::ints_set_at", std::function([](string name, int value) {
+	pluginHost->registerHandler<bool, string, int>("Config::ints_set_at", std::function([](string name, int value) {
 		Config::ints.at(name) = value;
 		if (Config::intsOverrides.contains(name)) Config::intsOverrides.erase(name);
 		return true;
 	}));
-	pluginHost->registerHandler<bool>("Config::getB", std::function([](string name) {
-		return Config::getB(name);
+	pluginHost->registerHandler<std::unordered_map<string, bool>>("Config::get_bools", std::function([]() {
+		std::unordered_map<string, bool> result;
+		for (const auto& [key, value] : Config::bools) {
+			result[string(key)] = value;
+		}
+		for (const auto& [key, value] : Config::boolsOverrides) {
+			result[string(key)] = value;
+		}
+		return result;
 	}));
-	pluginHost->registerHandler<int>("Config::getI", std::function([](string name) {
-		return Config::getI(name);
-	}));
-	pluginHost->registerHandler<string>("Config::getS", std::function([](string name) {
-		return Config::getS(name);
+	pluginHost->registerHandler<std::unordered_map<string, string>>("Config::get_strings", std::function([]() {
+		std::unordered_map<string, string> result;
+		for (const auto& [key, value] : Config::strings) {
+			result[string(key)] = value;
+		}
+		for (const auto& [key, value] : Config::stringsOverrides) {
+			result[string(key)] = value;
+		}
+		return result;
 	}));
 	pluginHost->registerHandler<bool>("Config::push_back_available_batteries", std::function([](string battery) {
 		Config::available_batteries.push_back(battery);
@@ -705,6 +734,9 @@ bool is_plugin_loaded() {
 
 void trigger_plugin_refresh() {
 	plugin_cache_counter++;
+	if (pluginHost) {
+		pluginHost->call<bool>("reset_cache");
+	}
 }
 
 void shutdown_plugin() {

@@ -1203,7 +1203,7 @@ namespace Proc {
 
 		//* Generate tree view if enabled
 		if (tree and (not no_update or should_filter or sorted_change)) {
-			const auto config_ints = Config::get_ints();
+			const auto &config_ints = Config::get_ints();
 			bool locate_selection = false;
 			if (auto find_pid = (collapse != -1 ? collapse : expand); find_pid != -1) {
 				auto collapser = rng::find(current_procs, find_pid, &proc_info::pid);
