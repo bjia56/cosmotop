@@ -1810,7 +1810,7 @@ namespace Proc {
 				//? Draw structure of details box
 				const string pid_str = to_string(detailed.entry.pid);
 				out += Mv::to(y, x) + Theme::c("proc_box") + Symbols::div_left + Symbols::h_line + title_left + Theme::c("hi_fg") + Fx::b
-				+ (tty_mode ? "4" : Symbols::superscript.at(4)) + Theme::c("title") + "proc"
+					+ (tty_mode ? "4" : Symbols::superscript.at(4)) + Theme::c("title") + "proc"
 					+ Fx::ub + title_right + Symbols::h_line * (width - 10) + Symbols::div_right
 					+ Mv::to(d_y, dgraph_x + 2) + title_left + Fx::b + Theme::c("title") + pid_str + Fx::ub + title_right
 					+ title_left + Fx::b + Theme::c("title") + uresize(detailed.entry.name, dgraph_width - pid_str.size() - 7, true) + Fx::ub + title_right;

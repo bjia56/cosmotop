@@ -102,6 +102,25 @@ namespace Tools {
 		return chars;
 	}
 
+	static std::wstring wshrink(const std::wstring& str, const size_t len) {
+		unsigned int chars = 0;
+		std::wstring out;
+		out.reserve(str.size());
+		for (const auto& c : str) {
+			int width = widechar_wcwidth(c);
+			if (width < 0) continue; // skip invalid characters
+			out.push_back(c);
+			chars += width;
+			if (chars == len) break;
+			else if (chars > len) {
+				out.pop_back(); // remove last character if it exceeds the length
+				break;
+			}
+		}
+		out.shrink_to_fit();
+		return out;
+	}
+
 	string uresize(string str, const size_t len, bool wide) {
 		if (len < 1 or str.empty())
 			return "";
@@ -110,9 +129,7 @@ namespace Tools {
 			try {
 				std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
 				auto w_str = conv.from_bytes((str.size() > 10000 ? str.substr(0, 10000).c_str() : str.c_str()));
-				while (wide_ulen(w_str) > len)
-					w_str.pop_back();
-				string n_str = conv.to_bytes(w_str);
+				string n_str = conv.to_bytes(wshrink(w_str, len));
 				return n_str;
 			}
 			catch (...) {
