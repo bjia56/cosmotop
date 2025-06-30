@@ -881,7 +881,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("cpu", collect_begin);
 
 						//? Start collect
-						auto cpu = Cpu::collect(conf.no_update);
+						const auto& cpu = Cpu::collect(conf.no_update);
 
 						if (coreNum_reset) {
 							coreNum_reset = false;
@@ -943,7 +943,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("mem", collect_begin);
 
 						//? Start collect
-						auto mem = Mem::collect(conf.no_update);
+						const auto& mem = Mem::collect(conf.no_update);
 
 						if (Global::debug) debug_timer("mem", draw_begin);
 
@@ -963,7 +963,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("net", collect_begin);
 
 						//? Start collect
-						auto net = Net::collect(conf.no_update);
+						const auto& net = Net::collect(conf.no_update);
 
 						if (Global::debug) debug_timer("net", draw_begin);
 
@@ -983,7 +983,7 @@ namespace Runner {
 						if (Global::debug) debug_timer("proc", collect_begin);
 
 						//? Start collect
-						auto proc = Proc::collect(conf.no_update);
+						const auto& proc = Proc::collect(conf.no_update);
 
 						if (Global::debug) debug_timer("proc", draw_begin);
 
