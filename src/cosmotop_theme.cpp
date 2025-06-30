@@ -454,7 +454,7 @@ namespace Theme {
 	}
 
 	static void getThemesFrom(vector<string>& themes, const string& path) {
-		if (not path.empty()) {
+		if (not path.empty() && fs::exists(path) && fs::is_directory(path)) {
 			for (auto& file : fs::directory_iterator(path)) {
 				if (file.path().extension() == ".theme" and access(file.path().c_str(), R_OK) != -1)
 					themes.push_back(file.path().c_str());
