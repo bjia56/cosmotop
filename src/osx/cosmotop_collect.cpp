@@ -493,7 +493,7 @@ namespace Cpu {
 	}
 
 	auto collect(bool no_update) -> cpu_info & {
-		if (o_update and not current_cpu.cpu_percent.at("total").empty())
+		if (no_update and not current_cpu.cpu_percent.at("total").empty())
 			return current_cpu;
 		auto &cpu = current_cpu;
 		const auto width = get_width();
