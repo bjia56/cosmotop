@@ -976,7 +976,7 @@ namespace Cpu {
 	}
 
 	auto collect(bool no_update) -> cpu_info& {
-		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
+		if (no_update and not current_cpu.cpu_percent.at("total").empty()) return current_cpu;
 		auto& cpu = current_cpu;
 		const auto width = get_width();
 
@@ -2030,7 +2030,7 @@ namespace Gpu {
 
 	//? Collect data from GPU-specific libraries
 	auto collect(bool no_update) -> vector<gpu_info>& {
-		if (Runner::get_stopping() or (no_update and not gpus.empty())) return gpus;
+		if (no_update and not gpus.empty()) return gpus;
 
 		// DebugTimer gpu_timer("GPU Total");
 
@@ -2382,7 +2382,7 @@ namespace Npu {
 	}
 
 	auto collect(bool no_update) -> vector<npu_info>& {
-		if (Runner::get_stopping() or (no_update and not npus.empty())) return npus;
+		if (no_update and not npus.empty()) return npus;
 
 		//* Collect data
 		Rockchip::collect<0>(npus.data());
@@ -2446,7 +2446,7 @@ namespace Mem {
 	}
 
 	auto collect(bool no_update) -> mem_info& {
-		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty())) return current_mem;
+		if (no_update and not current_mem.percent.at("used").empty()) return current_mem;
 		const auto show_swap = Config::getB("show_swap");
 		const auto swap_disk = Config::getB("swap_disk");
 		const auto show_disks = Config::getB("show_disks");
@@ -3002,7 +3002,6 @@ namespace Net {
 	uint64_t timestamp{};
 
 	auto collect(bool no_update) -> net_info& {
-		if (Runner::get_stopping()) return empty_net;
 		auto& net = current_net;
 		const auto config_iface = Config::getS("net_iface");
 		const auto net_sync = Config::getB("net_sync");
@@ -3313,7 +3312,6 @@ namespace Proc {
 
 	//* Collects and sorts process information from /proc
 	auto collect(bool no_update) -> vector<proc_info>& {
-		if (Runner::get_stopping()) return current_procs;
 		const auto sorting = Config::getS("proc_sorting");
 		const auto reverse = Config::getB("proc_reversed");
 		const auto filter = Config::getS("proc_filter");
@@ -3396,8 +3394,9 @@ namespace Proc {
 			pread.close();
 
 			//? Iterate over all pids in /proc
+			int iteration = 0;
 			for (const auto& d: fs::directory_iterator(Shared::procPath)) {
-				if (Runner::get_stopping())
+				if ((++iteration & 0x3F) == 0 && Runner::get_stopping())
 					return current_procs;
 
 				if (pread.is_open()) pread.close();

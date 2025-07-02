@@ -257,7 +257,7 @@ namespace Cpu {
 
 	auto collect(bool no_update) -> cpu_info & {
 		kstat_ctl_t *kc = Shared::kc;
-		if (Runner::get_stopping() or !kc or (no_update and not current_cpu.cpu_percent.at("total").empty()))
+		if (!kc or (no_update and not current_cpu.cpu_percent.at("total").empty()))
 			return current_cpu;
 
 		const auto width = get_width();
@@ -364,7 +364,7 @@ namespace Mem {
 
 	auto collect(bool no_update) -> mem_info & {
 		kstat_ctl_t *kc = Shared::kc;
-		if (Runner::get_stopping() or !kc or (no_update and not current_mem.percent.at("used").empty()))
+		if (!kc or (no_update and not current_mem.percent.at("used").empty()))
 			return current_mem;
 
 		const auto show_swap = Config::getB("show_swap");
@@ -551,7 +551,7 @@ namespace Net {
 
 	auto collect(bool no_update) -> net_info & {
 		kstat_ctl_t *kc = Shared::kc;
-		if (Runner::get_stopping() or !kc) return empty_net;
+		if (!kc) return empty_net;
 
 		auto& net = current_net;
 		const auto config_iface = Config::getS("net_iface");
@@ -820,7 +820,6 @@ namespace Proc {
 	}
 
 	auto collect(bool no_update) -> vector<proc_info> & {
-		if (Runner::get_stopping()) return current_procs;
 		const auto sorting = Config::getS("proc_sorting");
 		const auto reverse = Config::getB("proc_reversed");
 		const auto filter = Config::getS("proc_filter");

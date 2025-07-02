@@ -1289,7 +1289,7 @@ namespace Cpu {
 	}
 
 	auto collect(const bool no_update) -> cpu_info& {
-		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
+		if (no_update and not current_cpu.cpu_percent.at("total").empty()) return current_cpu;
 		auto& cpu = current_cpu;
 		auto width = get_width();
 
@@ -1421,7 +1421,7 @@ namespace Mem {
 	}
 
 	auto collect(const bool no_update) -> mem_info& {
-		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty())) return current_mem;
+		if (no_update and not current_mem.percent.at("used").empty()) return current_mem;
 
 		const auto show_swap = Config::getB("show_swap");
 		const auto show_disks = Config::getB("show_disks");
@@ -2021,8 +2021,9 @@ namespace Proc {
 				return current_procs;
 			}
 
+			int iterations = 0;
 			do {
-				if (Runner::get_stopping()) {
+				if ((++iterations & 0x3F) == 0 && Runner::get_stopping()) {
 					if (not Proc::WMI_requests.empty()) Proc::WMI_trigger();
 					return current_procs;
 				}

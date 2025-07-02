@@ -412,7 +412,7 @@ namespace Cpu {
 	}
 
 	auto collect(bool no_update) -> cpu_info & {
-		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty()))
+		if (no_update and not current_cpu.cpu_percent.at("total").empty())
 			return current_cpu;
 		auto &cpu = current_cpu;
 		const auto width = get_width();
@@ -587,7 +587,7 @@ namespace Mem {
 	}
 
 	auto collect(bool no_update) -> mem_info & {
-		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty()))
+		if (no_update and not current_mem.percent.at("used").empty())
 			return current_mem;
 
 		const auto show_swap = Config::getB("show_swap");

@@ -493,7 +493,7 @@ namespace Cpu {
 	}
 
 	auto collect(bool no_update) -> cpu_info & {
-		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty()))
+		if (o_update and not current_cpu.cpu_percent.at("total").empty())
 			return current_cpu;
 		auto &cpu = current_cpu;
 		const auto width = get_width();
@@ -615,7 +615,7 @@ namespace Npu {
 
 	auto collect(bool no_update) -> vector<npu_info>& {
 #ifdef __aarch64__
-		if (count == 0 or Runner::get_stopping() or (no_update and not npus.empty())) return npus;
+		if (count == 0 or (no_update and not npus.empty())) return npus;
 
 		const auto width = get_width();
 
@@ -757,7 +757,7 @@ namespace Mem {
 	}
 
 	auto collect(bool no_update) -> mem_info & {
-		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty()))
+		if (no_update and not current_mem.percent.at("used").empty())
 			return current_mem;
 
 		const auto show_swap = Config::getB("show_swap");
