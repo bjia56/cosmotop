@@ -162,10 +162,10 @@ namespace Npu {
 	};
 
 	//* Collect npu stats
-    auto collect(bool no_update = false) -> vector<npu_info>&;
+	auto collect(bool no_update = false) -> vector<npu_info>&;
 
 	//* Draw contents of npu box using <npus> as source
-  	string draw(const npu_info& npu, unsigned long index, bool force_redraw, bool data_same);
+	string draw(const npu_info& npu, unsigned long index, bool force_redraw, bool data_same);
 }
 
 
@@ -196,15 +196,15 @@ namespace Gpu {
 	//* Container for supported Gpu::*::collect() functions
 	struct gpu_info_supported {
 		bool gpu_utilization = true,
-		   	 mem_utilization = true,
-				 gpu_clock = true,
-				 mem_clock = true,
-				 pwr_usage = true,
-				 pwr_state = true,
-				 temp_info = true,
-				 mem_total = true,
-				 mem_used = true,
-				 pcie_txrx = true;
+			 mem_utilization = true,
+			 gpu_clock = true,
+			 mem_clock = true,
+			 pwr_usage = true,
+			 pwr_state = true,
+			 temp_info = true,
+			 mem_total = true,
+			 mem_used = true,
+			 pcie_txrx = true;
 	};
 
 	//* Per-device container for GPU info
@@ -238,7 +238,7 @@ namespace Gpu {
 	};
 
 	//* Collect gpu stats and temperatures
-    auto collect(bool no_update = false) -> vector<gpu_info>&;
+	auto collect(bool no_update = false) -> vector<gpu_info>&;
 
 	//* Draw contents of gpu box using <gpus> as source
   	string draw(const gpu_info& gpu, unsigned long index, bool force_redraw, bool data_same);
@@ -288,7 +288,7 @@ namespace Cpu {
 	auto collect(bool no_update = false) -> cpu_info&;
 
 	//* Draw contents of cpu box using <cpu> as source
-    string draw(const cpu_info& cpu, const vector<Gpu::gpu_info>& gpu, const vector<Npu::npu_info>& npu, bool force_redraw = false, bool data_same = false);
+	string draw(const cpu_info& cpu, const vector<Gpu::gpu_info>& gpu, const vector<Npu::npu_info>& npu, bool force_redraw = false, bool data_same = false);
 
 	//* Parse /proc/cpu info for mapping of core ids
 	auto get_core_mapping() -> std::unordered_map<int, int>;
