@@ -456,7 +456,7 @@ namespace Cpu {
 				}
 			}
 #endif
-			else if (fs::exists("/sys/devices")) {
+			else if (access("/sys/devices", R_OK | F_OK) != -1) {
 				for (const auto& d : fs::directory_iterator("/sys/devices")) {
 					if (string(d.path().filename()).starts_with("arm")) {
 						name = d.path().filename();
