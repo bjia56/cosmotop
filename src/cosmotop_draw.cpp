@@ -311,7 +311,8 @@ namespace Draw {
 		static const std::unordered_map<string, string> clock_custom_format = {
 			{"/user", Tools::username()},
 			{"/host", Tools::hostname()},
-			{"/uptime", ""}
+			{"/uptime", ""},
+			{"/version", Global::Version}
 		};
 
 		static time_t c_time{};

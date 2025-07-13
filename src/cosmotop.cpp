@@ -74,7 +74,7 @@ namespace Global {
 		{"#062c43", "██████╗ ██████║ ██████║ ██║     ██║ ██████║ ", "#666666", "  ██║   ██████║ ██║"},
 		{"#000000", "╚═════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ", "#000000", "  ╚═╝   ╚═════╝ ╚═╝"},
 	};
-	const string Version = "0.10.0";
+	const string Version = "0.11.0b1";
 
 	int coreCount;
 	string overlay;
@@ -94,7 +94,6 @@ namespace Global {
 
 	bool debuginit{};
 	bool debug{};
-	bool utf_force{};
 
 	uint64_t start_time;
 
@@ -174,7 +173,6 @@ static void print_help() {
 			"  {0}-p,  --preset <id>   {2}start with preset, integer value between 0-9\n"
 			"  {0}-u,  --update <ms>   {2}set the program update rate in milliseconds\n"
 			"  {0}-o,  --option        {2}override a configuration option in KEY=VALUE format, can use multiple times\n"
-			"  {0}     --utf-force     {2}force start even if no UTF-8 locale was detected\n"
 			"  {0}     --show-defaults {2}print default configuration values to stdout\n"
 			"  {0}     --show-themes   {2}list all available themes\n"
 			"  {0}     --licenses      {2}display licenses of open-source software used in cosmotop\n"
@@ -448,8 +446,6 @@ void argumentParser(const int argc, char **argv, string& configOverrides) {
 				exit(1);
 			}
 		}
-		else if (argument == "--utf-force")
-			Global::utf_force = true;
 		else if (argument == "--debug")
 			Global::debug = true;
 		else {
@@ -1177,51 +1173,6 @@ int main(int argc, char **argv) {
 
 	//? Plugin init
 	create_plugin_host();
-
-	//? Try to find and set a UTF-8 locale
-	if (std::setlocale(LC_ALL, "") != nullptr and not s_contains((string)std::setlocale(LC_ALL, ""), ";")
-		and str_to_upper(s_replace((string)std::setlocale(LC_ALL, ""), "-", "")).ends_with("UTF8")) {
-		Logger::debug("Using locale " + (string)std::setlocale(LC_ALL, ""));
-	} else {
-		string found;
-		bool set_failure{};
-		for (const auto loc_env : array{"LANG", "LC_ALL", "LC_CTYPE"}) {
-			if (std::getenv(loc_env) != nullptr and str_to_upper(s_replace((string)std::getenv(loc_env), "-", "")).ends_with("UTF8")) {
-				found = std::getenv(loc_env);
-				if (std::setlocale(LC_ALL, found.c_str()) == nullptr) {
-					set_failure = true;
-					Logger::warning("Failed to set locale " + found + " continuing anyway.");
-				}
-			}
-		}
-		if (found.empty()) {
-			if (setenv("LC_ALL", "", 1) == 0 and setenv("LANG", "", 1) == 0) {
-				try {
-					if (const auto loc = std::locale("").name(); not loc.empty() and loc != "*") {
-						for (auto& l : ssplit(loc, ';')) {
-							if (str_to_upper(s_replace(l, "-", "")).ends_with("UTF8")) {
-								found = l.substr(l.find('=') + 1);
-								if (std::setlocale(LC_ALL, found.c_str()) != nullptr) {
-									break;
-								}
-							}
-						}
-					}
-				}
-				catch (...) { found.clear(); }
-			}
-		}
-		if (found.empty() and IsWindows())
-			Logger::warning("No UTF-8 locale detected! Assuming we can continue on Windows.");
-		else if (found.empty() and Global::utf_force)
-			Logger::warning("No UTF-8 locale detected! Forcing start with --utf-force argument.");
-		else if (found.empty()) {
-			Global::exit_error_msg = "No UTF-8 locale detected!\nUse --utf-force argument to force start if you're sure your terminal can handle it.";
-			clean_quit(1);
-		}
-		else if (not set_failure)
-			Logger::debug("Setting LC_ALL=" + found);
-	}
 
 	//? Initialize terminal and set options
 	if (not Term::init()) {

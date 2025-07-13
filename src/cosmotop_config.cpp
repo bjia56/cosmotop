@@ -159,7 +159,7 @@ namespace Config {
 		{"show_cpu_freq", 		"#* Show CPU frequency."},
 
 		{"clock_format", 		"#* Draw a clock at top of screen, formatting according to strftime, empty string to disable.\n"
-								"#* Special formatting: /host = hostname | /user = username | /uptime = system uptime"},
+								"#* Special formatting: /host = hostname | /user = username | /uptime = system uptime | /version = cosmotop version"},
 
 		{"background_update", 	"#* Update main ui in background when menus are showing, set this to false if the menus is flickering too much for comfort."},
 
@@ -741,9 +741,6 @@ namespace Config {
 		std::unordered_map<string_view, int>& intsRef
 	) {
 		if (cread.good()) {
-			vector<string> valid_names;
-			for (auto &n : descriptions)
-				valid_names.push_back(n[0]);
 			while (not cread.eof()) {
 				cread >> std::ws;
 				if (cread.peek() == '#') {
@@ -753,10 +750,6 @@ namespace Config {
 				string name, value;
 				getline(cread, name, '=');
 				if (name.ends_with(' ')) name = trim(name);
-				if (not v_contains(valid_names, name)) {
-					cread.ignore(SSmax, '\n');
-					continue;
-				}
 				cread >> std::ws;
 
 				if (bools.contains(name)) {
