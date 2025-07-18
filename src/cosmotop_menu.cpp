@@ -321,6 +321,7 @@ namespace Menu {
 				"\"/host\" = hostname",
 				"\"/user\" = username",
 				"\"/uptime\" = system uptime",
+				"\"/version\" = cosmotop version",
 				"",
 				"Examples of strftime formats:",
 				"\"%X\" = locale HH:MM:SS",

@@ -24,6 +24,8 @@ on:
 env:
   zig_version: 0.14.0
   blink_version: 4da95da865a1d3ccdc2e802cccfbddd8507d1c95
+  chimplink_version: v0.5.0
+  cosmocc_version: 4.0.2
 
 jobs:
   build:
@@ -35,11 +37,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Load cosmocc version
-        run: |
-          version=$(cat .github/cosmocc_version.txt)
-          echo "cosmocc_version=${version}" >> "$GITHUB_ENV"
 
       - name: Setup cosmocc
         uses: bjia56/setup-cosmocc@v0.0.4
@@ -432,11 +429,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Load cosmocc version
-        run: |
-          version=$(cat .github/cosmocc_version.txt)
-          echo "cosmocc_version=${version}" >> "$GITHUB_ENV"
-
       - name: Setup cosmocc
         uses: bjia56/setup-cosmocc@v0.0.4
         with:
@@ -567,7 +559,7 @@ jobs:
 
       - name: Chimplink
         run: |
-          wget https://github.com/bjia56/chimp/releases/download/v0.4.1/chimplink
+          wget https://github.com/bjia56/chimp/releases/download/${{ env.chimplink_version }}/chimplink
           chmod +x chimplink
 
           cosmo_bin=$(dirname $(which cosmocc))

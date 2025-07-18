@@ -45,7 +45,8 @@ namespace Shared {
 	}
 }
 
-Plugin* plugin = nullptr;
+static Plugin* plugin = nullptr;
+static int plugin_cache_counter = 0;
 
 void plugin_initializer(Plugin* plugin) {
 	::plugin = plugin;
@@ -54,6 +55,10 @@ void plugin_initializer(Plugin* plugin) {
 		std::stringstream ss;
 		ss << "Host-native plugin compiled with: " << COMPILER << " (" << COMPILER_VERSION << ")";
 		return ss.str();
+	}));
+	plugin->registerHandler<bool>("reset_cache", std::function([]() {
+		plugin_cache_counter++;
+		return true;
 	}));
 
 	plugin->registerHandler<bool>("register_cosmotop_directory", std::function([](std::string dir) {
@@ -254,24 +259,39 @@ void plugin_initializer(Plugin* plugin) {
 namespace Config {
 	unordered_map<string, int>& get_ints() {
 		static unordered_map<string, int> result;
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter) return result;
 		result = plugin->call<unordered_map<string, int>>("Config::get_ints");
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
 	void ints_set_at(const std::string_view name, const int value) {
 		plugin->call<bool>("Config::ints_set_at", std::string(name), value);
 	}
-	bool getB(const std::string_view name) {
-		return plugin->call<bool>("Config::getB", std::string(name));
-	}
-	const int& getI(const std::string_view name) {
-		static int result;
-		result = plugin->call<int>("Config::getI", std::string(name));
+	unordered_map<string, bool>& get_bools() {
+		static unordered_map<string, bool> result;
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter) return result;
+		result = plugin->call<unordered_map<string, bool>>("Config::get_bools");
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
-	const string& getS(const std::string_view name) {
-		static string result;
-		result = plugin->call<string>("Config::getS", std::string(name));
+	unordered_map<string, string>& get_strings() {
+		static unordered_map<string, string> result;
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter) return result;
+		result = plugin->call<unordered_map<string, string>>("Config::get_strings");
+		cache_counter = plugin_cache_counter;
 		return result;
+	}
+	const bool& getB(const std::string& name) {
+		return get_bools().at(name);
+	}
+	const int& getI(const std::string& name) {
+		return get_ints().at(name);
+	}
+	const string& getS(const std::string& name) {
+		return get_strings().at(name);
 	}
 	void push_back_available_batteries(const string& battery) {
 		plugin->call<bool>("Config::push_back_available_batteries", battery);
@@ -367,8 +387,8 @@ namespace Global {
 #include <libc/nt/runtime.h>
 #include <libc/proc/ntspawn.h>
 
-PluginHost* pluginHost = nullptr;
-std::unordered_set<uintptr_t> plugin_cache;
+static PluginHost* pluginHost = nullptr;
+static int plugin_cache_counter = 0;
 
 static std::filesystem::path getOutputDirectory() {
 	const char *homedir;
@@ -580,31 +600,40 @@ choose_extension:
 	auto launchMethod = IsWindows() ? PluginHost::DLOPEN : PluginHost::FORK;
 	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
 
-	pluginHost->registerHandler<std::unordered_map<std::string, int>>("Config::get_ints", std::function([]() {
-		// convert map of string_view to map of string
-		std::unordered_map<std::string, int> result;
+	pluginHost->registerHandler<std::unordered_map<string, int>>("Config::get_ints", std::function([]() {
+		std::unordered_map<string, int> result;
 		for (const auto& [key, value] : Config::ints) {
-			result[std::string(key)] = value;
+			result[string(key)] = value;
 		}
-		// overrides
 		for (const auto& [key, value] : Config::intsOverrides) {
-			result[std::string(key)] = value;
+			result[string(key)] = value;
 		}
 		return result;
 	}));
-	pluginHost->registerHandler<bool, std::string, int>("Config::ints_set_at", std::function([](string name, int value) {
+	pluginHost->registerHandler<bool, string, int>("Config::ints_set_at", std::function([](string name, int value) {
 		Config::ints.at(name) = value;
 		if (Config::intsOverrides.contains(name)) Config::intsOverrides.erase(name);
 		return true;
 	}));
-	pluginHost->registerHandler<bool>("Config::getB", std::function([](string name) {
-		return Config::getB(name);
+	pluginHost->registerHandler<std::unordered_map<string, bool>>("Config::get_bools", std::function([]() {
+		std::unordered_map<string, bool> result;
+		for (const auto& [key, value] : Config::bools) {
+			result[string(key)] = value;
+		}
+		for (const auto& [key, value] : Config::boolsOverrides) {
+			result[string(key)] = value;
+		}
+		return result;
 	}));
-	pluginHost->registerHandler<int>("Config::getI", std::function([](string name) {
-		return Config::getI(name);
-	}));
-	pluginHost->registerHandler<string>("Config::getS", std::function([](string name) {
-		return Config::getS(name);
+	pluginHost->registerHandler<std::unordered_map<string, string>>("Config::get_strings", std::function([]() {
+		std::unordered_map<string, string> result;
+		for (const auto& [key, value] : Config::strings) {
+			result[string(key)] = value;
+		}
+		for (const auto& [key, value] : Config::stringsOverrides) {
+			result[string(key)] = value;
+		}
+		return result;
 	}));
 	pluginHost->registerHandler<bool>("Config::push_back_available_batteries", std::function([](string battery) {
 		Config::available_batteries.push_back(battery);
@@ -704,7 +733,10 @@ bool is_plugin_loaded() {
 }
 
 void trigger_plugin_refresh() {
-	plugin_cache.clear();
+	plugin_cache_counter++;
+	if (pluginHost) {
+		pluginHost->call<bool>("reset_cache");
+	}
 }
 
 void shutdown_plugin() {
@@ -718,39 +750,51 @@ string plugin_build_info() {
 	return pluginHost->call<string>("build_info");
 }
 
-#define PLUGIN_CACHE_CONTAINS(val) (plugin_cache.contains(reinterpret_cast<uintptr_t>(&val)))
-#define PLUGIN_CACHE_SHORTCIRCUIT(val) if (PLUGIN_CACHE_CONTAINS(val)) return val;
-#define PLUGIN_CACHE_INSERT(val) plugin_cache.insert(reinterpret_cast<uintptr_t>(&val))
 #define PLUGIN_FETCH_REMOTE(typ, rpc) \
 	static typ result; \
-	PLUGIN_CACHE_SHORTCIRCUIT(result); \
+	static int cache_counter = -1; \
+	if (cache_counter == plugin_cache_counter) return result; \
 	result = pluginHost->call<typ>(rpc); \
-	PLUGIN_CACHE_INSERT(result); \
+	cache_counter = plugin_cache_counter; \
 	return result;
 #define PLUGIN_FETCH_REMOTE_ARGS(typ, rpc, ...) \
 	static typ result; \
-	PLUGIN_CACHE_SHORTCIRCUIT(result); \
+	static int cache_counter = -1; \
+	if (cache_counter == plugin_cache_counter) return result; \
 	result = pluginHost->call<typ>(rpc, __VA_ARGS__); \
-	PLUGIN_CACHE_INSERT(result); \
+	cache_counter = plugin_cache_counter; \
+	return result;
+#define PLUGIN_FETCH_REMOTE_ONCE(typ, rpc) \
+	static typ result; \
+	static bool fetched = false; \
+	if (fetched) return result; \
+	result = pluginHost->call<typ>(rpc); \
+	fetched = true; \
+	return result;
+#define PLUGIN_FETCH_REMOTE_ONCE_ARGS(typ, rpc, ...) \
+	static typ result; \
+	static bool fetched = false; \
+	if (fetched) return result; \
+	result = pluginHost->call<typ>(rpc, __VA_ARGS__); \
+	fetched = true; \
 	return result;
 
 namespace Npu {
 	vector<npu_info>& collect(bool no_update) {
 		static vector<npu_info> result;
-		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
-			return result;
-		}
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter and no_update) return result;
 		result = pluginHost->call<vector<npu_info>>("Npu::collect", std::move(no_update));
-		PLUGIN_CACHE_INSERT(result);
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
 	int get_count() {
 		typedef int result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Npu::get_count");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Npu::get_count");
 	}
 	vector<string>& get_npu_names() {
 		typedef vector<string> result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Npu::get_npu_names");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Npu::get_npu_names");
 	}
 	vector<int>& get_npu_b_height_offsets() {
 		typedef vector<int> result_type;
@@ -765,20 +809,19 @@ namespace Npu {
 namespace Gpu {
 	vector<gpu_info>& collect(bool no_update) {
 		static vector<gpu_info> result;
-		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
-			return result;
-		}
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter and no_update) return result;
 		result = pluginHost->call<vector<gpu_info>>("Gpu::collect", std::move(no_update));
-		PLUGIN_CACHE_INSERT(result);
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
 	int get_count() {
 		typedef int result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Gpu::get_count");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Gpu::get_count");
 	}
 	vector<string>& get_gpu_names() {
 		typedef vector<string> result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Gpu::get_gpu_names");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Gpu::get_gpu_names");
 	}
 	vector<int>& get_gpu_b_height_offsets() {
 		typedef vector<int> result_type;
@@ -793,11 +836,10 @@ namespace Gpu {
 namespace Cpu {
 	cpu_info& collect(bool no_update) {
 		static cpu_info result;
-		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
-			return result;
-		}
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter and no_update) return result;
 		result = pluginHost->call<cpu_info>("Cpu::collect", std::move(no_update));
-		PLUGIN_CACHE_INSERT(result);
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
 	string get_cpuHz() {
@@ -810,27 +852,27 @@ namespace Cpu {
 	}
 	bool get_has_battery() {
 		typedef bool result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_has_battery");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Cpu::get_has_battery");
 	}
 	bool get_got_sensors() {
 		typedef bool result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_got_sensors");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Cpu::get_got_sensors");
 	}
 	bool get_cpu_temp_only() {
 		typedef bool result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_cpu_temp_only");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Cpu::get_cpu_temp_only");
 	}
 	string get_cpuName() {
 		typedef string result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_cpuName");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Cpu::get_cpuName");
 	}
 	vector<string>& get_available_fields() {
 		typedef vector<string> result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_available_fields");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Cpu::get_available_fields");
 	}
 	vector<string>& get_available_sensors() {
 		typedef vector<string> result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Cpu::get_available_sensors");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Cpu::get_available_sensors");
 	}
 	tuple<int, float, long, string>& get_current_bat() {
 		typedef tuple<int, float, long, string> result_type;
@@ -841,11 +883,10 @@ namespace Cpu {
 namespace Mem {
 	mem_info& collect(bool no_update) {
 		static mem_info result;
-		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
-			return result;
-		}
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter and no_update) return result;
 		result = pluginHost->call<mem_info>("Mem::collect", std::move(no_update));
-		PLUGIN_CACHE_INSERT(result);
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
 	uint64_t get_totalMem() {
@@ -865,11 +906,10 @@ namespace Mem {
 namespace Net {
 	net_info& collect(bool no_update) {
 		static net_info result;
-		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
-			return result;
-		}
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter and no_update) return result;
 		result = pluginHost->call<net_info>("Net::collect", std::move(no_update));
-		PLUGIN_CACHE_INSERT(result);
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
 	string get_selected_iface() {
@@ -899,11 +939,10 @@ namespace Net {
 namespace Proc {
 	vector<proc_info>& collect(bool no_update) {
 		static vector<proc_info> result;
-		if (PLUGIN_CACHE_CONTAINS(result) and no_update) {
-			return result;
-		}
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter and no_update) return result;
 		result = pluginHost->call<vector<proc_info>>("Proc::collect", std::move(no_update));
-		PLUGIN_CACHE_INSERT(result);
+		cache_counter = plugin_cache_counter;
 		return result;
 	}
 	int get_numpids() {
@@ -931,7 +970,7 @@ namespace Shared {
 	}
 	long get_coreCount() {
 		typedef long result_type;
-		PLUGIN_FETCH_REMOTE(result_type, "Shared::get_coreCount");
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Shared::get_coreCount");
 	}
 	bool shutdown() {
 		return pluginHost->call<bool>("Shared::shutdown");

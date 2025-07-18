@@ -48,30 +48,29 @@ namespace fs = std::filesystem;
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
 
-// ! Disabled due to issue when compiling with musl, reverted back to using regex
-// namespace Fx {
-// 	string uncolor(const string& s) {
-// 		string out = s;
-// 		for (size_t offset = 0, start_pos = 0, end_pos = 0;;) {
-// 			start_pos = (offset == 0) ? out.find('\x1b') : offset;
-// 			if (start_pos == string::npos)
-// 				break;
-// 			offset = start_pos + 1;
-// 			end_pos = out.find('m', offset);
-// 			if (end_pos == string::npos)
-// 				break;
-// 			else if (auto next_pos = out.find('\x1b', offset); not isdigit(out[end_pos - 1]) or end_pos > next_pos) {
-// 			 	offset = next_pos;
-// 				continue;
-// 			}
+namespace Fx {
+	string uncolor(const string& s) {
+		string out = s;
+		for (size_t offset = 0, start_pos = 0, end_pos = 0;;) {
+			start_pos = (offset == 0) ? out.find('\x1b') : offset;
+			if (start_pos == string::npos)
+				break;
+			offset = start_pos + 1;
+			end_pos = out.find('m', offset);
+			if (end_pos == string::npos)
+				break;
+			else if (auto next_pos = out.find('\x1b', offset); not isdigit(out[end_pos - 1]) or end_pos > next_pos) {
+				offset = next_pos;
+				continue;
+			}
 
-// 			out.erase(start_pos, (end_pos - start_pos)+1);
-// 			offset = 0;
-// 		}
-// 		out.shrink_to_fit();
-// 		return out;
-// 	}
-// }
+			out.erase(start_pos, (end_pos - start_pos)+1);
+			offset = 0;
+		}
+		out.shrink_to_fit();
+		return out;
+	}
+}
 
 namespace Tools {
 
@@ -102,6 +101,25 @@ namespace Tools {
 		return chars;
 	}
 
+	static std::wstring wshrink(const std::wstring& str, const size_t len) {
+		unsigned int chars = 0;
+		std::wstring out;
+		out.reserve(str.size());
+		for (const auto& c : str) {
+			int width = widechar_wcwidth(c);
+			if (width < 0) continue; // skip invalid characters
+			out.push_back(c);
+			chars += width;
+			if (chars == len) break;
+			else if (chars > len) {
+				out.pop_back(); // remove last character if it exceeds the length
+				break;
+			}
+		}
+		out.shrink_to_fit();
+		return out;
+	}
+
 	string uresize(string str, const size_t len, bool wide) {
 		if (len < 1 or str.empty())
 			return "";
@@ -110,9 +128,7 @@ namespace Tools {
 			try {
 				std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
 				auto w_str = conv.from_bytes((str.size() > 10000 ? str.substr(0, 10000).c_str() : str.c_str()));
-				while (wide_ulen(w_str) > len)
-					w_str.pop_back();
-				string n_str = conv.to_bytes(w_str);
+				string n_str = conv.to_bytes(wshrink(w_str, len));
 				return n_str;
 			}
 			catch (...) {

@@ -44,7 +44,6 @@ Options:
   -p,  --preset <id>   start with preset, integer value between 0-9
   -u,  --update <ms>   set the program update rate in milliseconds
   -o,  --option        override a configuration option in KEY=VALUE format, can use multiple times
-       --utf-force     force start even if no UTF-8 locale was detected
        --show-defaults print default configuration values to stdout
        --show-themes   list all available themes
        --licenses      display licenses of open-source software used in cosmotop

@@ -1079,6 +1079,7 @@ namespace Shared {
 			if (not vec.empty()) Cpu::available_fields.push_back(field);
 		}
 		Cpu::cpuName = Cpu::get_cpuName();
+		Cpu::current_bat = Cpu::get_battery();
 
 		Logger::debug("GPU Init");
 		//? Init for namespace Gpu
@@ -1252,6 +1253,9 @@ namespace Cpu {
 	};
 
 	auto get_battery() -> tuple<int, float, long, string> {
+		if (not has_battery) {
+			return { 0, 0, 0, "" };
+		}
 
 		int percent = -1;
 		long long seconds = 0;
@@ -1285,7 +1289,7 @@ namespace Cpu {
 	}
 
 	auto collect(const bool no_update) -> cpu_info& {
-		if (Runner::get_stopping() or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
+		if (no_update and not current_cpu.cpu_percent.at("total").empty()) return current_cpu;
 		auto& cpu = current_cpu;
 		auto width = get_width();
 
@@ -1417,7 +1421,7 @@ namespace Mem {
 	}
 
 	auto collect(const bool no_update) -> mem_info& {
-		if (Runner::get_stopping() or (no_update and not current_mem.percent.at("used").empty())) return current_mem;
+		if (no_update and not current_mem.percent.at("used").empty()) return current_mem;
 
 		const auto show_swap = Config::getB("show_swap");
 		const auto show_disks = Config::getB("show_disks");
@@ -2017,8 +2021,9 @@ namespace Proc {
 				return current_procs;
 			}
 
+			int iterations = 0;
 			do {
-				if (Runner::get_stopping()) {
+				if ((++iterations & 0x3F) == 0 && Runner::get_stopping()) {
 					if (not Proc::WMI_requests.empty()) Proc::WMI_trigger();
 					return current_procs;
 				}
@@ -2271,7 +2276,7 @@ namespace Proc {
 
 		//* Generate tree view if enabled
 		if (tree and not services and (not no_update or should_filter or sorted_change)) {
-			const auto config_ints = Config::get_ints();
+			const auto &config_ints = Config::get_ints();
 			bool locate_selection = false;
 			if (auto find_pid = (collapse != -1 ? collapse : expand); find_pid != -1) {
 				auto collapser = rng::find(out_vec, find_pid, &proc_info::pid);
