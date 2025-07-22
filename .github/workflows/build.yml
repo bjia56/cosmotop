@@ -401,7 +401,7 @@ jobs:
         shell: dragonflybsd {0}
         run: |
           cd ${{ github.workspace }}
-          CC=gcc14 CXX=gcc14 cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          CC=gcc14 CXX=g++14 cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
           cmake --build build --parallel 4
           cp build/cosmotop-plugin.exe ./cosmotop-dragonflybsd-${{ matrix.arch }}.exe
 
