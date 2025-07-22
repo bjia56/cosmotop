@@ -88,6 +88,7 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 | MacOS 13+ | x86_64, aarch64 |
 | MacOS 10.4+ | powerpc |
 | FreeBSD 13+ | x86_64, aarch64 |
+| DragonFlyBSD 6.4+ | x86_64 |
 | NetBSD 10.0+ | x86_64, aarch64 |
 | OpenBSD 7.6+ | x86_64, aarch64 |
 | Solaris 11.4+ | x86_64 |
@@ -149,6 +150,7 @@ cosmotop-macos-aarch64.exe
 cosmotop-windows-x86_64.dll
 cosmotop-freebsd-x86_64.exe
 cosmotop-freebsd-aarch64.exe
+cosmotop-dragonflybsd-x86_64.exe
 cosmotop-netbsd-x86_64.exe
 cosmotop-netbsd-aarch64.exe
 cosmotop-openbsd-x86_64.exe
