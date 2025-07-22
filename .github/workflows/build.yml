@@ -372,6 +372,45 @@ jobs:
           name: plugin-openbsd-${{ matrix.arch }}
           path: ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
+  build_dragonflybsd_plugin:
+    name: Build plugin DragonflyBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/dragonflybsd-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+          release: "6.4.0"
+          prepare: |
+            pkg install -y cmake gcc14 bash
+            pkg upgrade -y
+            chsh -s /usr/local/bin/bash root
+
+      - name: Build plugin
+        shell: dragonflybsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          CC=gcc14 CXX=gcc14 cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop-plugin.exe ./cosmotop-dragonflybsd-${{ matrix.arch }}.exe
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-dragonflybsd-${{ matrix.arch }}
+          path: ./cosmotop-dragonflybsd-${{ matrix.arch }}.exe
+
   build_solaris_plugin:
     name: Build plugin Solaris ${{ matrix.arch }}
     runs-on: ubuntu-latest
@@ -421,6 +460,7 @@ jobs:
       - build_freebsd_plugin
       - build_netbsd_plugin
       - build_openbsd_plugin
+      - build_dragonflybsd_plugin
       - build_solaris_plugin
 
     steps:
@@ -461,6 +501,7 @@ jobs:
             "blink-tiny-netbsd10.0-aarch64-stripped blink-netbsd-aarch64" \
             "blink-tiny-openbsd7.6-aarch64-stripped blink-openbsd-aarch64" \
             "blink-tiny-openbsd7.6-x86_64-stripped blink-openbsd-x86_64" \
+            "blink-tiny-dragonflybsd6.4.0-x86_64-stripped blink-dragonflybsd-x86_64" \
             "blink-tiny-solaris11.4-x86_64-stripped blink-solaris-x86_64" \
             "blink-tiny-linux-powerpc64le-stripped blink-linux-powerpc64le" \
             "blink-tiny-linux-i386-stripped blink-linux-i386" \
@@ -569,6 +610,7 @@ jobs:
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-* \
+            --os DragonFly /tmp/blink/blink-dragonflybsd-* \
             --os Solaris /tmp/blink/blink-solaris-* \
             --os Darwin /tmp/blink/blink-macos-*
 
@@ -579,6 +621,7 @@ jobs:
             --os Linux /tmp/blink/blink-linux-* \
             --os NetBSD /tmp/blink/blink-netbsd-* \
             --os OpenBSD /tmp/blink/blink-openbsd-* \
+            --os DragonFly /tmp/blink/blink-dragonflybsd-* \
             --os Solaris /tmp/blink/blink-solaris-* \
             --os Darwin /tmp/blink/blink-macos-*
 
