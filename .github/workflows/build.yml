@@ -373,7 +373,7 @@ jobs:
           path: ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
   build_dragonflybsd_plugin:
-    name: Build plugin DragonflyBSD ${{ matrix.arch }}
+    name: Build plugin DragonFlyBSD ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
