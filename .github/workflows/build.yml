@@ -569,6 +569,7 @@ jobs:
           cp ${{ github.workspace }}/third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt msgpack-c
           curl -L -o yyjson https://raw.githubusercontent.com/ibireme/yyjson/refs/tags/0.10.0/LICENSE
           curl -L -o compile-time-regular-expressions https://raw.githubusercontent.com/hanickadot/compile-time-regular-expressions/068c6269caa0600021bbe93ca784bb819f3a8273/LICENSE
+          curl -L -o enchantum https://raw.githubusercontent.com/ZXShady/enchantum/c460fbf0fcfe01eb49cd8e5790f05ced7e2a6bb6/LICENSE
           cp ${{ github.workspace }}/third_party/cpp-httplib/LICENSE cpp-httplib
           cp ${{ github.workspace }}/third_party/widecharwidth/LICENSE widecharwidth
           cp ${{ github.workspace }}/third_party/rocm_smi_lib/License.txt "ROCm SMI"
