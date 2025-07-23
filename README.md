@@ -92,6 +92,7 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 | NetBSD 10.0+ | x86_64, aarch64 |
 | OpenBSD 7.6+ | x86_64, aarch64 |
 | Solaris 11.4+ | x86_64 |
+| Haiku R1/beta5+ | x86_64 |
 
 Core platforms (Linux x86_64/aarch64, MacOS, Windows) are self-contained and require no additional tooling.
 Other platforms require that the host `PATH` contains either `curl`, `wget`, or `python3` to download required plugin components (see [below](#how-it-works)).
@@ -155,6 +156,7 @@ cosmotop-netbsd-x86_64.exe
 cosmotop-netbsd-aarch64.exe
 cosmotop-openbsd-x86_64.exe
 cosmotop-openbsd-aarch64.exe
+cosmotop-haiku-x86_64.exe
 ```
 
 ### Bundling everything together

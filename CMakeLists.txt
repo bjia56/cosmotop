@@ -210,6 +210,14 @@ elseif(${TARGET} STREQUAL "plugin")
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(kstat REQUIRED)
+  elseif(CMAKE_SYSTEM MATCHES "Haiku")
+    set(PLUGIN_SOURCES
+      src/cosmotop_plugin.cpp
+      src/cosmotop_shared.cpp
+      src/cosmotop_tools_shared.cpp
+      src/haiku/cosmotop_collect.cpp
+      ${LIBCOSMO_PLUGIN_SOURCES}
+    )
   else()
     message(FATAL_ERROR "Unsupported platform")
   endif()
@@ -263,6 +271,8 @@ elseif(${TARGET} STREQUAL "plugin")
     target_link_libraries(${BINARY_NAME} PRIVATE kvm::kvm)
   elseif(CMAKE_SYSTEM MATCHES "SunOS")
     target_link_libraries(${BINARY_NAME} PRIVATE kstat::kstat)
+  elseif(CMAKE_SYSTEM MATCHES "Haiku")
+    target_link_libraries(${BINARY_NAME} PRIVATE be root)
   endif()
 
 endif() # TARGET
