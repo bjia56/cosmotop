@@ -24,7 +24,7 @@ on:
 env:
   zig_version: 0.14.0
   blink_version: 4da95da865a1d3ccdc2e802cccfbddd8507d1c95
-  chimplink_version: v0.5.0
+  chimplink_version: v0.6.0
   cosmocc_version: 4.0.2
 
 jobs:
@@ -547,6 +547,7 @@ jobs:
             "blink-tiny-openbsd7.6-aarch64-stripped blink-openbsd-aarch64" \
             "blink-tiny-openbsd7.6-x86_64-stripped blink-openbsd-x86_64" \
             "blink-tiny-dragonflybsd6.4.0-x86_64-stripped blink-dragonflybsd-x86_64" \
+            "blink-tiny-midnightbsd3.2.3-x86_64-stripped blink-midnightbsd-x86_64" \
             "blink-tiny-solaris11.4-x86_64-stripped blink-solaris-x86_64" \
             "blink-tiny-linux-powerpc64le-stripped blink-linux-powerpc64le" \
             "blink-tiny-linux-i386-stripped blink-linux-i386" \
@@ -556,7 +557,7 @@ jobs:
             "blink-tiny-macos10.4-powerpc-stripped blink-macos-powerpc"
           do
             set -- $item
-            wget "https://github.com/bjia56/blinkverse/releases/download/v7/$1" -O "$2"
+            wget "https://github.com/bjia56/blinkverse/releases/download/v8/$1" -O "$2"
             chmod +x "$2"
             if [[ "$2" == "blink-linux-powerpc64le" || "$2" == "blink-linux-i386" ]]; then
               upx --best "$2"
@@ -658,6 +659,7 @@ jobs:
             --os OpenBSD /tmp/blink/blink-openbsd-* \
             --os DragonFly /tmp/blink/blink-dragonflybsd-* \
             --os Solaris /tmp/blink/blink-solaris-* \
+            --os MidnightBSD /tmp/blink/blink-midnightbsd-* \
             --os Darwin /tmp/blink/blink-macos-*
 
           cosmo_bin=$(dirname $(which cosmocc))
