@@ -411,6 +411,51 @@ jobs:
           name: plugin-dragonflybsd-${{ matrix.arch }}
           path: ./cosmotop-dragonflybsd-${{ matrix.arch }}.exe
 
+  build_midnightbsd_plugin:
+    name: Build plugin MidnightBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Start VM
+        uses: bjia56/midnightbsd-vm@main
+
+      - name: Checkout
+        shell: midnightbsd {0}
+        run: |
+          git init .
+          git remote add origin https://github.com/${{ github.repository }}.git
+          if [[ "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
+            git fetch origin "refs/pull/${{ github.event.pull_request.number }}/merge"
+            git checkout FETCH_HEAD
+          else
+            git fetch --depth=1 origin ${{ github.sha }}
+            git checkout ${{ github.sha }}
+          fi
+          git submodule update --init --depth 1 --recursive
+
+      - name: Build plugin
+        shell: midnightbsd {0}
+        run: |
+          export CC=gcc14
+          export CXX=g++14
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop-plugin.exe ./cosmotop-midnightbsd-${{ matrix.arch }}.exe
+
+      - name: Copy out of VM
+        run: |
+          scp midnightbsd:/root/cosmotop-midnightbsd-${{ matrix.arch }}.exe .
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-midnightbsd-${{ matrix.arch }}
+          path: ./cosmotop-midnightbsd-${{ matrix.arch }}.exe
+
   build_solaris_plugin:
     name: Build plugin Solaris ${{ matrix.arch }}
     runs-on: ubuntu-latest
@@ -461,6 +506,7 @@ jobs:
       - build_netbsd_plugin
       - build_openbsd_plugin
       - build_dragonflybsd_plugin
+      - build_midnightbsd_plugin
       - build_solaris_plugin
 
     steps:
