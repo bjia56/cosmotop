@@ -88,9 +88,10 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 | MacOS 13+ | x86_64, aarch64 |
 | MacOS 10.4+ | powerpc |
 | FreeBSD 13+ | x86_64, aarch64 |
-| DragonFlyBSD 6.4+ | x86_64 |
 | NetBSD 10.0+ | x86_64, aarch64 |
 | OpenBSD 7.6+ | x86_64, aarch64 |
+| DragonFlyBSD 6.4+ | x86_64 |
+| MidnightBSD 3.2.3+ | x86_64 |
 | Solaris 11.4+ | x86_64 |
 
 Core platforms (Linux x86_64/aarch64, MacOS, Windows) are self-contained and require no additional tooling.
