@@ -390,7 +390,6 @@ jobs:
         uses: vmactions/dragonflybsd-vm@v1
         with:
           sync: nfs
-          arch: ${{ matrix.arch }}
           release: "6.4.0"
           prepare: |
             pkg install -y cmake gcc14 bash
