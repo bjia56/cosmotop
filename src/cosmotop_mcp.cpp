@@ -4,7 +4,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
 
-	   http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,9 +21,7 @@ tab-size = 4
 #include "cosmotop_shared.hpp"
 #include "cosmotop_plugin.hpp"
 
-#include <httplib.h>
-#include <rfl/json.hpp>
-#include <rfl.hpp>
+#include "mcp_server.h"
 #include <sstream>
 #include <ctime>
 #include <iostream>
@@ -35,348 +33,15 @@ tab-size = 4
 
 namespace MCP {
 
-// JSON response structures for MCP protocol
-struct ErrorResponse {
-	std::string error;
-};
+std::unique_ptr<mcp::server> server_instance;
 
-struct ProcessInfo {
-	int pid;
-	std::string name;
-	std::string user;
-	double cpu_percent;
-	uint64_t memory;
-	std::string state;
-	int threads;
-};
-
-struct ProcessData {
-	int total_processes;
-	std::vector<ProcessInfo> processes;
-	std::time_t timestamp;
-};
-
-struct ProcessResponse {
-	std::string status;
-	ProcessData data;
-};
-
-struct CpuData {
-	std::string name;
-	std::string frequency;
-	double usage_percent;
-	double temperature;
-	int temp_max;
-	bool has_sensors;
-	std::vector<double> load_avg;
-	int core_count;
-	std::time_t timestamp;
-};
-
-struct CpuResponse {
-	std::string status;
-	CpuData data;
-};
-
-struct MemoryData {
-	uint64_t total;
-	uint64_t used;
-	double used_percent;
-	uint64_t available;
-	double available_percent;
-	uint64_t cached;
-	double cached_percent;
-	uint64_t free;
-	uint64_t swap_total;
-	uint64_t swap_used;
-	uint64_t swap_free;
-	bool has_swap;
-	std::time_t timestamp;
-};
-
-struct MemoryResponse {
-	std::string status;
-	MemoryData data;
-};
-
-struct NetworkData {
-	std::string selected_interface;
-	std::vector<std::string> interfaces;
-	bool connected;
-	std::string ipv4;
-	std::string ipv6;
-	uint64_t download_speed;
-	uint64_t upload_speed;
-	uint64_t download_total;
-	uint64_t upload_total;
-	std::time_t timestamp;
-};
-
-struct NetworkResponse {
-	std::string status;
-	NetworkData data;
-};
-
-struct GpuInfo {
-	int index;
-	std::string name;
-	double usage_percent;
-	double temperature;
-	int temp_max;
-	uint64_t memory_total;
-	uint64_t memory_used;
-	int power_usage;
-	int power_max;
-	int clock_speed;
-};
-
-struct GpuData {
-	int gpu_count;
-	std::vector<GpuInfo> gpus;
-	std::time_t timestamp;
-};
-
-struct GpuResponse {
-	std::string status;
-	GpuData data;
-};
-
-struct NpuInfo {
-	int index;
-	std::string name;
-	double usage_percent;
-};
-
-struct NpuData {
-	int npu_count;
-	std::vector<NpuInfo> npus;
-	std::time_t timestamp;
-};
-
-struct NpuResponse {
-	std::string status;
-	NpuData data;
-};
-
-struct McpServerInfo {
-	std::string address;
-	int port;
-};
-
-struct SystemData {
-	std::string name;
-	std::string version;
-	bool plugin_loaded;
-	std::string cpu_name;
-	uint64_t total_memory;
-	bool has_battery;
-	int gpu_count;
-	int npu_count;
-	McpServerInfo mcp_server;
-	std::time_t timestamp;
-};
-
-struct SystemResponse {
-	std::string status;
-	SystemData data;
-};
-
-struct ToolCallContent {
-	std::string type;
-	std::string text;
-};
-
-struct ToolCallResponse {
-	std::vector<ToolCallContent> content;
-};
-
-std::unique_ptr<Server> server_instance;
-
-Server::Server(const std::string& address, int port) 
-	: address_(address), port_(port) {
-}
-
-Server::~Server() {
-	stop();
-}
-
-bool Server::start() {
-	if (running_.load()) {
-		return false;
-	}
-
-	running_.store(true);
-	server_thread_ = std::make_unique<std::thread>(&Server::run_server, this);
-	return true;
-}
-
-void Server::stop() {
-	if (running_.load()) {
-		running_.store(false);
-		if (server_thread_ && server_thread_->joinable()) {
-			server_thread_->join();
-		}
-	}
-}
-
-bool Server::is_running() const {
-	return running_.load();
-}
-
-void Server::run_server() {
-	httplib::Server server;
-	
-	setup_tools();
-
-	// MCP protocol endpoints
-	server.Post("/tools/call", [this](const httplib::Request& req, httplib::Response& res) {
-		try {
-			// Simple JSON parsing - look for "name" field
-			std::string body = req.body;
-			size_t name_pos = body.find("\"name\":");
-			if (name_pos == std::string::npos) {
-				res.status = 400;
-				ErrorResponse error;
-				error.error = "Missing tool name";
-				res.body = rfl::json::write(error);
-				return;
-			}
-			
-			// Extract tool name (simple approach)
-			size_t quote_start = body.find("\"", name_pos + 7);
-			size_t quote_end = body.find("\"", quote_start + 1);
-			if (quote_start == std::string::npos || quote_end == std::string::npos) {
-				res.status = 400;
-				ErrorResponse error;
-				error.error = "Invalid tool name format";
-				res.body = rfl::json::write(error);
-				return;
-			}
-			
-			std::string tool_name = body.substr(quote_start + 1, quote_end - quote_start - 1);
-			
-			std::string result;
-			if (tool_name == "get_processes") {
-				result = get_processes();
-			} else if (tool_name == "get_cpu_info") {
-				result = get_cpu_info();
-			} else if (tool_name == "get_memory_info") {
-				result = get_memory_info();
-			} else if (tool_name == "get_network_info") {
-				result = get_network_info();
-			} else if (tool_name == "get_gpu_info") {
-				result = get_gpu_info();
-			} else if (tool_name == "get_npu_info") {
-				result = get_npu_info();
-			} else if (tool_name == "get_system_info") {
-				result = get_system_info();
-			} else {
-				res.status = 400;
-				ErrorResponse error;
-				error.error = "Unknown tool: " + tool_name;
-				res.body = rfl::json::write(error);
-				return;
-			}
-
-			ToolCallResponse response;
-			ToolCallContent content;
-			content.type = "text";
-			content.text = result;
-			response.content.push_back(content);
-			res.body = rfl::json::write(response);
-			res.set_header("Content-Type", "application/json");
-		} catch (const std::exception& e) {
-			res.status = 500;
-			ErrorResponse error;
-			error.error = e.what();
-			res.body = rfl::json::write(error);
-		}
-	});
-
-	// List available tools
-	server.Get("/tools/list", [](const httplib::Request&, httplib::Response& res) {
-		std::string tools_json = R"({
-			"tools": [
-				{
-					"name": "get_processes",
-					"description": "Get list of running processes",
-					"inputSchema": {
-						"type": "object",
-						"properties": {}
-					}
-				},
-				{
-					"name": "get_cpu_info", 
-					"description": "Get CPU utilization and information",
-					"inputSchema": {
-						"type": "object",
-						"properties": {}
-					}
-				},
-				{
-					"name": "get_memory_info",
-					"description": "Get memory usage information", 
-					"inputSchema": {
-						"type": "object",
-						"properties": {}
-					}
-				},
-				{
-					"name": "get_network_info",
-					"description": "Get network interface information",
-					"inputSchema": {
-						"type": "object", 
-						"properties": {}
-					}
-				},
-				{
-					"name": "get_gpu_info",
-					"description": "Get GPU utilization and information",
-					"inputSchema": {
-						"type": "object",
-						"properties": {}
-					}
-				},
-				{
-					"name": "get_npu_info",
-					"description": "Get NPU utilization and information",
-					"inputSchema": {
-						"type": "object",
-						"properties": {}
-					}
-				},
-				{
-					"name": "get_system_info",
-					"description": "Get general system information",
-					"inputSchema": {
-						"type": "object",
-						"properties": {}
-					}
-				}
-			]
-		})";
-
-		res.body = tools_json;
-		res.set_header("Content-Type", "application/json");
-	});
-
-	std::cout << "Starting MCP server on " << address_ << ":" << port_ << std::endl;
-	
-	if (!server.listen(address_, port_)) {
-		std::cout << "Failed to start MCP server" << std::endl;
-		running_.store(false);
-	}
-}
-
-void Server::setup_tools() {
+// Tool handler functions
+mcp::json get_processes_handler(const mcp::json& params, const std::string /* session_id */) {
 	// Ensure plugin is loaded
 	if (!is_plugin_loaded()) {
-		std::cout << "{\"error\": \"Plugin not loaded, exiting\"}" << std::endl;
-		std::exit(1);
+		throw mcp::mcp_exception(mcp::error_code::internal_error, "Plugin not loaded");
 	}
-}
-
-std::string Server::get_processes() {
+	
 	try {
 		trigger_plugin_refresh();
 		
@@ -391,33 +56,33 @@ std::string Server::get_processes() {
 		
 		std::time_t timestamp = std::time(nullptr);
 		
-		ProcessResponse response;
-		response.status = "success";
-		response.data.total_processes = numpids;
-		response.data.timestamp = timestamp;
+		std::ostringstream result;
+		result << "Process Information (Total: " << numpids << ")\\n";
+		result << "Timestamp: " << timestamp << "\\n\\n";
 		
-		// Convert to ProcessInfo structs (limit to top 10 processes)
+		// Show top 10 processes
 		for (size_t i = 0; i < proc_data.size() && i < 10; ++i) {
-			ProcessInfo proc_info;
-			proc_info.pid = proc_data[i].pid;
-			proc_info.name = proc_data[i].name;
-			proc_info.user = proc_data[i].user;
-			proc_info.cpu_percent = proc_data[i].cpu_p;
-			proc_info.memory = proc_data[i].mem;
-			proc_info.state = proc_data[i].state;
-			proc_info.threads = proc_data[i].threads;
-			response.data.processes.push_back(proc_info);
+			result << "PID: " << proc_data[i].pid << "\\n";
+			result << "Name: " << proc_data[i].name << "\\n";
+			result << "User: " << proc_data[i].user << "\\n";
+			result << "CPU: " << proc_data[i].cpu_p << "%\\n";
+			result << "Memory: " << proc_data[i].mem << " bytes\\n";
+			result << "State: " << proc_data[i].state << "\\n";
+			result << "Threads: " << proc_data[i].threads << "\\n\\n";
 		}
 		
-		return rfl::json::write(response);
+		return {{{"type", "text"}, {"text", result.str()}}};
 	} catch (const std::exception& e) {
-		ErrorResponse error;
-		error.error = e.what();
-		return rfl::json::write(error);
+		throw mcp::mcp_exception(mcp::error_code::internal_error, e.what());
 	}
 }
 
-std::string Server::get_cpu_info() {
+mcp::json get_cpu_info_handler(const mcp::json& params, const std::string /* session_id */) {
+	// Ensure plugin is loaded
+	if (!is_plugin_loaded()) {
+		throw mcp::mcp_exception(mcp::error_code::internal_error, "Plugin not loaded");
+	}
+	
 	try {
 		trigger_plugin_refresh();
 		
@@ -448,27 +113,29 @@ std::string Server::get_cpu_info() {
 			temp = cpu_data.temp[0].back();
 		}
 		
-		CpuResponse response;
-		response.status = "success";
-		response.data.name = cpu_name;
-		response.data.frequency = cpu_freq;
-		response.data.usage_percent = cpu_usage;
-		response.data.temperature = temp;
-		response.data.temp_max = cpu_data.temp_max;
-		response.data.has_sensors = has_sensors;
-		response.data.load_avg = {cpu_data.load_avg[0], cpu_data.load_avg[1], cpu_data.load_avg[2]};
-		response.data.core_count = cpu_data.core_percent.size();
-		response.data.timestamp = timestamp;
+		std::ostringstream result;
+		result << "CPU Information\\n";
+		result << "Name: " << cpu_name << "\\n";
+		result << "Frequency: " << cpu_freq << "\\n";
+		result << "Usage: " << cpu_usage << "%\\n";
+		result << "Temperature: " << temp << "°C (Max: " << cpu_data.temp_max << "°C)\\n";
+		result << "Has Sensors: " << (has_sensors ? "Yes" : "No") << "\\n";
+		result << "Load Average: " << cpu_data.load_avg[0] << ", " << cpu_data.load_avg[1] << ", " << cpu_data.load_avg[2] << "\\n";
+		result << "Core Count: " << cpu_data.core_percent.size() << "\\n";
+		result << "Timestamp: " << timestamp << "\\n";
 		
-		return rfl::json::write(response);
+		return {{{"type", "text"}, {"text", result.str()}}};
 	} catch (const std::exception& e) {
-		ErrorResponse error;
-		error.error = e.what();
-		return rfl::json::write(error);
+		throw mcp::mcp_exception(mcp::error_code::internal_error, e.what());
 	}
 }
 
-std::string Server::get_memory_info() {
+mcp::json get_memory_info_handler(const mcp::json& params, const std::string /* session_id */) {
+	// Ensure plugin is loaded
+	if (!is_plugin_loaded()) {
+		throw mcp::mcp_exception(mcp::error_code::internal_error, "Plugin not loaded");
+	}
+	
 	try {
 		trigger_plugin_refresh();
 		
@@ -493,31 +160,33 @@ std::string Server::get_memory_info() {
 			cached_percent = (double)mem_data.stats["cached"] * 100.0 / total_mem;
 		}
 		
-		MemoryResponse response;
-		response.status = "success";
-		response.data.total = total_mem;
-		response.data.used = mem_data.stats["used"];
-		response.data.used_percent = used_percent;
-		response.data.available = mem_data.stats["available"];
-		response.data.available_percent = available_percent;
-		response.data.cached = mem_data.stats["cached"];
-		response.data.cached_percent = cached_percent;
-		response.data.free = mem_data.stats["free"];
-		response.data.swap_total = mem_data.stats["swap_total"];
-		response.data.swap_used = mem_data.stats["swap_used"];
-		response.data.swap_free = mem_data.stats["swap_free"];
-		response.data.has_swap = has_swap;
-		response.data.timestamp = timestamp;
+		std::ostringstream result;
+		result << "Memory Information\\n";
+		result << "Total: " << total_mem << " bytes\\n";
+		result << "Used: " << mem_data.stats["used"] << " bytes (" << used_percent << "%)\\n";
+		result << "Available: " << mem_data.stats["available"] << " bytes (" << available_percent << "%)\\n";
+		result << "Cached: " << mem_data.stats["cached"] << " bytes (" << cached_percent << "%)\\n";
+		result << "Free: " << mem_data.stats["free"] << " bytes\\n";
+		if (has_swap) {
+			result << "Swap Total: " << mem_data.stats["swap_total"] << " bytes\\n";
+			result << "Swap Used: " << mem_data.stats["swap_used"] << " bytes\\n";
+			result << "Swap Free: " << mem_data.stats["swap_free"] << " bytes\\n";
+		}
+		result << "Has Swap: " << (has_swap ? "Yes" : "No") << "\\n";
+		result << "Timestamp: " << timestamp << "\\n";
 		
-		return rfl::json::write(response);
+		return {{{"type", "text"}, {"text", result.str()}}};
 	} catch (const std::exception& e) {
-		ErrorResponse error;
-		error.error = e.what();
-		return rfl::json::write(error);
+		throw mcp::mcp_exception(mcp::error_code::internal_error, e.what());
 	}
 }
 
-std::string Server::get_network_info() {
+mcp::json get_network_info_handler(const mcp::json& params, const std::string /* session_id */) {
+	// Ensure plugin is loaded
+	if (!is_plugin_loaded()) {
+		throw mcp::mcp_exception(mcp::error_code::internal_error, "Plugin not loaded");
+	}
+	
 	try {
 		trigger_plugin_refresh();
 		
@@ -545,28 +214,35 @@ std::string Server::get_network_info() {
 			upload_speed = net_data.bandwidth["upload"].back();
 		}
 		
-		NetworkResponse response;
-		response.status = "success";
-		response.data.selected_interface = selected_iface;
-		response.data.interfaces = interfaces;
-		response.data.connected = net_data.connected;
-		response.data.ipv4 = net_data.ipv4;
-		response.data.ipv6 = net_data.ipv6;
-		response.data.download_speed = download_speed;
-		response.data.upload_speed = upload_speed;
-		response.data.download_total = net_data.stat["download"].total;
-		response.data.upload_total = net_data.stat["upload"].total;
-		response.data.timestamp = timestamp;
+		std::ostringstream result;
+		result << "Network Information\\n";
+		result << "Selected Interface: " << selected_iface << "\\n";
+		result << "Connected: " << (net_data.connected ? "Yes" : "No") << "\\n";
+		result << "IPv4: " << net_data.ipv4 << "\\n";
+		result << "IPv6: " << net_data.ipv6 << "\\n";
+		result << "Download Speed: " << download_speed << " bytes/s\\n";
+		result << "Upload Speed: " << upload_speed << " bytes/s\\n";
+		result << "Download Total: " << net_data.stat["download"].total << " bytes\\n";
+		result << "Upload Total: " << net_data.stat["upload"].total << " bytes\\n";
+		result << "Available Interfaces: ";
+		for (const auto& iface : interfaces) {
+			result << iface << " ";
+		}
+		result << "\\n";
+		result << "Timestamp: " << timestamp << "\\n";
 		
-		return rfl::json::write(response);
+		return {{{"type", "text"}, {"text", result.str()}}};
 	} catch (const std::exception& e) {
-		ErrorResponse error;
-		error.error = e.what();
-		return rfl::json::write(error);
+		throw mcp::mcp_exception(mcp::error_code::internal_error, e.what());
 	}
 }
 
-std::string Server::get_gpu_info() {
+mcp::json get_gpu_info_handler(const mcp::json& params, const std::string /* session_id */) {
+	// Ensure plugin is loaded
+	if (!is_plugin_loaded()) {
+		throw mcp::mcp_exception(mcp::error_code::internal_error, "Plugin not loaded");
+	}
+	
 	try {
 		trigger_plugin_refresh();
 		
@@ -583,48 +259,47 @@ std::string Server::get_gpu_info() {
 		
 		std::time_t timestamp = std::time(nullptr);
 		
-		GpuResponse response;
-		response.status = "success";
-		response.data.gpu_count = gpu_count;
-		response.data.timestamp = timestamp;
+		std::ostringstream result;
+		result << "GPU Information\\n";
+		result << "GPU Count: " << gpu_count << "\\n";
+		result << "Timestamp: " << timestamp << "\\n\\n";
 		
-		// Build GPU info structs
+		// Show GPU info
 		for (int i = 0; i < gpu_count && i < (int)gpu_data.size(); ++i) {
-			GpuInfo gpu_info;
-			gpu_info.index = i;
-			gpu_info.name = i < (int)gpu_names.size() ? gpu_names[i] : "Unknown GPU";
+			result << "GPU " << i << ":\\n";
+			result << "  Name: " << (i < (int)gpu_names.size() ? gpu_names[i] : "Unknown GPU") << "\\n";
 			
 			// Get current GPU utilization
-			gpu_info.usage_percent = 0.0;
+			double usage = 0.0;
 			if (!gpu_data[i].gpu_percent["gpu-totals"].empty()) {
-				gpu_info.usage_percent = gpu_data[i].gpu_percent["gpu-totals"].back();
+				usage = gpu_data[i].gpu_percent["gpu-totals"].back();
 			}
+			result << "  Usage: " << usage << "%\\n";
 			
 			// Get current temperature
-			gpu_info.temperature = 0.0;
+			double temp = 0.0;
 			if (!gpu_data[i].temp.empty()) {
-				gpu_info.temperature = gpu_data[i].temp.back();
+				temp = gpu_data[i].temp.back();
 			}
-			
-			gpu_info.temp_max = gpu_data[i].temp_max;
-			gpu_info.memory_total = gpu_data[i].mem_total;
-			gpu_info.memory_used = gpu_data[i].mem_used;
-			gpu_info.power_usage = gpu_data[i].pwr_usage;
-			gpu_info.power_max = gpu_data[i].pwr_max_usage;
-			gpu_info.clock_speed = gpu_data[i].gpu_clock_speed;
-			
-			response.data.gpus.push_back(gpu_info);
+			result << "  Temperature: " << temp << "°C (Max: " << gpu_data[i].temp_max << "°C)\\n";
+			result << "  Memory Total: " << gpu_data[i].mem_total << " bytes\\n";
+			result << "  Memory Used: " << gpu_data[i].mem_used << " bytes\\n";
+			result << "  Power Usage: " << gpu_data[i].pwr_usage << "W (Max: " << gpu_data[i].pwr_max_usage << "W)\\n";
+			result << "  Clock Speed: " << gpu_data[i].gpu_clock_speed << " MHz\\n\\n";
 		}
 		
-		return rfl::json::write(response);
+		return {{{"type", "text"}, {"text", result.str()}}};
 	} catch (const std::exception& e) {
-		ErrorResponse error;
-		error.error = e.what();
-		return rfl::json::write(error);
+		throw mcp::mcp_exception(mcp::error_code::internal_error, e.what());
 	}
 }
 
-std::string Server::get_npu_info() {
+mcp::json get_npu_info_handler(const mcp::json& params, const std::string /* session_id */) {
+	// Ensure plugin is loaded
+	if (!is_plugin_loaded()) {
+		throw mcp::mcp_exception(mcp::error_code::internal_error, "Plugin not loaded");
+	}
+	
 	try {
 		trigger_plugin_refresh();
 		
@@ -641,35 +316,36 @@ std::string Server::get_npu_info() {
 		
 		std::time_t timestamp = std::time(nullptr);
 		
-		NpuResponse response;
-		response.status = "success";
-		response.data.npu_count = npu_count;
-		response.data.timestamp = timestamp;
+		std::ostringstream result;
+		result << "NPU Information\\n";
+		result << "NPU Count: " << npu_count << "\\n";
+		result << "Timestamp: " << timestamp << "\\n\\n";
 		
-		// Build NPU info structs
+		// Show NPU info
 		for (int i = 0; i < npu_count && i < (int)npu_data.size(); ++i) {
-			NpuInfo npu_info;
-			npu_info.index = i;
-			npu_info.name = i < (int)npu_names.size() ? npu_names[i] : "Unknown NPU";
+			result << "NPU " << i << ":\\n";
+			result << "  Name: " << (i < (int)npu_names.size() ? npu_names[i] : "Unknown NPU") << "\\n";
 			
 			// Get current NPU utilization
-			npu_info.usage_percent = 0.0;
+			double usage = 0.0;
 			if (!npu_data[i].npu_percent["npu-totals"].empty()) {
-				npu_info.usage_percent = npu_data[i].npu_percent["npu-totals"].back();
+				usage = npu_data[i].npu_percent["npu-totals"].back();
 			}
-			
-			response.data.npus.push_back(npu_info);
+			result << "  Usage: " << usage << "%\\n\\n";
 		}
 		
-		return rfl::json::write(response);
+		return {{{"type", "text"}, {"text", result.str()}}};
 	} catch (const std::exception& e) {
-		ErrorResponse error;
-		error.error = e.what();
-		return rfl::json::write(error);
+		throw mcp::mcp_exception(mcp::error_code::internal_error, e.what());
 	}
 }
 
-std::string Server::get_system_info() {
+mcp::json get_system_info_handler(const mcp::json& params, const std::string /* session_id */) {
+	// Ensure plugin is loaded
+	if (!is_plugin_loaded()) {
+		throw mcp::mcp_exception(mcp::error_code::internal_error, "Plugin not loaded");
+	}
+	
 	try {
 		std::time_t timestamp = std::time(nullptr);
 		
@@ -688,25 +364,23 @@ std::string Server::get_system_info() {
 		int npu_count = 0;
 		#endif
 		
-		SystemResponse response;
-		response.status = "success";
-		response.data.name = "cosmotop";
-		response.data.version = Global::Version;
-		response.data.plugin_loaded = is_plugin_loaded();
-		response.data.cpu_name = cpu_name;
-		response.data.total_memory = total_mem;
-		response.data.has_battery = has_battery;
-		response.data.gpu_count = gpu_count;
-		response.data.npu_count = npu_count;
-		response.data.mcp_server.address = Config::getS("mcp_server_address");
-		response.data.mcp_server.port = Config::getI("mcp_server_port");
-		response.data.timestamp = timestamp;
+		std::ostringstream result;
+		result << "System Information\\n";
+		result << "Name: cosmotop\\n";
+		result << "Version: " << Global::Version << "\\n";
+		result << "Plugin Loaded: " << (is_plugin_loaded() ? "Yes" : "No") << "\\n";
+		result << "CPU Name: " << cpu_name << "\\n";
+		result << "Total Memory: " << total_mem << " bytes\\n";
+		result << "Has Battery: " << (has_battery ? "Yes" : "No") << "\\n";
+		result << "GPU Count: " << gpu_count << "\\n";
+		result << "NPU Count: " << npu_count << "\\n";
+		result << "MCP Server Address: " << Config::getS("mcp_server_address") << "\\n";
+		result << "MCP Server Port: " << Config::getI("mcp_server_port") << "\\n";
+		result << "Timestamp: " << timestamp << "\\n";
 		
-		return rfl::json::write(response);
+		return {{{"type", "text"}, {"text", result.str()}}};
 	} catch (const std::exception& e) {
-		ErrorResponse error;
-		error.error = e.what();
-		return rfl::json::write(error);
+		throw mcp::mcp_exception(mcp::error_code::internal_error, e.what());
 	}
 }
 
@@ -715,16 +389,65 @@ bool init_mcp_server() {
 		return false; // Already initialized
 	}
 
+	// Ensure plugin is loaded
+	if (!is_plugin_loaded()) {
+		std::cout << "Plugin not loaded, exiting" << std::endl;
+		std::exit(1);
+	}
+
 	std::string address = Config::getS("mcp_server_address");
 	int port = Config::getI("mcp_server_port");
 	
-	server_instance = std::make_unique<Server>(address, port);
-	return server_instance->start();
+	// Create and configure the server
+	server_instance = std::make_unique<mcp::server>(address, port);
+	server_instance->set_server_info("cosmotop MCP Server", Global::Version);
+
+	// Register tools
+	mcp::tool processes_tool = mcp::tool_builder("get_processes")
+		.with_description("Get list of running processes")
+		.build();
+	server_instance->register_tool(processes_tool, get_processes_handler);
+
+	mcp::tool cpu_tool = mcp::tool_builder("get_cpu_info")
+		.with_description("Get CPU utilization and information")
+		.build();
+	server_instance->register_tool(cpu_tool, get_cpu_info_handler);
+
+	mcp::tool memory_tool = mcp::tool_builder("get_memory_info")
+		.with_description("Get memory usage information")
+		.build();
+	server_instance->register_tool(memory_tool, get_memory_info_handler);
+
+	mcp::tool network_tool = mcp::tool_builder("get_network_info")
+		.with_description("Get network interface information")
+		.build();
+	server_instance->register_tool(network_tool, get_network_info_handler);
+
+	mcp::tool gpu_tool = mcp::tool_builder("get_gpu_info")
+		.with_description("Get GPU utilization and information")
+		.build();
+	server_instance->register_tool(gpu_tool, get_gpu_info_handler);
+
+	mcp::tool npu_tool = mcp::tool_builder("get_npu_info")
+		.with_description("Get NPU utilization and information")
+		.build();
+	server_instance->register_tool(npu_tool, get_npu_info_handler);
+
+	mcp::tool system_tool = mcp::tool_builder("get_system_info")
+		.with_description("Get general system information")
+		.build();
+	server_instance->register_tool(system_tool, get_system_info_handler);
+
+	std::cout << "Starting MCP server on " << address << ":" << port << std::endl;
+	
+	// Start the server in blocking mode
+	server_instance->start(true);
+	
+	return true;
 }
 
 void shutdown_mcp_server() {
 	if (server_instance) {
-		server_instance->stop();
 		server_instance.reset();
 	}
 }

@@ -34,6 +34,7 @@ endif()
 set(THIRD_PARTY_INCLUDES
   ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/third_party/cpp-httplib
+  ${PROJECT_SOURCE_DIR}/third_party/cpp-mcp/include
   ${PROJECT_SOURCE_DIR}/third_party/fmt/include
   ${PROJECT_SOURCE_DIR}/third_party/widecharwidth
   ${PROJECT_SOURCE_DIR}/third_party/range-v3/include
