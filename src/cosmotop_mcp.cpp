@@ -22,9 +22,11 @@ tab-size = 4
 #include "cosmotop_plugin.hpp"
 
 #include <httplib.h>
-#include <fmt/core.h>
+#include <rfl/json.hpp>
+#include <rfl.hpp>
 #include <sstream>
 #include <ctime>
+#include <iostream>
 
 // Include data structure definitions
 #ifndef __COSMOPOLITAN__
@@ -32,6 +34,161 @@ tab-size = 4
 #endif
 
 namespace MCP {
+
+// JSON response structures for MCP protocol
+struct ErrorResponse {
+	std::string error;
+};
+
+struct ProcessInfo {
+	int pid;
+	std::string name;
+	std::string user;
+	double cpu_percent;
+	uint64_t memory;
+	std::string state;
+	int threads;
+};
+
+struct ProcessData {
+	int total_processes;
+	std::vector<ProcessInfo> processes;
+	std::time_t timestamp;
+};
+
+struct ProcessResponse {
+	std::string status;
+	ProcessData data;
+};
+
+struct CpuData {
+	std::string name;
+	std::string frequency;
+	double usage_percent;
+	double temperature;
+	int temp_max;
+	bool has_sensors;
+	std::vector<double> load_avg;
+	int core_count;
+	std::time_t timestamp;
+};
+
+struct CpuResponse {
+	std::string status;
+	CpuData data;
+};
+
+struct MemoryData {
+	uint64_t total;
+	uint64_t used;
+	double used_percent;
+	uint64_t available;
+	double available_percent;
+	uint64_t cached;
+	double cached_percent;
+	uint64_t free;
+	uint64_t swap_total;
+	uint64_t swap_used;
+	uint64_t swap_free;
+	bool has_swap;
+	std::time_t timestamp;
+};
+
+struct MemoryResponse {
+	std::string status;
+	MemoryData data;
+};
+
+struct NetworkData {
+	std::string selected_interface;
+	std::vector<std::string> interfaces;
+	bool connected;
+	std::string ipv4;
+	std::string ipv6;
+	uint64_t download_speed;
+	uint64_t upload_speed;
+	uint64_t download_total;
+	uint64_t upload_total;
+	std::time_t timestamp;
+};
+
+struct NetworkResponse {
+	std::string status;
+	NetworkData data;
+};
+
+struct GpuInfo {
+	int index;
+	std::string name;
+	double usage_percent;
+	double temperature;
+	int temp_max;
+	uint64_t memory_total;
+	uint64_t memory_used;
+	int power_usage;
+	int power_max;
+	int clock_speed;
+};
+
+struct GpuData {
+	int gpu_count;
+	std::vector<GpuInfo> gpus;
+	std::time_t timestamp;
+};
+
+struct GpuResponse {
+	std::string status;
+	GpuData data;
+};
+
+struct NpuInfo {
+	int index;
+	std::string name;
+	double usage_percent;
+};
+
+struct NpuData {
+	int npu_count;
+	std::vector<NpuInfo> npus;
+	std::time_t timestamp;
+};
+
+struct NpuResponse {
+	std::string status;
+	NpuData data;
+};
+
+struct McpServerInfo {
+	std::string address;
+	int port;
+};
+
+struct SystemData {
+	std::string name;
+	std::string version;
+	bool plugin_loaded;
+	std::string cpu_name;
+	uint64_t total_memory;
+	bool has_battery;
+	int gpu_count;
+	int npu_count;
+	McpServerInfo mcp_server;
+	std::time_t timestamp;
+};
+
+struct SystemResponse {
+	std::string status;
+	SystemData data;
+};
+
+struct ToolCallContent {
+	std::string type;
+	std::string text;
+};
+
+struct ToolCallResponse {
+	std::vector<ToolCallContent> content;
+};
 
 std::unique_ptr<Server> server_instance;
 
@@ -79,7 +236,9 @@ void Server::run_server() {
 			size_t name_pos = body.find("\"name\":");
 			if (name_pos == std::string::npos) {
 				res.status = 400;
-				res.body = "{\"error\": \"Missing tool name\"}";
+				ErrorResponse error;
+				error.error = "Missing tool name";
+				res.body = rfl::json::write(error);
 				return;
 			}
 			
@@ -88,7 +247,9 @@ void Server::run_server() {
 			size_t quote_end = body.find("\"", quote_start + 1);
 			if (quote_start == std::string::npos || quote_end == std::string::npos) {
 				res.status = 400;
-				res.body = "{\"error\": \"Invalid tool name format\"}";
+				ErrorResponse error;
+				error.error = "Invalid tool name format";
+				res.body = rfl::json::write(error);
 				return;
 			}
 			
@@ -111,15 +272,24 @@ void Server::run_server() {
 				result = get_system_info();
 			} else {
 				res.status = 400;
-				res.body = fmt::format("{{\"error\": \"Unknown tool: {}\"}}", tool_name);
+				ErrorResponse error;
+				error.error = "Unknown tool: " + tool_name;
+				res.body = rfl::json::write(error);
 				return;
 			}
 
-			res.body = fmt::format("{{\"content\": [{{\"type\": \"text\", \"text\": \"{}\"}}]}}", result);
+			ToolCallResponse response;
+			ToolCallContent content;
+			content.type = "text";
+			content.text = result;
+			response.content.push_back(content);
+			res.body = rfl::json::write(response);
 			res.set_header("Content-Type", "application/json");
 		} catch (const std::exception& e) {
 			res.status = 500;
-			res.body = fmt::format("{{\"error\": \"{}\"}}", e.what());
+			ErrorResponse error;
+			error.error = e.what();
+			res.body = rfl::json::write(error);
 		}
 	});
 
@@ -190,10 +360,10 @@ void Server::run_server() {
 		res.set_header("Content-Type", "application/json");
 	});
 
-	Logger::info(fmt::format("Starting MCP server on {}:{}", address_, port_));
+	std::cout << "Starting MCP server on " << address_ << ":" << port_ << std::endl;
 	
 	if (!server.listen(address_, port_)) {
-		Logger::error("Failed to start MCP server");
+		std::cout << "Failed to start MCP server" << std::endl;
 		running_.store(false);
 	}
 }
@@ -201,7 +371,8 @@ void Server::run_server() {
 void Server::setup_tools() {
 	// Ensure plugin is loaded
 	if (!is_plugin_loaded()) {
-		Logger::error("Plugin not loaded, MCP tools may not work correctly");
+		std::cout << "{\"error\": \"Plugin not loaded, exiting\"}" << std::endl;
+		std::exit(1);
 	}
 }
 
@@ -219,34 +390,30 @@ std::string Server::get_processes() {
 		#endif
 		
 		std::time_t timestamp = std::time(nullptr);
-		std::stringstream processes_json;
-		processes_json << "[";
 		
-		for (size_t i = 0; i < proc_data.size() && i < 10; ++i) { // Limit to top 10 processes
-			if (i > 0) processes_json << ",";
-			processes_json << fmt::format(R"({{
-				"pid": {},
-				"name": "{}",
-				"user": "{}",
-				"cpu_percent": {:.1f},
-				"memory": {},
-				"state": "{}",
-				"threads": {}
-			}})", proc_data[i].pid, proc_data[i].name, proc_data[i].user, 
-			       proc_data[i].cpu_p, proc_data[i].mem, proc_data[i].state, proc_data[i].threads);
+		ProcessResponse response;
+		response.status = "success";
+		response.data.total_processes = numpids;
+		response.data.timestamp = timestamp;
+		
+		// Convert to ProcessInfo structs (limit to top 10 processes)
+		for (size_t i = 0; i < proc_data.size() && i < 10; ++i) {
+			ProcessInfo proc_info;
+			proc_info.pid = proc_data[i].pid;
+			proc_info.name = proc_data[i].name;
+			proc_info.user = proc_data[i].user;
+			proc_info.cpu_percent = proc_data[i].cpu_p;
+			proc_info.memory = proc_data[i].mem;
+			proc_info.state = proc_data[i].state;
+			proc_info.threads = proc_data[i].threads;
+			response.data.processes.push_back(proc_info);
 		}
-		processes_json << "]";
 		
-		return fmt::format(R"({{
-			"status": "success",
-			"data": {{
-				"total_processes": {},
-				"processes": {},
-				"timestamp": {}
-			}}
-		}})", numpids, processes_json.str(), timestamp);
+		return rfl::json::write(response);
 	} catch (const std::exception& e) {
-		return fmt::format("{{\"error\": \"{}\"}}", e.what());
+		ErrorResponse error;
+		error.error = e.what();
+		return rfl::json::write(error);
 	}
 }
 
@@ -281,25 +448,23 @@ std::string Server::get_cpu_info() {
 			temp = cpu_data.temp[0].back();
 		}
 		
-		return fmt::format(R"({{
-			"status": "success",
-			"data": {{
-				"name": "{}",
-				"frequency": "{}",
-				"usage_percent": {:.1f},
-				"temperature": {:.1f},
-				"temp_max": {},
-				"has_sensors": {},
-				"load_avg": [{:.2f}, {:.2f}, {:.2f}],
-				"core_count": {},
-				"timestamp": {}
-			}}
-		}})", cpu_name, cpu_freq, cpu_usage, temp, cpu_data.temp_max, 
-		     has_sensors ? "true" : "false",
-		     cpu_data.load_avg[0], cpu_data.load_avg[1], cpu_data.load_avg[2],
-		     cpu_data.core_percent.size(), timestamp);
+		CpuResponse response;
+		response.status = "success";
+		response.data.name = cpu_name;
+		response.data.frequency = cpu_freq;
+		response.data.usage_percent = cpu_usage;
+		response.data.temperature = temp;
+		response.data.temp_max = cpu_data.temp_max;
+		response.data.has_sensors = has_sensors;
+		response.data.load_avg = {cpu_data.load_avg[0], cpu_data.load_avg[1], cpu_data.load_avg[2]};
+		response.data.core_count = cpu_data.core_percent.size();
+		response.data.timestamp = timestamp;
+		
+		return rfl::json::write(response);
 	} catch (const std::exception& e) {
-		return fmt::format("{{\"error\": \"{}\"}}", e.what());
+		ErrorResponse error;
+		error.error = e.what();
+		return rfl::json::write(error);
 	}
 }
 
@@ -328,31 +493,27 @@ std::string Server::get_memory_info() {
 			cached_percent = (double)mem_data.stats["cached"] * 100.0 / total_mem;
 		}
 		
-		return fmt::format(R"({{
-			"status": "success",
-			"data": {{
-				"total": {},
-				"used": {},
-				"used_percent": {:.1f},
-				"available": {},
-				"available_percent": {:.1f},
-				"cached": {},
-				"cached_percent": {:.1f},
-				"free": {},
-				"swap_total": {},
-				"swap_used": {},
-				"swap_free": {},
-				"has_swap": {},
-				"timestamp": {}
-			}}
-		}})", total_mem, mem_data.stats["used"], used_percent,
-		     mem_data.stats["available"], available_percent,
-		     mem_data.stats["cached"], cached_percent,
-		     mem_data.stats["free"], mem_data.stats["swap_total"],
-		     mem_data.stats["swap_used"], mem_data.stats["swap_free"],
-		     has_swap ? "true" : "false", timestamp);
+		MemoryResponse response;
+		response.status = "success";
+		response.data.total = total_mem;
+		response.data.used = mem_data.stats["used"];
+		response.data.used_percent = used_percent;
+		response.data.available = mem_data.stats["available"];
+		response.data.available_percent = available_percent;
+		response.data.cached = mem_data.stats["cached"];
+		response.data.cached_percent = cached_percent;
+		response.data.free = mem_data.stats["free"];
+		response.data.swap_total = mem_data.stats["swap_total"];
+		response.data.swap_used = mem_data.stats["swap_used"];
+		response.data.swap_free = mem_data.stats["swap_free"];
+		response.data.has_swap = has_swap;
+		response.data.timestamp = timestamp;
+		
+		return rfl::json::write(response);
 	} catch (const std::exception& e) {
-		return fmt::format("{{\"error\": \"{}\"}}", e.what());
+		ErrorResponse error;
+		error.error = e.what();
+		return rfl::json::write(error);
 	}
 }
 
@@ -384,37 +545,24 @@ std::string Server::get_network_info() {
 			upload_speed = net_data.bandwidth["upload"].back();
 		}
 		
-		// Build interfaces JSON
-		std::stringstream interfaces_json;
-		interfaces_json << "[";
-		for (size_t i = 0; i < interfaces.size(); ++i) {
-			if (i > 0) interfaces_json << ",";
-			interfaces_json << "\"" << interfaces[i] << "\"";
-		}
-		interfaces_json << "]";
+		NetworkResponse response;
+		response.status = "success";
+		response.data.selected_interface = selected_iface;
+		response.data.interfaces = interfaces;
+		response.data.connected = net_data.connected;
+		response.data.ipv4 = net_data.ipv4;
+		response.data.ipv6 = net_data.ipv6;
+		response.data.download_speed = download_speed;
+		response.data.upload_speed = upload_speed;
+		response.data.download_total = net_data.stat["download"].total;
+		response.data.upload_total = net_data.stat["upload"].total;
+		response.data.timestamp = timestamp;
 		
-		return fmt::format(R"({{
-			"status": "success",
-			"data": {{
-				"selected_interface": "{}",
-				"interfaces": {},
-				"connected": {},
-				"ipv4": "{}",
-				"ipv6": "{}",
-				"download_speed": {},
-				"upload_speed": {},
-				"download_total": {},
-				"upload_total": {},
-				"timestamp": {}
-			}}
-		}})", selected_iface, interfaces_json.str(), 
-		     net_data.connected ? "true" : "false",
-		     net_data.ipv4, net_data.ipv6,
-		     download_speed, upload_speed,
-		     net_data.stat["download"].total, net_data.stat["upload"].total,
-		     timestamp);
+		return rfl::json::write(response);
 	} catch (const std::exception& e) {
-		return fmt::format("{{\"error\": \"{}\"}}", e.what());
+		ErrorResponse error;
+		error.error = e.what();
+		return rfl::json::write(error);
 	}
 }
 
@@ -435,54 +583,44 @@ std::string Server::get_gpu_info() {
 		
 		std::time_t timestamp = std::time(nullptr);
 		
-		// Build GPU info JSON
-		std::stringstream gpus_json;
-		gpus_json << "[";
+		GpuResponse response;
+		response.status = "success";
+		response.data.gpu_count = gpu_count;
+		response.data.timestamp = timestamp;
+		
+		// Build GPU info structs
 		for (int i = 0; i < gpu_count && i < (int)gpu_data.size(); ++i) {
-			if (i > 0) gpus_json << ",";
+			GpuInfo gpu_info;
+			gpu_info.index = i;
+			gpu_info.name = i < (int)gpu_names.size() ? gpu_names[i] : "Unknown GPU";
 			
 			// Get current GPU utilization
-			double gpu_usage = 0.0;
+			gpu_info.usage_percent = 0.0;
 			if (!gpu_data[i].gpu_percent["gpu-totals"].empty()) {
-				gpu_usage = gpu_data[i].gpu_percent["gpu-totals"].back();
+				gpu_info.usage_percent = gpu_data[i].gpu_percent["gpu-totals"].back();
 			}
 			
 			// Get current temperature
-			double temp = 0.0;
+			gpu_info.temperature = 0.0;
 			if (!gpu_data[i].temp.empty()) {
-				temp = gpu_data[i].temp.back();
+				gpu_info.temperature = gpu_data[i].temp.back();
 			}
 			
-			string gpu_name = i < (int)gpu_names.size() ? gpu_names[i] : "Unknown GPU";
+			gpu_info.temp_max = gpu_data[i].temp_max;
+			gpu_info.memory_total = gpu_data[i].mem_total;
+			gpu_info.memory_used = gpu_data[i].mem_used;
+			gpu_info.power_usage = gpu_data[i].pwr_usage;
+			gpu_info.power_max = gpu_data[i].pwr_max_usage;
+			gpu_info.clock_speed = gpu_data[i].gpu_clock_speed;
 			
-			gpus_json << fmt::format(R"({{
-				"index": {},
-				"name": "{}",
-				"usage_percent": {:.1f},
-				"temperature": {:.1f},
-				"temp_max": {},
-				"memory_total": {},
-				"memory_used": {},
-				"power_usage": {},
-				"power_max": {},
-				"clock_speed": {}
-			}})", i, gpu_name, gpu_usage, temp, gpu_data[i].temp_max,
-			         gpu_data[i].mem_total, gpu_data[i].mem_used,
-			         gpu_data[i].pwr_usage, gpu_data[i].pwr_max_usage,
-			         gpu_data[i].gpu_clock_speed);
+			response.data.gpus.push_back(gpu_info);
 		}
-		gpus_json << "]";
 		
-		return fmt::format(R"({{
-			"status": "success",
-			"data": {{
-				"gpu_count": {},
-				"gpus": {},
-				"timestamp": {}
-			}}
-		}})", gpu_count, gpus_json.str(), timestamp);
+		return rfl::json::write(response);
 	} catch (const std::exception& e) {
-		return fmt::format("{{\"error\": \"{}\"}}", e.what());
+		ErrorResponse error;
+		error.error = e.what();
+		return rfl::json::write(error);
 	}
 }
 
@@ -503,38 +641,31 @@ std::string Server::get_npu_info() {
 		
 		std::time_t timestamp = std::time(nullptr);
 		
-		// Build NPU info JSON
-		std::stringstream npus_json;
-		npus_json << "[";
+		NpuResponse response;
+		response.status = "success";
+		response.data.npu_count = npu_count;
+		response.data.timestamp = timestamp;
+		
+		// Build NPU info structs
 		for (int i = 0; i < npu_count && i < (int)npu_data.size(); ++i) {
-			if (i > 0) npus_json << ",";
+			NpuInfo npu_info;
+			npu_info.index = i;
+			npu_info.name = i < (int)npu_names.size() ? npu_names[i] : "Unknown NPU";
 			
 			// Get current NPU utilization
-			double npu_usage = 0.0;
+			npu_info.usage_percent = 0.0;
 			if (!npu_data[i].npu_percent["npu-totals"].empty()) {
-				npu_usage = npu_data[i].npu_percent["npu-totals"].back();
+				npu_info.usage_percent = npu_data[i].npu_percent["npu-totals"].back();
 			}
 			
-			string npu_name = i < (int)npu_names.size() ? npu_names[i] : "Unknown NPU";
-			
-			npus_json << fmt::format(R"({{
-				"index": {},
-				"name": "{}",
-				"usage_percent": {:.1f}
-			}})", i, npu_name, npu_usage);
+			response.data.npus.push_back(npu_info);
 		}
-		npus_json << "]";
 		
-		return fmt::format(R"({{
-			"status": "success",
-			"data": {{
-				"npu_count": {},
-				"npus": {},
-				"timestamp": {}
-			}}
-		}})", npu_count, npus_json.str(), timestamp);
+		return rfl::json::write(response);
 	} catch (const std::exception& e) {
-		return fmt::format("{{\"error\": \"{}\"}}", e.what());
+		ErrorResponse error;
+		error.error = e.what();
+		return rfl::json::write(error);
 	}
 }
 
@@ -557,30 +688,25 @@ std::string Server::get_system_info() {
 		int npu_count = 0;
 		#endif
 		
-		return fmt::format(R"({{
-			"status": "success",
-			"data": {{
-				"name": "cosmotop",
-				"version": "{}",
-				"plugin_loaded": {},
-				"cpu_name": "{}",
-				"total_memory": {},
-				"has_battery": {},
-				"gpu_count": {},
-				"npu_count": {},
-				"mcp_server": {{
-					"address": "{}",
-					"port": {}
-				}},
-				"timestamp": {}
-			}}
-		}})", Global::Version, is_plugin_loaded() ? "true" : "false",
-		     cpu_name, total_mem, has_battery ? "true" : "false",
-		     gpu_count, npu_count,
-		     Config::getS("mcp_server_address"), Config::getI("mcp_server_port"),
-		     timestamp);
+		SystemResponse response;
+		response.status = "success";
+		response.data.name = "cosmotop";
+		response.data.version = Global::Version;
+		response.data.plugin_loaded = is_plugin_loaded();
+		response.data.cpu_name = cpu_name;
+		response.data.total_memory = total_mem;
+		response.data.has_battery = has_battery;
+		response.data.gpu_count = gpu_count;
+		response.data.npu_count = npu_count;
+		response.data.mcp_server.address = Config::getS("mcp_server_address");
+		response.data.mcp_server.port = Config::getI("mcp_server_port");
+		response.data.timestamp = timestamp;
+		
+		return rfl::json::write(response);
 	} catch (const std::exception& e) {
-		return fmt::format("{{\"error\": \"{}\"}}", e.what());
+		ErrorResponse error;
+		error.error = e.what();
+		return rfl::json::write(error);
 	}
 }
 
