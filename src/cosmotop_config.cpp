@@ -235,6 +235,12 @@ namespace Config {
 		{"custom_npu_name0",	"#* Custom npu0 model name, empty string to disable."},
 		{"custom_npu_name1",	"#* Custom npu1 model name, empty string to disable."},
 		{"custom_npu_name2",	"#* Custom npu2 model name, empty string to disable."},
+
+		{"mcp_server_address", "#* MCP server bind address when --mcp flag is used.\n"
+								"#* Default: \"127.0.0.1\""},
+
+		{"mcp_server_port", "#* MCP server port when --mcp flag is used.\n"
+								"#* Default: 8080"},
 	};
 
 	std::unordered_map<std::string_view, string> strings = {
@@ -277,7 +283,8 @@ namespace Config {
 		{"custom_npu_name0", ""},
 		{"custom_npu_name1", ""},
 		{"custom_npu_name2", ""},
-		{"intel_gpu_exporter", ""}
+		{"intel_gpu_exporter", ""},
+		{"mcp_server_address", "127.0.0.1"}
 	};
 	std::unordered_map<std::string_view, string> stringsTmp;
 	std::unordered_map<std::string_view, string> stringsOverrides;
@@ -348,7 +355,8 @@ namespace Config {
 		{"proc_start", 0},
 		{"proc_selected", 0},
 		{"proc_last_selected", 0},
-		{"proc_max_rows", 1}
+		{"proc_max_rows", 1},
+		{"mcp_server_port", 8080}
 	};
 	std::unordered_map<std::string_view, int> intsTmp;
 	std::unordered_map<std::string_view, int> intsOverrides;
