@@ -27,9 +27,6 @@ tab-size = 4
 #include <iostream>
 
 // Include data structure definitions
-#ifndef __COSMOPOLITAN__
-#include <cosmo_plugin.hpp>
-#endif
 
 namespace MCP {
 
@@ -46,13 +43,8 @@ mcp::json get_processes_handler(const mcp::json& params, const std::string /* se
 		trigger_plugin_refresh();
 		
 		// Get process data via RPC
-		#ifdef __COSMOPOLITAN__
 		auto proc_data = Proc::collect(false);
 		int numpids = Proc::get_numpids();
-		#else
-		auto proc_data = vector<proc_info>();
-		int numpids = 0;
-		#endif
 		
 		std::time_t timestamp = std::time(nullptr);
 		
@@ -87,17 +79,10 @@ mcp::json get_cpu_info_handler(const mcp::json& params, const std::string /* ses
 		trigger_plugin_refresh();
 		
 		// Get CPU data via RPC
-		#ifdef __COSMOPOLITAN__
 		auto cpu_data = Cpu::collect(false);
 		string cpu_name = Cpu::get_cpuName();
 		string cpu_freq = Cpu::get_cpuHz();
 		bool has_sensors = Cpu::get_got_sensors();
-		#else
-		cpu_info cpu_data;
-		string cpu_name = "Unknown CPU";
-		string cpu_freq = "0 MHz";
-		bool has_sensors = false;
-		#endif
 		
 		std::time_t timestamp = std::time(nullptr);
 		
@@ -140,15 +125,9 @@ mcp::json get_memory_info_handler(const mcp::json& params, const std::string /* 
 		trigger_plugin_refresh();
 		
 		// Get memory data via RPC
-		#ifdef __COSMOPOLITAN__
 		auto mem_data = Mem::collect(false);
 		uint64_t total_mem = Mem::get_totalMem();
 		bool has_swap = Mem::get_has_swap();
-		#else
-		mem_info mem_data;
-		uint64_t total_mem = 0;
-		bool has_swap = false;
-		#endif
 		
 		std::time_t timestamp = std::time(nullptr);
 		
@@ -191,17 +170,10 @@ mcp::json get_network_info_handler(const mcp::json& params, const std::string /*
 		trigger_plugin_refresh();
 		
 		// Get network data via RPC
-		#ifdef __COSMOPOLITAN__
 		auto net_data = Net::collect(false);
 		string selected_iface = Net::get_selected_iface();
 		auto interfaces = Net::get_interfaces();
 		auto current_net = Net::get_current_net();
-		#else
-		net_info net_data;
-		string selected_iface = "unknown";
-		vector<string> interfaces;
-		unordered_map<string, net_info> current_net;
-		#endif
 		
 		std::time_t timestamp = std::time(nullptr);
 		
@@ -247,15 +219,9 @@ mcp::json get_gpu_info_handler(const mcp::json& params, const std::string /* ses
 		trigger_plugin_refresh();
 		
 		// Get GPU data via RPC
-		#ifdef __COSMOPOLITAN__
 		auto gpu_data = Gpu::collect(false);
 		int gpu_count = Gpu::get_count();
 		auto gpu_names = Gpu::get_gpu_names();
-		#else
-		vector<gpu_info> gpu_data;
-		int gpu_count = 0;
-		vector<string> gpu_names;
-		#endif
 		
 		std::time_t timestamp = std::time(nullptr);
 		
@@ -304,15 +270,9 @@ mcp::json get_npu_info_handler(const mcp::json& params, const std::string /* ses
 		trigger_plugin_refresh();
 		
 		// Get NPU data via RPC
-		#ifdef __COSMOPOLITAN__
 		auto npu_data = Npu::collect(false);
 		int npu_count = Npu::get_count();
 		auto npu_names = Npu::get_npu_names();
-		#else
-		vector<npu_info> npu_data;
-		int npu_count = 0;
-		vector<string> npu_names;
-		#endif
 		
 		std::time_t timestamp = std::time(nullptr);
 		
@@ -350,19 +310,11 @@ mcp::json get_system_info_handler(const mcp::json& params, const std::string /* 
 		std::time_t timestamp = std::time(nullptr);
 		
 		// Get additional system information
-		#ifdef __COSMOPOLITAN__
 		string cpu_name = Cpu::get_cpuName();
 		uint64_t total_mem = Mem::get_totalMem();
 		bool has_battery = Cpu::get_has_battery();
 		int gpu_count = Gpu::get_count();
 		int npu_count = Npu::get_count();
-		#else
-		string cpu_name = "Unknown CPU";
-		uint64_t total_mem = 0;
-		bool has_battery = false;
-		int gpu_count = 0;
-		int npu_count = 0;
-		#endif
 		
 		std::ostringstream result;
 		result << "System Information\\n";
