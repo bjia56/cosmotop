@@ -35,6 +35,7 @@ set(THIRD_PARTY_INCLUDES
   ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/third_party/cpp-httplib
   ${PROJECT_SOURCE_DIR}/third_party/cpp-mcp/include
+  ${PROJECT_SOURCE_DIR}/third_party/cpp-mcp/common
   ${PROJECT_SOURCE_DIR}/third_party/fmt/include
   ${PROJECT_SOURCE_DIR}/third_party/widecharwidth
   ${PROJECT_SOURCE_DIR}/third_party/range-v3/include
@@ -75,6 +76,10 @@ if(${TARGET} STREQUAL "host")
     src/cosmotop_tools_shared.cpp
     src/cosmotop_plugin.cpp
     ${LIBCOSMO_PLUGIN_SOURCES}
+    third_party/cpp-mcp/src/mcp_server.cpp
+    third_party/cpp-mcp/src/mcp_tool.cpp
+    third_party/cpp-mcp/src/mcp_message.cpp
+    third_party/cpp-mcp/src/mcp_resource.cpp
   )
 
   target_compile_options(cosmotop.com PRIVATE -mcosmo)
