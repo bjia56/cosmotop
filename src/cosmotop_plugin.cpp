@@ -234,6 +234,52 @@ void plugin_initializer(Plugin* plugin) {
 		return Proc::detailed;
 	}));
 
+	plugin->registerHandler<vector<Docker::container_info>, bool>("Docker::collect", std::function([](bool no_update) {
+#if defined(__linux__)
+		return Docker::collect(no_update);
+#else
+		return vector<Docker::container_info>();
+#endif
+	}));
+	plugin->registerHandler<int>("Docker::get_numcontainers", std::function([]() {
+#if defined(__linux__)
+		return Docker::numcontainers.load();
+#else
+		return 0;
+#endif
+	}));
+	plugin->registerHandler<bool, int>("Docker::set_collapse", std::function([](int val) {
+#if defined(__linux__)
+		Docker::collapse = val;
+		return true;
+#else
+		return false;
+#endif
+	}));
+	plugin->registerHandler<bool, int>("Docker::set_expand", std::function([](int val) {
+#if defined(__linux__)
+		Docker::expand = val;
+		return true;
+#else
+		return false;
+#endif
+	}));
+	plugin->registerHandler<bool>("Docker::increment_filter_found", std::function([]() {
+#if defined(__linux__)
+		Docker::filter_found++;
+		return true;
+#else
+		return false;
+#endif
+	}));
+	plugin->registerHandler<Docker::detail_container>("Docker::get_detailed", std::function([]() {
+#if defined(__linux__)
+		return Docker::detailed;
+#else
+		return Docker::detail_container{};
+#endif
+	}));
+
 	plugin->registerHandler<bool>("Shared::init", std::function([]() {
 		Shared::init();
 		return true;

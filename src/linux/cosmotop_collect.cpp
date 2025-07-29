@@ -21,6 +21,7 @@ tab-size = 4
 #include <unordered_map>
 #include <unordered_set>
 #include <fstream>
+#include <sstream>
 #include <cmath>
 #include <unistd.h>
 #include <numeric>
@@ -3695,5 +3696,251 @@ namespace Tools {
 			catch (const std::out_of_range&) {}
 		}
         throw std::runtime_error("Failed to get uptime from " + string{Shared::procPath} + "/uptime");
+	}
+}
+
+namespace Docker {
+	vector<container_info> current_containers;
+	string current_sort;
+	string current_filter;
+	bool current_rev{};
+	atomic<int> numcontainers{};
+	int filter_found{};
+	detail_container detailed;
+	int collapse = -1, expand = -1;
+
+	//* Execute docker command and return output
+	string docker_command(const string& cmd) {
+		string result;
+		FILE* pipe = popen(("docker " + cmd + " 2>/dev/null").c_str(), "r");
+		if (!pipe) return "";
+		
+		char buffer[128];
+		while (fgets(buffer, sizeof buffer, pipe) != nullptr) {
+			result += buffer;
+		}
+		pclose(pipe);
+		return result;
+	}
+
+	//* Parse docker stats output for container metrics
+	void parse_docker_stats(vector<container_info>& containers) {
+		string stats_cmd = "stats --no-stream --format \"table {{.Container}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.NetIO}}\\t{{.BlockIO}}\"";
+		string stats_output = docker_command(stats_cmd);
+		
+		if (stats_output.empty()) return;
+		
+		std::unordered_map<string, container_info*> container_map;
+		for (auto& container : containers) {
+			container_map[container.container_id] = &container;
+		}
+		
+		std::istringstream stats_stream(stats_output);
+		string line;
+		bool first_line = true;
+		
+		while (getline(stats_stream, line)) {
+			if (first_line) { // Skip header
+				first_line = false;
+				continue;
+			}
+			
+			std::istringstream line_stream(line);
+			string container_id, cpu_str, mem_str, net_str, block_str;
+			
+			if (getline(line_stream, container_id, '\t') &&
+				getline(line_stream, cpu_str, '\t') &&
+				getline(line_stream, mem_str, '\t') &&
+				getline(line_stream, net_str, '\t') &&
+				getline(line_stream, block_str, '\t')) {
+				
+				auto it = container_map.find(container_id);
+				if (it != container_map.end()) {
+					container_info* container = it->second;
+					
+					// Parse CPU percentage
+					if (!cpu_str.empty() && cpu_str.back() == '%') {
+						cpu_str.pop_back();
+						try {
+							container->cpu_percent = stod(cpu_str);
+						} catch (...) {
+							container->cpu_percent = 0.0;
+						}
+					}
+					
+					// Parse memory usage
+					size_t slash_pos = mem_str.find(" / ");
+					if (slash_pos != string::npos) {
+						string used_str = mem_str.substr(0, slash_pos);
+						string limit_str = mem_str.substr(slash_pos + 3);
+						
+						// Simple parsing - could be improved for different units
+						try {
+							container->mem_usage = stoull(used_str);
+							container->mem_limit = stoull(limit_str);
+						} catch (...) {
+							container->mem_usage = 0;
+							container->mem_limit = 0;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	//* Get detailed info for selected container
+	void _collect_details(const string& container_id, vector<container_info>& containers) {
+		if (container_id != detailed.last_container_id) {
+			detailed = {};
+			detailed.last_container_id = container_id;
+		}
+		
+		// Find container in list
+		auto it = rng::find(containers, container_id, &container_info::container_id);
+		if (it != containers.end()) {
+			detailed.entry = *it;
+			
+			// Update CPU and memory history for graphs
+			detailed.cpu_percent.push_back((long long)round(detailed.entry.cpu_percent));
+			while (detailed.cpu_percent.size() > 100) detailed.cpu_percent.pop_front();
+			
+			detailed.mem_bytes.push_back((long long)detailed.entry.mem_usage);
+			while (detailed.mem_bytes.size() > 100) detailed.mem_bytes.pop_front();
+			
+			if (detailed.entry.mem_limit > 0) {
+				detailed.mem_percent = (double)detailed.entry.mem_usage / detailed.entry.mem_limit * 100.0;
+			}
+		}
+	}
+
+	auto collect(bool no_update) -> vector<container_info>& {
+		const auto sorting = Config::getS("docker_sorting");
+		const auto reverse = Config::getB("docker_reversed");
+		const auto filter = Config::getS("docker_filter");
+		bool should_filter = current_filter != filter;
+		if (should_filter) current_filter = filter;
+		
+		bool sorted_change = (sorting != current_sort or reverse != current_rev or should_filter);
+		if (sorted_change) {
+			current_sort = sorting;
+			current_rev = reverse;
+		}
+
+		if (no_update and not current_containers.empty()) {
+			if (sorted_change) {
+				container_sorter(current_containers, sorting, reverse);
+			}
+			return current_containers;
+		}
+
+		current_containers.clear();
+		filter_found = 0;
+
+		// Get container list
+		string ps_cmd = "ps -a --format \"table {{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Command}}\\t{{.Status}}\\t{{.State}}\\t{{.CreatedAt}}\\t{{.Ports}}\"";
+		string ps_output = docker_command(ps_cmd);
+		
+		if (ps_output.empty()) {
+			numcontainers = 0;
+			return current_containers;
+		}
+
+		// Parse container list
+		std::istringstream ps_stream(ps_output);
+		string line;
+		bool first_line = true;
+		
+		while (getline(ps_stream, line)) {
+			if (first_line) { // Skip header
+				first_line = false;
+				continue;
+			}
+			
+			container_info container;
+			std::istringstream line_stream(line);
+			string created_str, ports_str;
+			
+			if (getline(line_stream, container.container_id, '\t') &&
+				getline(line_stream, container.name, '\t') &&
+				getline(line_stream, container.image, '\t') &&
+				getline(line_stream, container.command, '\t') &&
+				getline(line_stream, container.status, '\t') &&
+				getline(line_stream, container.state, '\t') &&
+				getline(line_stream, created_str, '\t') &&
+				getline(line_stream, ports_str)) {
+				
+				// Simple created time parsing (could be improved)
+				container.created = 0;
+				
+				// Parse ports
+				if (!ports_str.empty()) {
+					std::istringstream ports_stream(ports_str);
+					string port;
+					while (getline(ports_stream, port, ',')) {
+						container.ports.push_back(port);
+					}
+				}
+				
+				// Apply filter
+				if (not filter.empty() and not matches_filter(container, filter)) {
+					container.filtered = true;
+					filter_found++;
+				}
+				
+				current_containers.push_back(container);
+			}
+		}
+
+		// Get container stats
+		parse_docker_stats(current_containers);
+
+		// Sort containers
+		if (not current_containers.empty()) {
+			container_sorter(current_containers, sorting, reverse);
+		}
+
+		// Get detailed info if requested
+		const size_t detailed_container_id = Config::getI("detailed_container_id");
+		if (detailed_container_id > 0 and detailed_container_id <= current_containers.size()) {
+			_collect_details(current_containers.at(detailed_container_id - 1).container_id, current_containers);
+		}
+
+		numcontainers = (int)current_containers.size() - filter_found;
+		return current_containers;
+	}
+
+	void container_sorter(vector<container_info>& container_vec, const string& sorting, bool reverse) {
+		if (sorting == "id") {
+			rng::sort(container_vec, rng::less{}, &container_info::container_id);
+		}
+		else if (sorting == "name") {
+			rng::sort(container_vec, rng::less{}, &container_info::name);
+		}
+		else if (sorting == "image") {
+			rng::sort(container_vec, rng::less{}, &container_info::image);
+		}
+		else if (sorting == "status") {
+			rng::sort(container_vec, rng::less{}, &container_info::status);
+		}
+		else if (sorting == "cpu") {
+			rng::sort(container_vec, rng::greater{}, &container_info::cpu_percent);
+		}
+		else if (sorting == "memory") {
+			rng::sort(container_vec, rng::greater{}, &container_info::mem_usage);
+		}
+		else if (sorting == "created") {
+			rng::sort(container_vec, rng::greater{}, &container_info::created);
+		}
+		
+		if (reverse) {
+			rng::reverse(container_vec);
+		}
+	}
+
+	bool matches_filter(const container_info& container, const std::string& filter) {
+		return (container.name.find(filter) != string::npos or
+				container.image.find(filter) != string::npos or
+				container.container_id.find(filter) != string::npos or
+				container.status.find(filter) != string::npos);
 	}
 }

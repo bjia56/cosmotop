@@ -2346,3 +2346,25 @@ namespace Tools {
 		return (double)GetTickCount64() / 1000;
 	}
 }
+
+namespace Docker {
+	vector<container_info> current_containers;
+	atomic<int> numcontainers{};
+	int filter_found{};
+	detail_container detailed;
+	int collapse = -1, expand = -1;
+
+	auto collect(bool no_update) -> vector<container_info>& {
+		current_containers.clear();
+		numcontainers = 0;
+		return current_containers;
+	}
+
+	void container_sorter(vector<container_info>& container_vec, const string& sorting, bool reverse) {
+		// No-op for unsupported platforms
+	}
+
+	bool matches_filter(const container_info& container, const std::string& filter) {
+		return false;
+	}
+}  // namespace Docker

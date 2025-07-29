@@ -563,3 +563,96 @@ namespace Proc {
 				   int cur_depth, bool collapsed, const string& filter,
 				   bool found = false, bool no_update = false, bool should_filter = false);
 }
+
+namespace Docker {
+	extern atomic<int> numcontainers;
+	int get_numcontainers();
+
+	extern string box;
+	extern int x, y, width, height, min_width, min_height;
+	extern bool shown, redraw;
+	extern int select_max_rows;
+	extern atomic<int> detailed_container_id;
+	extern string selected_container_id, start, selected, collapse, expand, filter_found, selected_depth;
+	extern string selected_name;
+
+	void set_collapse(int val);
+	void set_expand(int val);
+	void increment_filter_found();
+
+	int get_width();
+	void set_redraw(bool val);
+	string get_selected_container_id();
+	int get_select_max();
+
+	//? Contains the valid sorting options for containers
+	const vector<string> sort_vector = {
+		"id",
+		"name",
+		"image",
+		"status",
+		"cpu",
+		"memory",
+		"created",
+	};
+
+	//? Translation from container state to explanative string
+	const std::unordered_map<string, string> container_states = {
+		{"created", "Created"},
+		{"restarting", "Restarting"},
+		{"running", "Running"},
+		{"removing", "Removing"},
+		{"paused", "Paused"},
+		{"exited", "Exited"},
+		{"dead", "Dead"}
+	};
+
+	//* Container for container information
+	struct container_info {
+		string container_id{};
+		string name{};          
+		string image{};         
+		string command{};       
+		string status{};        
+		string state{};         
+		uint64_t created{};     
+		uint64_t mem_usage{};   
+		uint64_t mem_limit{};   
+		double cpu_percent{};   
+		uint64_t net_rx{};      
+		uint64_t net_tx{};      
+		uint64_t block_read{};  
+		uint64_t block_write{}; 
+		vector<string> ports{};
+		bool filtered{};
+	};
+
+	//* Container for container info box
+	struct detail_container {
+		string last_container_id{};
+		container_info entry;
+		string uptime, image, command, ports, mounts;
+		long long first_mem = -1;
+		deque<long long> cpu_percent;
+		deque<long long> mem_bytes;
+		double mem_percent = 0.0;
+	};
+
+	//? Contains all info for container detailed box
+	extern detail_container detailed;
+	detail_container get_detailed();
+
+	//* Collect and sort container information
+	auto collect(bool no_update = false) -> vector<container_info>&;
+
+	//* Update current selection and view, returns -1 if no change otherwise the current selection
+	int selection(const string& cmd_key);
+
+	//* Draw contents of docker box using <clist> as data source
+	string draw(const vector<container_info>& clist, bool force_redraw = false, bool data_same = false);
+
+	//* Sort vector of container_info's
+	void container_sorter(vector<container_info>& container_vec, const string& sorting, bool reverse);
+
+	bool matches_filter(const container_info& container, const std::string& filter);
+}
