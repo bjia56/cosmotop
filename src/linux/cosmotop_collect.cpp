@@ -58,6 +58,8 @@ extern "C" {
 #undef class
 
 #include <httplib.h>
+#include <rfl/json.hpp>
+#include <rfl.hpp>
 
 using std::clamp;
 using std::cmp_greater;
@@ -3717,14 +3719,63 @@ namespace Container {
 	bool use_socket = false;
 	string docker_socket_path = "/var/run/docker.sock";
 
+	// Docker API JSON structures using reflect-cpp
+	struct DockerPort {
+		string IP;
+		uint16_t PrivatePort;
+		uint16_t PublicPort;
+		string Type;
+	};
+
+	struct DockerContainer {
+		string Id;
+		vector<string> Names;
+		string Image;
+		string Command;
+		int64_t Created;
+		string Status;
+		string State;
+		vector<DockerPort> Ports;
+	};
+
+	struct DockerStats {
+		string id;
+		string name;
+		struct {
+			uint64_t usage;
+			uint64_t limit;
+		} memory;
+		struct {
+			double cpu_percent;
+		} cpu;
+		struct {
+			uint64_t rx_bytes;
+			uint64_t tx_bytes;
+		} networks;
+		struct {
+			uint64_t read;
+			uint64_t write;
+		} blkio;
+	};
+
 	//* Initialize Docker detection and choose preferred method
 	void init() {
 		// First try Docker socket
 		if (fs::exists(docker_socket_path) && access(docker_socket_path.c_str(), R_OK) == 0) {
-			// Simple socket availability check - httplib unix socket support may vary
-			// For now, just check socket file permissions and proceed with CLI
-			// Future enhancement: implement proper Unix domain socket HTTP client
-			Logger::debug("Container::init() : Docker socket found at " + docker_socket_path);
+			// Test socket connectivity by making a simple API call
+			try {
+				httplib::Client cli(docker_socket_path);
+				cli.set_address_family(AF_UNIX);
+				auto result = cli.Get("/version");
+				if (result && result->status == 200) {
+					use_socket = true;
+					has_containers = true;
+					Logger::debug("Container::init() : Using Docker socket");
+					return;
+				}
+			} catch (const std::exception& e) {
+				Logger::debug("Container::init() : Docker socket test failed: " + string(e.what()));
+			}
 		}
 
 		// Fall back to Docker CLI
@@ -3759,12 +3810,95 @@ namespace Container {
 		return result;
 	}
 
-	//* Execute Docker API call via socket (future enhancement)
+	//* Execute Docker API call via socket
 	string docker_api_call(const string& endpoint) {
-		// Future enhancement: implement Docker API calls via Unix domain socket
-		// For now, this is a placeholder that returns empty string
-		// Requires proper JSON parsing library to be useful
-		return "";
+		if (!use_socket) {
+			return ""; // Fall back to CLI method
+		}
+		
+		try {
+			httplib::Client cli(docker_socket_path);
+			cli.set_address_family(AF_UNIX);
+			
+			auto result = cli.Get(endpoint);
+			if (result && result->status == 200) {
+				return result->body;
+			} else {
+				Logger::debug("Docker API call failed for endpoint: " + endpoint);
+				return "";
+			}
+		} catch (const std::exception& e) {
+			Logger::debug("Docker API call exception: " + string(e.what()));
+			return "";
+		}
+	}
+
+	//* Parse container list from Docker API JSON response  
+	vector<container_info> parse_containers_json(const string& json_response) {
+		vector<container_info> containers;
+		
+		try {
+			auto docker_containers = rfl::json::read<vector<DockerContainer>>(json_response);
+			if (!docker_containers) {
+				Logger::debug("Failed to parse containers JSON");
+				return containers;
+			}
+			
+			for (const auto& dc : docker_containers.value()) {
+				container_info container;
+				container.container_id = dc.Id.substr(0, 12); // Short ID
+				container.name = dc.Names.empty() ? "" : dc.Names[0];
+				if (!container.name.empty() && container.name[0] == '/') {
+					container.name = container.name.substr(1); // Remove leading slash
+				}
+				container.image = dc.Image;
+				container.command = dc.Command;
+				container.created = dc.Created;
+				container.status = dc.Status;
+				container.state = dc.State;
+				
+				// Parse ports
+				for (const auto& port : dc.Ports) {
+					string port_str = to_string(port.PrivatePort);
+					if (port.PublicPort > 0) {
+						port_str = to_string(port.PublicPort) + "->" + port_str;
+					}
+					port_str += "/" + port.Type;
+					container.ports.push_back(port_str);
+				}
+				
+				containers.push_back(container);
+			}
+		} catch (const std::exception& e) {
+			Logger::debug("Error parsing containers JSON: " + string(e.what()));
+		}
+		
+		return containers;
+	}
+
+	//* Get container stats via Docker API
+	void get_container_stats_api(vector<container_info>& containers) {
+		for (auto& container : containers) {
+			string endpoint = "/containers/" + container.container_id + "/stats?stream=false";
+			string stats_json = docker_api_call(endpoint);
+			
+			if (stats_json.empty()) continue;
+			
+			try {
+				auto stats = rfl::json::read<DockerStats>(stats_json);
+				if (stats) {
+					container.mem_usage = stats.value().memory.usage;
+					container.mem_limit = stats.value().memory.limit;
+					container.cpu_percent = stats.value().cpu.cpu_percent;
+					container.net_rx = stats.value().networks.rx_bytes;
+					container.net_tx = stats.value().networks.tx_bytes;
+					container.block_read = stats.value().blkio.read;
+					container.block_write = stats.value().blkio.write;
+				}
+			} catch (const std::exception& e) {
+				Logger::debug("Error parsing stats for container " + container.container_id + ": " + string(e.what()));
+			}
+		}
 	}
 
 	//* Parse docker stats output for container metrics
@@ -3887,64 +4021,79 @@ namespace Container {
 		current_containers.clear();
 		filter_found = 0;
 
-		// Get container list using Docker CLI
-		// Future enhancement: implement socket-based API calls with JSON parsing
-		string ps_cmd = "ps -a --format \"table {{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Command}}\\t{{.Status}}\\t{{.State}}\\t{{.CreatedAt}}\\t{{.Ports}}\"";
-		string ps_output = docker_command(ps_cmd);
-		
-		if (ps_output.empty()) {
-			numcontainers = 0;
-			return current_containers;
-		}
-
-		// Parse container list
-		std::istringstream ps_stream(ps_output);
-		string line;
-		bool first_line = true;
-		
-		while (getline(ps_stream, line)) {
-			if (first_line) { // Skip header
-				first_line = false;
-				continue;
+		// Use Docker API if socket is available, otherwise fall back to CLI
+		if (use_socket) {
+			string containers_json = docker_api_call("/containers/json?all=true");
+			if (!containers_json.empty()) {
+				current_containers = parse_containers_json(containers_json);
 			}
+		}
+		
+		// Fall back to CLI method if API failed or not available
+		if (current_containers.empty()) {
+			string ps_cmd = "ps -a --format \"table {{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Command}}\\t{{.Status}}\\t{{.State}}\\t{{.CreatedAt}}\\t{{.Ports}}\"";
+			string ps_output = docker_command(ps_cmd);
 			
-			container_info container;
-			std::istringstream line_stream(line);
-			string created_str, ports_str;
+			if (ps_output.empty()) {
+				numcontainers = 0;
+				return current_containers;
+			}
+
+			// Parse container list using CLI
+			std::istringstream ps_stream(ps_output);
+			string line;
+			bool first_line = true;
 			
-			if (getline(line_stream, container.container_id, '\t') &&
-				getline(line_stream, container.name, '\t') &&
-				getline(line_stream, container.image, '\t') &&
-				getline(line_stream, container.command, '\t') &&
-				getline(line_stream, container.status, '\t') &&
-				getline(line_stream, container.state, '\t') &&
-				getline(line_stream, created_str, '\t') &&
-				getline(line_stream, ports_str)) {
+			while (getline(ps_stream, line)) {
+				if (first_line) { // Skip header
+					first_line = false;
+					continue;
+				}
 				
-				// Simple created time parsing (could be improved)
-				container.created = 0;
+				container_info container;
+				std::istringstream line_stream(line);
+				string created_str, ports_str;
 				
-				// Parse ports
-				if (!ports_str.empty()) {
-					std::istringstream ports_stream(ports_str);
-					string port;
-					while (getline(ports_stream, port, ',')) {
-						container.ports.push_back(port);
+				if (getline(line_stream, container.container_id, '\t') &&
+					getline(line_stream, container.name, '\t') &&
+					getline(line_stream, container.image, '\t') &&
+					getline(line_stream, container.command, '\t') &&
+					getline(line_stream, container.status, '\t') &&
+					getline(line_stream, container.state, '\t') &&
+					getline(line_stream, created_str, '\t') &&
+					getline(line_stream, ports_str)) {
+					
+					// Simple created time parsing (could be improved)
+					container.created = 0;
+					
+					// Parse ports
+					if (!ports_str.empty()) {
+						std::istringstream ports_stream(ports_str);
+						string port;
+						while (getline(ports_stream, port, ',')) {
+							container.ports.push_back(port);
+						}
 					}
+					
+					current_containers.push_back(container);
 				}
-				
-				// Apply filter
-				if (not filter.empty() and not matches_filter(container, filter)) {
-					container.filtered = true;
-					filter_found++;
-				}
-				
-				current_containers.push_back(container);
 			}
 		}
 
-		// Get container stats
-		parse_docker_stats(current_containers);
+		// Apply filter to containers
+		for (auto& container : current_containers) {
+			if (not filter.empty() and not matches_filter(container, filter)) {
+				container.filtered = true;
+				filter_found++;
+			}
+		}
+
+		// Get container stats using API if available, otherwise CLI
+		if (use_socket && !current_containers.empty()) {
+			get_container_stats_api(current_containers);
+		} else {
+			parse_docker_stats(current_containers);
+		}
 
 		// Sort containers
 		if (not current_containers.empty()) {
