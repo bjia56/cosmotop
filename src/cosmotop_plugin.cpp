@@ -279,6 +279,13 @@ void plugin_initializer(Plugin* plugin) {
 		return Container::detail_container{};
 #endif
 	}));
+	plugin->registerHandler<bool>("Container::has_containers", std::function([]() {
+#if defined(__linux__)
+		return Container::has_containers;
+#else
+		return false;
+#endif
+	}));
 
 	plugin->registerHandler<bool>("Shared::init", std::function([]() {
 		Shared::init();

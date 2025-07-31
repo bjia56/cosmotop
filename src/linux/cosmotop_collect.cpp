@@ -396,6 +396,9 @@ namespace Shared {
 		Mem::old_uptime = system_uptime();
 		Mem::collect();
 
+		//? Init for namespace Container
+		Container::init();
+
 		Logger::debug("Shared::init() : Initialized.");
 	}
 }
@@ -3709,6 +3712,39 @@ namespace Container {
 	detail_container detailed;
 	int collapse = -1, expand = -1;
 
+	// Docker detection and method preference
+	bool has_containers = false;
+	bool use_socket = false;
+	string docker_socket_path = "/var/run/docker.sock";
+
+	//* Initialize Docker detection and choose preferred method
+	void init() {
+		// First try Docker socket
+		if (fs::exists(docker_socket_path) && access(docker_socket_path.c_str(), R_OK) == 0) {
+			// Simple socket availability check - httplib unix socket support may vary
+			// For now, just check socket file permissions and proceed with CLI
+			// Future enhancement: implement proper Unix domain socket HTTP client
+			Logger::debug("Container::init() : Docker socket found at " + docker_socket_path);
+		}
+
+		// Fall back to Docker CLI
+		FILE* pipe = popen("docker ps --format '{{.ID}}' 2>/dev/null", "r");
+		if (pipe) {
+			char buffer[128];
+			if (fgets(buffer, sizeof buffer, pipe) != nullptr) {
+				// Successfully executed docker command
+				use_socket = false;
+				has_containers = true;
+				Logger::debug("Container::init() : Using Docker CLI");
+			}
+			pclose(pipe);
+		}
+
+		if (!has_containers) {
+			Logger::debug("Container::init() : Docker not available");
+		}
+	}
+
 	//* Execute docker command and return output
 	string docker_command(const string& cmd) {
 		string result;
@@ -3721,6 +3757,14 @@ namespace Container {
 		}
 		pclose(pipe);
 		return result;
+	}
+
+	//* Execute Docker API call via socket (future enhancement)
+	string docker_api_call(const string& endpoint) {
+		// Future enhancement: implement Docker API calls via Unix domain socket
+		// For now, this is a placeholder that returns empty string
+		// Requires proper JSON parsing library to be useful
+		return "";
 	}
 
 	//* Parse docker stats output for container metrics
@@ -3814,6 +3858,13 @@ namespace Container {
 	}
 
 	auto collect(bool no_update) -> vector<container_info>& {
+		// Early return if Docker is not available
+		if (!has_containers) {
+			current_containers.clear();
+			numcontainers = 0;
+			return current_containers;
+		}
+
 		const auto sorting = Config::getS("container_sorting");
 		const auto reverse = Config::getB("container_reversed");
 		const auto filter = Config::getS("container_filter");
@@ -3836,7 +3887,8 @@ namespace Container {
 		current_containers.clear();
 		filter_found = 0;
 
-		// Get container list
+		// Get container list using Docker CLI
+		// Future enhancement: implement socket-based API calls with JSON parsing
 		string ps_cmd = "ps -a --format \"table {{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Command}}\\t{{.Status}}\\t{{.State}}\\t{{.CreatedAt}}\\t{{.Ports}}\"";
 		string ps_output = docker_command(ps_cmd);
 		
