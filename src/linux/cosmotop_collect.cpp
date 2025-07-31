@@ -3699,7 +3699,7 @@ namespace Tools {
 	}
 }
 
-namespace Docker {
+namespace Container {
 	vector<container_info> current_containers;
 	string current_sort;
 	string current_filter;
@@ -3814,9 +3814,9 @@ namespace Docker {
 	}
 
 	auto collect(bool no_update) -> vector<container_info>& {
-		const auto sorting = Config::getS("docker_sorting");
-		const auto reverse = Config::getB("docker_reversed");
-		const auto filter = Config::getS("docker_filter");
+		const auto sorting = Config::getS("container_sorting");
+		const auto reverse = Config::getB("container_reversed");
+		const auto filter = Config::getS("container_filter");
 		bool should_filter = current_filter != filter;
 		if (should_filter) current_filter = filter;
 		

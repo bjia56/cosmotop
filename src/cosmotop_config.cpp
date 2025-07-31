@@ -99,7 +99,7 @@ namespace Config {
 		{"services_sorting",	"#* Services sorting, \"service\" \"caption\" \"status\" \"memory\" \"cpu lazy\" \"cpu direct\",\n"
 								"#* \"cpu lazy\" sorts top service over time (easier to follow), \"cpu direct\" updates top service directly."},
 
-		{"docker_sorting",		"#* Docker container sorting, \"id\" \"name\" \"image\" \"status\" \"cpu\" \"memory\" \"created\"."},
+		{"container_sorting",		"#* Container sorting, \"id\" \"name\" \"image\" \"status\" \"cpu\" \"memory\" \"created\"."},
 
 		{"proc_reversed",		"#* Reverse sorting order, True or False."},
 
@@ -252,9 +252,9 @@ namespace Config {
 		{"graph_symbol_proc", "default"},
 		{"proc_sorting", "cpu lazy"},
 		{"services_sorting", "cpu lazy"},
-		{"docker_sorting", "cpu"},
-		{"docker_reversed", "False"},
-		{"docker_filter", ""},
+		{"container_sorting", "cpu"},
+		{"container_reversed", "False"},
+		{"container_filter", ""},
 		{"cpu_graph_upper", "Auto"},
 		{"cpu_graph_lower", "Auto"},
 		{"cpu_sensor", "Auto"},

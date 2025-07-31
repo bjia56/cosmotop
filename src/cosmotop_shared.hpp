@@ -564,7 +564,7 @@ namespace Proc {
 				   bool found = false, bool no_update = false, bool should_filter = false);
 }
 
-namespace Docker {
+namespace Container {
 	extern atomic<int> numcontainers;
 	int get_numcontainers();
 
@@ -648,7 +648,7 @@ namespace Docker {
 	//* Update current selection and view, returns -1 if no change otherwise the current selection
 	int selection(const string& cmd_key);
 
-	//* Draw contents of docker box using <clist> as data source
+	//* Draw contents of container box using <clist> as data source
 	string draw(const vector<container_info>& clist, bool force_redraw = false, bool data_same = false);
 
 	//* Sort vector of container_info's
