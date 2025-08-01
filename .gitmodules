@@ -19,6 +19,6 @@
 [submodule "third_party/catppuccin"]
 	path = third_party/catppuccin
 	url = https://github.com/catppuccin/btop.git
-[submodule "third_party/cpp-mcp"]
-	path = third_party/cpp-mcp
-	url = https://github.com/hkr04/cpp-mcp.git
+[submodule "third_party/TinyMCP"]
+	path = third_party/TinyMCP
+	url = https://github.com/Qihoo360/TinyMCP.git

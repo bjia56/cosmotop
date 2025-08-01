@@ -21,17 +21,19 @@ tab-size = 4
 #include <string>
 #include <memory>
 
-// Forward declare mcp::server
-namespace mcp {
-	class server;
-}
+namespace Mcp {
 
-namespace MCP {
+	class CosmotopMCPServer;
+	class ProcessToolTask;
+	class CpuToolTask;
+	class MemoryToolTask;
+	class NetworkToolTask;
+	class GpuToolTask;
+	class NpuToolTask;
+	class SystemToolTask;
 
-	// Global MCP server instance  
-	extern std::unique_ptr<mcp::server> server_instance;
-
-	// Utility functions
+	// Utility functions for TinyMCP server
 	bool init_mcp_server();
 	void shutdown_mcp_server();
+
 }
