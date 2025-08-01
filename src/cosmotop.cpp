@@ -1182,7 +1182,7 @@ int main(int argc, char **argv) {
 
 	//? MCP server mode
 	if (Global::arg_mcp) {
-		std::cout << "Starting in MCP server mode" << std::endl;
+		Logger::debug("Starting in MCP server mode");
 		
 		//? Platform dependent init and error check
 		try {
@@ -1194,15 +1194,15 @@ int main(int argc, char **argv) {
 		}
 		
 		if (Mcp::init_mcp_server()) {
-			std::cout << "MCP server started successfully" << std::endl;
+			Logger::debug("MCP server started successfully");
 			// Keep the server running until shutdown
 			while (not Global::quitting) {
 				sleep_ms(1000);
 			}
 			Mcp::shutdown_mcp_server();
-			std::cout << "MCP server shutdown" << std::endl;
+			Logger::debug("MCP server shutdown");
 		} else {
-			std::cerr << "Failed to start MCP server!" << std::endl;
+			Logger::error("Failed to start MCP server!");
 			clean_quit(1);
 		}
 		clean_quit(0);
