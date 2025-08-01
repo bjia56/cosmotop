@@ -690,8 +690,6 @@ public:
 						result << "Has Battery: " << (has_battery ? "Yes" : "No") << "\\n";
 						result << "GPU Count: " << gpu_count << "\\n";
 						result << "NPU Count: " << npu_count << "\\n";
-						result << "TinyMCP Server Address: " << Config::getS("mcp_server_address") << "\\n";
-						result << "TinyMCP Server Port: " << Config::getI("mcp_server_port") << "\\n";
 						result << "Timestamp: " << timestamp << "\\n";
 					} catch (const std::exception& e) {
 						result << "Error: " << e.what();
