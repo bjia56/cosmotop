@@ -580,6 +580,9 @@ namespace Container {
 	void set_expand(int val);
 	void increment_filter_found();
 
+	void init();
+	extern bool has_containers;
+
 	int get_width();
 	void set_redraw(bool val);
 	string get_selected_container_id();

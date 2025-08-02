@@ -266,7 +266,8 @@ void plugin_initializer(Plugin* plugin) {
 	}));
 	plugin->registerHandler<bool>("Container::increment_filter_found", std::function([]() {
 #if defined(__linux__)
-		Container::filter_found++;
+		int val = std::stoi(Container::filter_found.empty() ? "0" : Container::filter_found);
+		Container::filter_found = std::to_string(val + 1);
 		return true;
 #else
 		return false;

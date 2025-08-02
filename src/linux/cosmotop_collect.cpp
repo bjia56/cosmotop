@@ -3713,9 +3713,9 @@ namespace Container {
 	string current_filter;
 	bool current_rev{};
 	atomic<int> numcontainers{};
-	int filter_found{};
+	string filter_found{};
 	detail_container detailed;
-	int collapse = -1, expand = -1;
+	string collapse = "-1", expand = "-1";
 
 	// Docker detection and method preference
 	bool has_containers = false;
@@ -4022,7 +4022,7 @@ namespace Container {
 		}
 
 		current_containers.clear();
-		filter_found = 0;
+		filter_found = "0";
 
 		// Use Docker API if socket is available, otherwise fall back to CLI
 		if (use_socket) {
@@ -4087,7 +4087,8 @@ namespace Container {
 		for (auto& container : current_containers) {
 			if (not filter.empty() and not matches_filter(container, filter)) {
 				container.filtered = true;
-				filter_found++;
+				int val = std::stoi(filter_found.empty() ? "0" : filter_found);
+				filter_found = std::to_string(val + 1);
 			}
 		}
 
@@ -4109,7 +4110,7 @@ namespace Container {
 			_collect_details(current_containers.at(detailed_container_id - 1).container_id, current_containers);
 		}
 
-		numcontainers = (int)current_containers.size() - filter_found;
+		numcontainers = (int)current_containers.size() - std::stoi(filter_found.empty() ? "0" : filter_found);
 		return current_containers;
 	}
 
