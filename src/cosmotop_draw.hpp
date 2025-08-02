@@ -142,3 +142,11 @@ namespace Proc {
 	// row into the true selected row in the process list
 	int selected_to_true_selected(int selected);
 }
+
+namespace Container {
+	extern Draw::TextEdit filter;
+	extern std::unordered_map<size_t, Draw::Graph> c_graphs;
+	extern std::unordered_map<size_t, int> c_counters;
+	extern int counter;
+	extern int id_size, name_size, image_size, status_size, cpu_size, mem_size;
+}
