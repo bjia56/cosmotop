@@ -70,8 +70,8 @@ public:
 		},
 		"limit": {
 			"type": "integer",
-			"description": "Maximum number of processes to return (0 for all)",
-			"default": 0
+			"description": "Maximum number of processes to return (-1 for all)",
+			"default": -1
 		}
 	},
 	"required": []
@@ -131,7 +131,7 @@ public:
 						string filter_name, filter_user, sort_by = "pid";
 						double min_cpu = 0.0;
 						uint64_t min_memory = 0;
-						int limit = 0;
+						int limit = -1;
 
 						if (spCallToolRequest->jArguments.isObject()) {
 							if (spCallToolRequest->jArguments.isMember("filter_name") &&
