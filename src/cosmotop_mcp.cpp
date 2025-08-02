@@ -1236,7 +1236,7 @@ public:
 		// Set server info
 		TinyMCP::Implementation serverInfo;
 		serverInfo.strName = SERVER_NAME;
-		serverInfo.strVersion = Global::Version;
+		serverInfo.strVersion = "v" + Global::Version;
 		SetServerInfo(serverInfo);
 
 		// Register server capabilities
