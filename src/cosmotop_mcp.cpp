@@ -19,6 +19,8 @@ tab-size = 4
 #include <sstream>
 #include <ctime>
 #include <iostream>
+#include <algorithm>
+#include <string>
 
 #include <Entity/Server.h>
 #include <Task/BasicTask.h>
@@ -40,7 +42,41 @@ class ProcessToolTask : public TinyMCP::ProcessCallToolRequest {
 public:
 	static constexpr const char* TOOL_NAME = "get_processes";
 	static constexpr const char* TOOL_DESCRIPTION = "Get list of running processes";
-	static constexpr const char* TOOL_INPUT_SCHEMA = R"({"type":"object","properties":{},"required":[]})";
+	static constexpr const char* TOOL_INPUT_SCHEMA = R"EOF(
+{
+	"type": "object",
+	"properties": {
+		"filter_name": {
+			"type": "string",
+			"description": "Filter processes by name (partial match)"
+		},
+		"filter_user": {
+			"type": "string",
+			"description": "Filter processes by user"
+		},
+		"min_cpu": {
+			"type": "number",
+			"description": "Minimum CPU percentage"
+		},
+		"min_memory": {
+			"type": "number",
+			"description": "Minimum memory usage in bytes"
+		},
+		"sort_by": {
+			"type": "string",
+			"enum": ["cpu", "memory", "name", "pid", "user"],
+			"description": "Sort processes by field",
+			"default": "pid"
+		},
+		"limit": {
+			"type": "integer",
+			"description": "Maximum number of processes to return (0 for all)",
+			"default": 0
+		}
+	},
+	"required": []
+}
+)EOF";
 
 	ProcessToolTask(const std::shared_ptr<TinyMCP::Request>& spRequest)
 		: ProcessCallToolRequest(spRequest) {}
@@ -91,22 +127,135 @@ public:
 					result << "Plugin not loaded";
 				} else {
 					try {
+						// Parse input arguments
+						string filter_name, filter_user, sort_by = "pid";
+						double min_cpu = 0.0;
+						uint64_t min_memory = 0;
+						int limit = 0;
+
+						if (spCallToolRequest->jArguments.isObject()) {
+							if (spCallToolRequest->jArguments.isMember("filter_name") &&
+								spCallToolRequest->jArguments["filter_name"].isString()) {
+								filter_name = spCallToolRequest->jArguments["filter_name"].asString();
+							}
+							if (spCallToolRequest->jArguments.isMember("filter_user") &&
+								spCallToolRequest->jArguments["filter_user"].isString()) {
+								filter_user = spCallToolRequest->jArguments["filter_user"].asString();
+							}
+							if (spCallToolRequest->jArguments.isMember("min_cpu") &&
+								spCallToolRequest->jArguments["min_cpu"].isNumeric()) {
+								min_cpu = spCallToolRequest->jArguments["min_cpu"].asDouble();
+							}
+							if (spCallToolRequest->jArguments.isMember("min_memory") &&
+								spCallToolRequest->jArguments["min_memory"].isNumeric()) {
+								min_memory = spCallToolRequest->jArguments["min_memory"].asUInt64();
+							}
+							if (spCallToolRequest->jArguments.isMember("sort_by") &&
+								spCallToolRequest->jArguments["sort_by"].isString()) {
+								sort_by = spCallToolRequest->jArguments["sort_by"].asString();
+							}
+							if (spCallToolRequest->jArguments.isMember("limit") &&
+								spCallToolRequest->jArguments["limit"].isIntegral()) {
+								limit = spCallToolRequest->jArguments["limit"].asInt();
+							}
+						}
+
 						auto proc_data = Proc::collect(false);
-						int numpids = Proc::get_numpids();
+						int total_processes = Proc::get_numpids();
 						std::time_t timestamp = std::time(nullptr);
 
-						result << "Process Information (Total: " << numpids << ")\\n";
-						result << "Timestamp: " << timestamp << "\\n\\n";
+						// Filter processes
+						vector<Proc::proc_info> filtered_processes;
+						for (const auto& proc : proc_data) {
+							bool include = true;
 
-						for (size_t i = 0; i < proc_data.size() && i < 10; ++i) {
-							result << "PID: " << proc_data[i].pid << "\\n";
-							result << "Name: " << proc_data[i].name << "\\n";
-							result << "User: " << proc_data[i].user << "\\n";
-							result << "CPU: " << proc_data[i].cpu_p << "%\\n";
-							result << "Memory: " << proc_data[i].mem << " bytes\\n";
-							result << "State: " << proc_data[i].state << "\\n";
-							result << "Threads: " << proc_data[i].threads << "\\n\\n";
+							// Apply filters
+							if (!filter_name.empty()) {
+								if (proc.name.find(filter_name) == string::npos) {
+									include = false;
+								}
+							}
+							if (!filter_user.empty() && include) {
+								if (proc.user != filter_user) {
+									include = false;
+								}
+							}
+							if (min_cpu > 0.0 && include) {
+								if (proc.cpu_p < min_cpu) {
+									include = false;
+								}
+							}
+							if (min_memory > 0 && include) {
+								if (proc.mem < min_memory) {
+									include = false;
+								}
+							}
+
+							if (include) {
+								filtered_processes.push_back(proc);
+							}
 						}
+
+						// Sort processes
+						if (sort_by == "cpu") {
+							std::sort(filtered_processes.begin(), filtered_processes.end(),
+								[](const Proc::proc_info& a, const Proc::proc_info& b) {
+									return a.cpu_p > b.cpu_p;
+								});
+						} else if (sort_by == "memory") {
+							std::sort(filtered_processes.begin(), filtered_processes.end(),
+								[](const Proc::proc_info& a, const Proc::proc_info& b) {
+									return a.mem > b.mem;
+								});
+						} else if (sort_by == "name") {
+							std::sort(filtered_processes.begin(), filtered_processes.end(),
+								[](const Proc::proc_info& a, const Proc::proc_info& b) {
+									return a.name < b.name;
+								});
+						} else if (sort_by == "pid") {
+							std::sort(filtered_processes.begin(), filtered_processes.end(),
+								[](const Proc::proc_info& a, const Proc::proc_info& b) {
+									return a.pid < b.pid;
+								});
+						} else if (sort_by == "user") {
+							std::sort(filtered_processes.begin(), filtered_processes.end(),
+								[](const Proc::proc_info& a, const Proc::proc_info& b) {
+									return a.user < b.user;
+								});
+						}
+
+						// Apply limit
+						size_t processes_to_show = filtered_processes.size();
+						if (limit > 0 && limit < (int)processes_to_show) {
+							processes_to_show = limit;
+						}
+
+						result << "Process Information\\n";
+						result << "Total Processes: " << total_processes << "\\n";
+						result << "Filtered Processes: " << filtered_processes.size() << "\\n";
+						result << "Showing: " << processes_to_show << "\\n";
+						result << "Timestamp: " << timestamp << "\\n";
+						if (!filter_name.empty()) result << "Name Filter: '" << filter_name << "'\\n";
+						if (!filter_user.empty()) result << "User Filter: '" << filter_user << "'\\n";
+						if (min_cpu > 0.0) result << "Min CPU: " << min_cpu << "%\\n";
+						if (min_memory > 0) result << "Min Memory: " << min_memory << " bytes\\n";
+						result << "Sort By: " << sort_by << "\\n\\n";
+
+						for (size_t i = 0; i < processes_to_show; ++i) {
+							const auto& proc = filtered_processes[i];
+							result << "PID: " << proc.pid << "\\n";
+							result << "Name: " << proc.name << "\\n";
+							result << "User: " << proc.user << "\\n";
+							result << "CPU: " << proc.cpu_p << "%\\n";
+							result << "Memory: " << proc.mem << " bytes\\n";
+							result << "State: " << proc.state << "\\n";
+							result << "Threads: " << proc.threads << "\\n";
+							if (!proc.cmd.empty()) {
+								result << "Command: " << proc.cmd << "\\n";
+							}
+							result << "\\n";
+						}
+
 					} catch (const std::exception& e) {
 						result << "Error: " << e.what();
 					}
