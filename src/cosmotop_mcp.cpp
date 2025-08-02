@@ -510,7 +510,6 @@ public:
 							result << "Swap Used: " << mem_data.stats["swap_used"] << " bytes\\n";
 							result << "Swap Free: " << mem_data.stats["swap_free"] << " bytes\\n";
 						}
-						result << "Has Swap: " << (has_swap ? "Yes" : "No") << "\\n";
 						result << "Timestamp: " << timestamp << "\\n";
 					} catch (const std::exception& e) {
 						result << "Error: " << e.what();
@@ -614,6 +613,150 @@ public:
 						}
 						result << "\\n";
 						result << "Timestamp: " << timestamp << "\\n";
+					} catch (const std::exception& e) {
+						result << "Error: " << e.what();
+					}
+				}
+				textContent.strText = result.str();
+			} else {
+				spExecuteResult->bIsError = true;
+				textContent.strText = "Unfortunately, the execution failed. Error code: " + std::to_string(iErrCode);
+			}
+			spExecuteResult->vecTextContent.push_back(textContent);
+			iErrCode = NotifyResult(spExecuteResult);
+		}
+
+		return iErrCode;
+	}
+};
+
+class DiskToolTask : public TinyMCP::ProcessCallToolRequest {
+public:
+	static constexpr const char* TOOL_NAME = "get_disk_info";
+	static constexpr const char* TOOL_DESCRIPTION = "Get disk usage and I/O information";
+	static constexpr const char* TOOL_INPUT_SCHEMA = R"EOF(
+{
+	"type": "object",
+	"properties": {
+		"disk": {
+			"type": "string",
+			"description": "Specific disk or mount point to report (empty for all disks)"
+		}
+	},
+	"required": []
+}
+)EOF";
+
+	DiskToolTask(const std::shared_ptr<TinyMCP::Request>& spRequest)
+		: ProcessCallToolRequest(spRequest) {}
+
+	std::shared_ptr<TinyMCP::CMCPTask> Clone() const override {
+		auto spClone = std::make_shared<DiskToolTask>(nullptr);
+		if (spClone) {
+			*spClone = *this;
+		}
+		return spClone;
+	}
+
+	int Cancel() override {
+		return TinyMCP::ERRNO_OK;
+	}
+
+	int Execute() override {
+		int iErrCode = TinyMCP::ERRNO_INTERNAL_ERROR;
+		if (!IsValid())
+			return iErrCode;
+
+		auto spCallToolRequest = std::dynamic_pointer_cast<TinyMCP::CallToolRequest>(m_spRequest);
+		if (!spCallToolRequest || spCallToolRequest->strName.compare(TOOL_NAME) != 0)
+			goto PROC_END;
+
+		try {
+			if (!is_plugin_loaded()) {
+				iErrCode = TinyMCP::ERRNO_INTERNAL_ERROR;
+				goto PROC_END;
+			}
+
+			trigger_plugin_refresh();
+			iErrCode = TinyMCP::ERRNO_OK;
+
+		} catch (const std::exception& e) {
+			iErrCode = TinyMCP::ERRNO_INTERNAL_ERROR;
+		}
+
+	PROC_END:
+		auto spExecuteResult = BuildResult();
+		if (spExecuteResult) {
+			TinyMCP::TextContent textContent;
+			textContent.strType = TinyMCP::CONST_TEXT;
+			if (TinyMCP::ERRNO_OK == iErrCode) {
+				spExecuteResult->bIsError = false;
+				std::ostringstream result;
+				if (!is_plugin_loaded()) {
+					result << "Plugin not loaded";
+				} else {
+					try {
+						// Parse input arguments
+						string disk_filter;
+						if (spCallToolRequest->jArguments.isObject()) {
+							if (spCallToolRequest->jArguments.isMember("disk") &&
+								spCallToolRequest->jArguments["disk"].isString()) {
+								disk_filter = spCallToolRequest->jArguments["disk"].asString();
+							}
+						}
+
+						auto mem_data = Mem::collect(false);
+						std::time_t timestamp = std::time(nullptr);
+
+						result << "Disk Information\\n";
+						result << "Timestamp: " << timestamp << "\\n";
+						if (!disk_filter.empty()) {
+							result << "Filter: '" << disk_filter << "'\\n";
+						}
+						result << "\\n";
+
+						bool found_disk = false;
+						for (const auto& disk_name : mem_data.disks_order) {
+							const auto& disk = mem_data.disks.at(disk_name);
+
+							// Apply filter if specified
+							if (!disk_filter.empty()) {
+								if (disk.name.find(disk_filter) == string::npos &&
+									disk_name.find(disk_filter) == string::npos) {
+									continue;
+								}
+							}
+
+							found_disk = true;
+
+							result << "Disk: " << disk.name << "\\n";
+							result << "Mount Point: " << disk_name << "\\n";
+							if (!disk.dev.empty()) {
+								result << "Device: " << disk.dev << "\\n";
+							}
+							result << "Filesystem: " << disk.fstype << "\\n";
+							result << "Total: " << disk.total << " bytes\\n";
+							result << "Used: " << disk.used << " bytes (" << disk.used_percent << "%)\\n";
+							result << "Free: " << disk.free << " bytes (" << disk.free_percent << "%)\\n";
+
+							// I/O Statistics
+							if (!disk.io_read.empty()) {
+								result << "Read Speed: " << disk.io_read.back() << " bytes/s\\n";
+							}
+							if (!disk.io_write.empty()) {
+								result << "Write Speed: " << disk.io_write.back() << " bytes/s\\n";
+							}
+							if (!disk.io_activity.empty()) {
+								result << "I/O Activity: " << disk.io_activity.back() << "%\\n";
+							}
+
+							result << "\\n";
+						}
+
+						if (!disk_filter.empty() && !found_disk) {
+							result << "No disks found matching filter '" << disk_filter << "'\\n";
+						}
+
 					} catch (const std::exception& e) {
 						result << "Error: " << e.what();
 					}
@@ -976,6 +1119,14 @@ public:
 			return TinyMCP::ERRNO_PARSE_ERROR;
 		vecTools.push_back(networkTool);
 
+		// Disk tool
+		TinyMCP::Tool diskTool;
+		diskTool.strName = DiskToolTask::TOOL_NAME;
+		diskTool.strDescription = DiskToolTask::TOOL_DESCRIPTION;
+		if (!reader.parse(DiskToolTask::TOOL_INPUT_SCHEMA, diskTool.jInputSchema) || !diskTool.jInputSchema.isObject())
+			return TinyMCP::ERRNO_PARSE_ERROR;
+		vecTools.push_back(diskTool);
+
 		// GPU tool
 		TinyMCP::Tool gpuTool;
 		gpuTool.strName = GpuToolTask::TOOL_NAME;
@@ -1007,6 +1158,7 @@ public:
 		RegisterToolsTasks(CpuToolTask::TOOL_NAME, std::make_shared<CpuToolTask>(nullptr));
 		RegisterToolsTasks(MemoryToolTask::TOOL_NAME, std::make_shared<MemoryToolTask>(nullptr));
 		RegisterToolsTasks(NetworkToolTask::TOOL_NAME, std::make_shared<NetworkToolTask>(nullptr));
+		RegisterToolsTasks(DiskToolTask::TOOL_NAME, std::make_shared<DiskToolTask>(nullptr));
 		RegisterToolsTasks(GpuToolTask::TOOL_NAME, std::make_shared<GpuToolTask>(nullptr));
 		RegisterToolsTasks(NpuToolTask::TOOL_NAME, std::make_shared<NpuToolTask>(nullptr));
 		RegisterToolsTasks(SystemToolTask::TOOL_NAME, std::make_shared<SystemToolTask>(nullptr));
