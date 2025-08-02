@@ -32,6 +32,7 @@ tab-size = 4
 #include "cosmotop_config.hpp"
 #include "cosmotop_shared.hpp"
 #include "cosmotop_plugin.hpp"
+#include "cosmotop_tools.hpp"
 
 namespace TinyMCP = MCP;
 
@@ -842,7 +843,19 @@ class GpuToolTask : public TinyMCP::ProcessCallToolRequest {
 public:
 	static constexpr const char* TOOL_NAME = "get_gpu_info";
 	static constexpr const char* TOOL_DESCRIPTION = "Get GPU utilization and information";
-	static constexpr const char* TOOL_INPUT_SCHEMA = R"({"type":"object","properties":{},"required":[]})";
+	static constexpr const char* TOOL_INPUT_SCHEMA = R"EOF(
+{
+	"type": "object",
+	"properties": {
+		"gpu": {
+			"type": "integer",
+			"description": "Specific GPU device to report (-1 for all GPUs)",
+			"default": -1
+		}
+	},
+	"required": []
+}
+)EOF";
 
 	GpuToolTask(const std::shared_ptr<TinyMCP::Request>& spRequest)
 		: ProcessCallToolRequest(spRequest) {}
@@ -892,41 +905,80 @@ public:
 				if (!is_plugin_loaded()) {
 					result << "Plugin not loaded";
 				} else {
+					// Parse input arguments
+					int gpu_device = -1;
+					if (spCallToolRequest->jArguments.isObject()) {
+						if (spCallToolRequest->jArguments.isMember("gpu") &&
+							spCallToolRequest->jArguments["gpu"].isIntegral()) {
+							gpu_device = spCallToolRequest->jArguments["gpu"].asInt();
+						}
+					}
+
 					if (Gpu::get_count() == 0) {
 						result << "No GPU devices found";
 					} else {
 						try {
-							auto gpu_data = Gpu::collect(false);
+							auto& gpu_data = Gpu::collect(false);
 							int gpu_count = Gpu::get_count();
-							auto gpu_names = Gpu::get_gpu_names();
+							const auto& gpu_names = Gpu::get_gpu_names();
 							std::time_t timestamp = std::time(nullptr);
 
 							result << "GPU Information\\n";
 							result << "GPU Count: " << gpu_count << "\\n";
 							result << "Timestamp: " << timestamp << "\\n\\n";
 
-							// Show GPU info
-							for (int i = 0; i < gpu_count && i < (int)gpu_data.size(); ++i) {
-								result << "GPU " << i << ":\\n";
-								result << "  Name: " << (i < (int)gpu_names.size() ? gpu_names[i] : "Unknown GPU") << "\\n";
+							// Report specific GPU or all GPUs
+							if (gpu_device >= 0) {
+								if (gpu_device < gpu_count && gpu_device < (int)gpu_data.size()) {
+									// Report specific GPU
+									result << "GPU " << gpu_device << ":\\n";
+									result << "Name: " << (gpu_device < (int)gpu_names.size() ? gpu_names[gpu_device] : "Unknown GPU") << "\\n";
 
-								// Get current GPU utilization
-								double usage = 0.0;
-								if (!gpu_data[i].gpu_percent["gpu-totals"].empty()) {
-									usage = gpu_data[i].gpu_percent["gpu-totals"].back();
-								}
-								result << "  Usage: " << usage << "%\\n";
+									// Get current GPU utilization
+									double usage = 0.0;
+									if (!gpu_data[gpu_device].gpu_percent["gpu-totals"].empty()) {
+										usage = gpu_data[gpu_device].gpu_percent["gpu-totals"].back();
+									}
+									result << "Usage: " << usage << "%\\n";
 
-								// Get current temperature
-								double temp = 0.0;
-								if (!gpu_data[i].temp.empty()) {
-									temp = gpu_data[i].temp.back();
+									// Get current temperature
+									double temp = 0.0;
+									if (!gpu_data[gpu_device].temp.empty()) {
+										temp = gpu_data[gpu_device].temp.back();
+									}
+									result << "Temperature: " << temp << "°C (Max: " << gpu_data[gpu_device].temp_max << "°C)\\n";
+									result << "Memory Total: " << gpu_data[gpu_device].mem_total << " bytes\\n";
+									result << "Memory Used: " << gpu_data[gpu_device].mem_used << " bytes\\n";
+									result << "Power Usage: " << gpu_data[gpu_device].pwr_usage << "W (Max: " << gpu_data[gpu_device].pwr_max_usage << "W)\\n";
+									result << "Clock Speed: " << gpu_data[gpu_device].gpu_clock_speed << " MHz\\n";
+								} else {
+									// Invalid GPU device specified
+									result << "Invalid GPU device " << gpu_device << " specified. Available GPUs: 0-" << (gpu_count - 1) << "\\n";
 								}
-								result << "  Temperature: " << temp << "°C (Max: " << gpu_data[i].temp_max << "°C)\\n";
-								result << "  Memory Total: " << gpu_data[i].mem_total << " bytes\\n";
-								result << "  Memory Used: " << gpu_data[i].mem_used << " bytes\\n";
-								result << "  Power Usage: " << gpu_data[i].pwr_usage << "W (Max: " << gpu_data[i].pwr_max_usage << "W)\\n";
-								result << "  Clock Speed: " << gpu_data[i].gpu_clock_speed << " MHz\\n\\n";
+							} else {
+								// Show all GPUs
+								for (int i = 0; i < gpu_count && i < (int)gpu_data.size(); ++i) {
+									result << "GPU " << i << ":\\n";
+									result << "Name: " << (i < (int)gpu_names.size() ? gpu_names[i] : "Unknown GPU") << "\\n";
+
+									// Get current GPU utilization
+									double usage = 0.0;
+									if (!gpu_data[i].gpu_percent["gpu-totals"].empty()) {
+										usage = gpu_data[i].gpu_percent["gpu-totals"].back();
+									}
+									result << "Usage: " << usage << "%\\n";
+
+									// Get current temperature
+									double temp = 0.0;
+									if (!gpu_data[i].temp.empty()) {
+										temp = gpu_data[i].temp.back();
+									}
+									result << "Temperature: " << temp << "°C (Max: " << gpu_data[i].temp_max << "°C)\\n";
+									result << "Memory Total: " << gpu_data[i].mem_total << " bytes\\n";
+									result << "Memory Used: " << gpu_data[i].mem_used << " bytes\\n";
+									result << "Power Usage: " << gpu_data[i].pwr_usage << "W (Max: " << gpu_data[i].pwr_max_usage << "W)\\n";
+									result << "Clock Speed: " << gpu_data[i].gpu_clock_speed << " MHz\\n\\n";
+								}
 							}
 						} catch (const std::exception& e) {
 							result << "Error: " << e.what();
@@ -950,7 +1002,19 @@ class NpuToolTask : public TinyMCP::ProcessCallToolRequest {
 public:
 	static constexpr const char* TOOL_NAME = "get_npu_info";
 	static constexpr const char* TOOL_DESCRIPTION = "Get NPU utilization and information";
-	static constexpr const char* TOOL_INPUT_SCHEMA = R"({"type":"object","properties":{},"required":[]})";
+	static constexpr const char* TOOL_INPUT_SCHEMA = R"EOF(
+{
+	"type": "object",
+	"properties": {
+		"npu": {
+			"type": "integer",
+			"description": "Specific NPU device to report (-1 for all NPUs)",
+			"default": -1
+		}
+	},
+	"required": []
+}
+)EOF";
 
 	NpuToolTask(const std::shared_ptr<TinyMCP::Request>& spRequest)
 		: ProcessCallToolRequest(spRequest) {}
@@ -1000,6 +1064,15 @@ public:
 				if (!is_plugin_loaded()) {
 					result << "Plugin not loaded";
 				} else {
+					// Parse input arguments
+					int npu_device = -1;
+					if (spCallToolRequest->jArguments.isObject()) {
+						if (spCallToolRequest->jArguments.isMember("npu") &&
+							spCallToolRequest->jArguments["npu"].isIntegral()) {
+							npu_device = spCallToolRequest->jArguments["npu"].asInt();
+						}
+					}
+
 					if (Npu::get_count() == 0) {
 						result << "No NPU devices found";
 					} else {
@@ -1013,17 +1086,36 @@ public:
 							result << "NPU Count: " << npu_count << "\\n";
 							result << "Timestamp: " << timestamp << "\\n\\n";
 
-							// Show NPU info
-							for (int i = 0; i < npu_count && i < (int)npu_data.size(); ++i) {
-								result << "NPU " << i << ":\\n";
-								result << "  Name: " << (i < (int)npu_names.size() ? npu_names[i] : "Unknown NPU") << "\\n";
+							// Report specific NPU or all NPUs
+							if (npu_device >= 0) {
+								if (npu_device < npu_count && npu_device < (int)npu_data.size()) {
+									// Report specific NPU
+									result << "NPU " << npu_device << ":\\n";
+									result << "Name: " << (npu_device < (int)npu_names.size() ? npu_names[npu_device] : "Unknown NPU") << "\\n";
 
-								// Get current NPU utilization
-								double usage = 0.0;
-								if (!npu_data[i].npu_percent["npu-totals"].empty()) {
-									usage = npu_data[i].npu_percent["npu-totals"].back();
+									// Get current NPU utilization
+									double usage = 0.0;
+									if (!npu_data[npu_device].npu_percent["npu-totals"].empty()) {
+										usage = npu_data[npu_device].npu_percent["npu-totals"].back();
+									}
+									result << "Usage: " << usage << "%\\n";
+								} else {
+									// Invalid NPU device specified
+									result << "Invalid NPU device " << npu_device << " specified. Available NPUs: 0-" << (npu_count - 1) << "\\n";
 								}
-								result << "  Usage: " << usage << "%\\n\\n";
+							} else {
+								// Show all NPUs
+								for (int i = 0; i < npu_count && i < (int)npu_data.size(); ++i) {
+									result << "NPU " << i << ":\\n";
+									result << "Name: " << (i < (int)npu_names.size() ? npu_names[i] : "Unknown NPU") << "\\n";
+
+									// Get current NPU utilization
+									double usage = 0.0;
+									if (!npu_data[i].npu_percent["npu-totals"].empty()) {
+										usage = npu_data[i].npu_percent["npu-totals"].back();
+									}
+									result << "Usage: " << usage << "%\\n\\n";
+								}
 							}
 						} catch (const std::exception& e) {
 							result << "Error: " << e.what();
@@ -1100,7 +1192,9 @@ public:
 						std::time_t timestamp = std::time(nullptr);
 
 						// Get additional system information
+						const auto& cpu_data = Cpu::collect(false);
 						string cpu_name = Cpu::get_cpuName();
+						string hostname = Tools::hostname();
 						uint64_t total_mem = Mem::get_totalMem();
 						bool has_battery = Cpu::get_has_battery();
 						int gpu_count = Gpu::get_count();
@@ -1108,7 +1202,9 @@ public:
 
 						result << "System Information\\n";
 						result << "Name: cosmotop v" << Global::Version << "\\n";
+						result << "Hostname: " << hostname << "\\n";
 						result << "CPU Name: " << cpu_name << "\\n";
+						result << "CPU Cores: " << cpu_data.core_percent.size() << "\\n";
 						result << "Total Memory: " << total_mem << " bytes\\n";
 						result << "Has Battery: " << (has_battery ? "Yes" : "No") << "\\n";
 						result << "GPU Count: " << gpu_count << "\\n";
@@ -1191,21 +1287,25 @@ public:
 			return TinyMCP::ERRNO_PARSE_ERROR;
 		vecTools.push_back(diskTool);
 
-		// GPU tool
-		TinyMCP::Tool gpuTool;
-		gpuTool.strName = GpuToolTask::TOOL_NAME;
-		gpuTool.strDescription = GpuToolTask::TOOL_DESCRIPTION;
-		if (!reader.parse(GpuToolTask::TOOL_INPUT_SCHEMA, gpuTool.jInputSchema) || !gpuTool.jInputSchema.isObject())
-			return TinyMCP::ERRNO_PARSE_ERROR;
-		vecTools.push_back(gpuTool);
+		// GPU tool (only if GPUs are available)
+		if (Gpu::get_count() > 0) {
+			TinyMCP::Tool gpuTool;
+			gpuTool.strName = GpuToolTask::TOOL_NAME;
+			gpuTool.strDescription = GpuToolTask::TOOL_DESCRIPTION;
+			if (!reader.parse(GpuToolTask::TOOL_INPUT_SCHEMA, gpuTool.jInputSchema) || !gpuTool.jInputSchema.isObject())
+				return TinyMCP::ERRNO_PARSE_ERROR;
+			vecTools.push_back(gpuTool);
+		}
 
-		// NPU tool
-		TinyMCP::Tool npuTool;
-		npuTool.strName = NpuToolTask::TOOL_NAME;
-		npuTool.strDescription = NpuToolTask::TOOL_DESCRIPTION;
-		if (!reader.parse(NpuToolTask::TOOL_INPUT_SCHEMA, npuTool.jInputSchema) || !npuTool.jInputSchema.isObject())
-			return TinyMCP::ERRNO_PARSE_ERROR;
-		vecTools.push_back(npuTool);
+		// NPU tool (only if NPUs are available)
+		if (Npu::get_count() > 0) {
+			TinyMCP::Tool npuTool;
+			npuTool.strName = NpuToolTask::TOOL_NAME;
+			npuTool.strDescription = NpuToolTask::TOOL_DESCRIPTION;
+			if (!reader.parse(NpuToolTask::TOOL_INPUT_SCHEMA, npuTool.jInputSchema) || !npuTool.jInputSchema.isObject())
+				return TinyMCP::ERRNO_PARSE_ERROR;
+			vecTools.push_back(npuTool);
+		}
 
 		// System tool
 		TinyMCP::Tool systemTool;
@@ -1223,8 +1323,12 @@ public:
 		RegisterToolsTasks(MemoryToolTask::TOOL_NAME, std::make_shared<MemoryToolTask>(nullptr));
 		RegisterToolsTasks(NetworkToolTask::TOOL_NAME, std::make_shared<NetworkToolTask>(nullptr));
 		RegisterToolsTasks(DiskToolTask::TOOL_NAME, std::make_shared<DiskToolTask>(nullptr));
-		RegisterToolsTasks(GpuToolTask::TOOL_NAME, std::make_shared<GpuToolTask>(nullptr));
-		RegisterToolsTasks(NpuToolTask::TOOL_NAME, std::make_shared<NpuToolTask>(nullptr));
+		if (Gpu::get_count() > 0) {
+			RegisterToolsTasks(GpuToolTask::TOOL_NAME, std::make_shared<GpuToolTask>(nullptr));
+		}
+		if (Npu::get_count() > 0) {
+			RegisterToolsTasks(NpuToolTask::TOOL_NAME, std::make_shared<NpuToolTask>(nullptr));
+		}
 		RegisterToolsTasks(SystemToolTask::TOOL_NAME, std::make_shared<SystemToolTask>(nullptr));
 
 		return TinyMCP::ERRNO_OK;
