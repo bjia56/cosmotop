@@ -241,20 +241,24 @@ public:
 						if (min_memory > 0) result << "Min Memory: " << min_memory << " bytes\\n";
 						result << "Sort By: " << sort_by << "\\n\\n";
 
-						for (size_t i = 0; i < processes_to_show; ++i) {
-							const auto& proc = filtered_processes[i];
-							result << "PID: " << proc.pid << "\\n";
-							result << "PPID: " << proc.ppid << "\\n";
-							result << "Name: " << proc.name << "\\n";
-							result << "User: " << proc.user << "\\n";
-							result << "CPU: " << proc.cpu_p << "%\\n";
-							result << "Memory: " << proc.mem << " bytes\\n";
-							result << "State: " << proc.state << "\\n";
-							result << "Threads: " << proc.threads << "\\n";
-							if (!proc.cmd.empty()) {
-								result << "Command: " << proc.cmd << "\\n";
+						if (processes_to_show == 0 && (!filter_name.empty() || !filter_user.empty() || min_cpu > 0.0 || min_memory > 0)) {
+							result << "No processes found matching the specified filters.\\n";
+						} else {
+							for (size_t i = 0; i < processes_to_show; ++i) {
+								const auto& proc = filtered_processes[i];
+								result << "PID: " << proc.pid << "\\n";
+								result << "PPID: " << proc.ppid << "\\n";
+								result << "Name: " << proc.name << "\\n";
+								result << "User: " << proc.user << "\\n";
+								result << "CPU: " << proc.cpu_p << "%\\n";
+								result << "Memory: " << proc.mem << " bytes\\n";
+								result << "State: " << proc.state << "\\n";
+								result << "Threads: " << proc.threads << "\\n";
+								if (!proc.cmd.empty()) {
+									result << "Command: " << proc.cmd << "\\n";
+								}
+								result << "\\n";
 							}
-							result << "\\n";
 						}
 
 					} catch (const std::exception& e) {
@@ -375,19 +379,24 @@ public:
 						result << "Timestamp: " << timestamp << "\\n\\n";
 
 						// Report specific core or all cores
-						if (cpu_core >= 0 && cpu_core < (int)cpu_data.core_percent.size()) {
-							// Report specific core
-							result << "Core " << cpu_core << ": ";
-							if (!cpu_data.core_percent[cpu_core].empty()) {
-								result << cpu_data.core_percent[cpu_core].back() << "%";
-							} else {
-								result << "N/A";
-							}
+						if (cpu_core >= 0) {
+							if (cpu_core < (int)cpu_data.core_percent.size()) {
+								// Report specific core
+								result << "Core " << cpu_core << ": ";
+								if (!cpu_data.core_percent[cpu_core].empty()) {
+									result << cpu_data.core_percent[cpu_core].back() << "%";
+								} else {
+									result << "N/A";
+								}
 
-							if (has_sensors && cpu_core < (int)cpu_data.temp.size() && !cpu_data.temp[cpu_core].empty()) {
-								result << " (Temp: " << cpu_data.temp[cpu_core].back() << "°C)";
+								if (has_sensors && cpu_core < (int)cpu_data.temp.size() && !cpu_data.temp[cpu_core].empty()) {
+									result << " (Temp: " << cpu_data.temp[cpu_core].back() << "°C)";
+								}
+								result << "\\n";
+							} else {
+								// Invalid CPU core specified
+								result << "Invalid CPU core " << cpu_core << " specified. Available cores: 0-" << (cpu_data.core_percent.size() - 1) << "\\n";
 							}
-							result << "\\n";
 						} else {
 							// Report all cores
 							for (size_t i = 0; i < cpu_data.core_percent.size(); ++i) {
