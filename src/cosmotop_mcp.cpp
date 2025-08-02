@@ -475,41 +475,45 @@ public:
 				if (!is_plugin_loaded()) {
 					result << "Plugin not loaded";
 				} else {
-					try {
-						auto gpu_data = Gpu::collect(false);
-						int gpu_count = Gpu::get_count();
-						auto gpu_names = Gpu::get_gpu_names();
-						std::time_t timestamp = std::time(nullptr);
+					if (Gpu::get_count() == 0) {
+						result << "No GPU devices found";
+					} else {
+						try {
+							auto gpu_data = Gpu::collect(false);
+							int gpu_count = Gpu::get_count();
+							auto gpu_names = Gpu::get_gpu_names();
+							std::time_t timestamp = std::time(nullptr);
 
-						result << "GPU Information\\n";
-						result << "GPU Count: " << gpu_count << "\\n";
-						result << "Timestamp: " << timestamp << "\\n\\n";
+							result << "GPU Information\\n";
+							result << "GPU Count: " << gpu_count << "\\n";
+							result << "Timestamp: " << timestamp << "\\n\\n";
 
-						// Show GPU info
-						for (int i = 0; i < gpu_count && i < (int)gpu_data.size(); ++i) {
-							result << "GPU " << i << ":\\n";
-							result << "  Name: " << (i < (int)gpu_names.size() ? gpu_names[i] : "Unknown GPU") << "\\n";
+							// Show GPU info
+							for (int i = 0; i < gpu_count && i < (int)gpu_data.size(); ++i) {
+								result << "GPU " << i << ":\\n";
+								result << "  Name: " << (i < (int)gpu_names.size() ? gpu_names[i] : "Unknown GPU") << "\\n";
 
-							// Get current GPU utilization
-							double usage = 0.0;
-							if (!gpu_data[i].gpu_percent["gpu-totals"].empty()) {
-								usage = gpu_data[i].gpu_percent["gpu-totals"].back();
+								// Get current GPU utilization
+								double usage = 0.0;
+								if (!gpu_data[i].gpu_percent["gpu-totals"].empty()) {
+									usage = gpu_data[i].gpu_percent["gpu-totals"].back();
+								}
+								result << "  Usage: " << usage << "%\\n";
+
+								// Get current temperature
+								double temp = 0.0;
+								if (!gpu_data[i].temp.empty()) {
+									temp = gpu_data[i].temp.back();
+								}
+								result << "  Temperature: " << temp << "°C (Max: " << gpu_data[i].temp_max << "°C)\\n";
+								result << "  Memory Total: " << gpu_data[i].mem_total << " bytes\\n";
+								result << "  Memory Used: " << gpu_data[i].mem_used << " bytes\\n";
+								result << "  Power Usage: " << gpu_data[i].pwr_usage << "W (Max: " << gpu_data[i].pwr_max_usage << "W)\\n";
+								result << "  Clock Speed: " << gpu_data[i].gpu_clock_speed << " MHz\\n\\n";
 							}
-							result << "  Usage: " << usage << "%\\n";
-
-							// Get current temperature
-							double temp = 0.0;
-							if (!gpu_data[i].temp.empty()) {
-								temp = gpu_data[i].temp.back();
-							}
-							result << "  Temperature: " << temp << "°C (Max: " << gpu_data[i].temp_max << "°C)\\n";
-							result << "  Memory Total: " << gpu_data[i].mem_total << " bytes\\n";
-							result << "  Memory Used: " << gpu_data[i].mem_used << " bytes\\n";
-							result << "  Power Usage: " << gpu_data[i].pwr_usage << "W (Max: " << gpu_data[i].pwr_max_usage << "W)\\n";
-							result << "  Clock Speed: " << gpu_data[i].gpu_clock_speed << " MHz\\n\\n";
+						} catch (const std::exception& e) {
+							result << "Error: " << e.what();
 						}
-					} catch (const std::exception& e) {
-						result << "Error: " << e.what();
 					}
 				}
 				textContent.strText = result.str();
@@ -579,30 +583,34 @@ public:
 				if (!is_plugin_loaded()) {
 					result << "Plugin not loaded";
 				} else {
-					try {
-						auto npu_data = Npu::collect(false);
-						int npu_count = Npu::get_count();
-						auto npu_names = Npu::get_npu_names();
-						std::time_t timestamp = std::time(nullptr);
+					if (Npu::get_count() == 0) {
+						result << "No NPU devices found";
+					} else {
+						try {
+							auto npu_data = Npu::collect(false);
+							int npu_count = Npu::get_count();
+							auto npu_names = Npu::get_npu_names();
+							std::time_t timestamp = std::time(nullptr);
 
-						result << "NPU Information\\n";
-						result << "NPU Count: " << npu_count << "\\n";
-						result << "Timestamp: " << timestamp << "\\n\\n";
+							result << "NPU Information\\n";
+							result << "NPU Count: " << npu_count << "\\n";
+							result << "Timestamp: " << timestamp << "\\n\\n";
 
-						// Show NPU info
-						for (int i = 0; i < npu_count && i < (int)npu_data.size(); ++i) {
-							result << "NPU " << i << ":\\n";
-							result << "  Name: " << (i < (int)npu_names.size() ? npu_names[i] : "Unknown NPU") << "\\n";
+							// Show NPU info
+							for (int i = 0; i < npu_count && i < (int)npu_data.size(); ++i) {
+								result << "NPU " << i << ":\\n";
+								result << "  Name: " << (i < (int)npu_names.size() ? npu_names[i] : "Unknown NPU") << "\\n";
 
-							// Get current NPU utilization
-							double usage = 0.0;
-							if (!npu_data[i].npu_percent["npu-totals"].empty()) {
-								usage = npu_data[i].npu_percent["npu-totals"].back();
+								// Get current NPU utilization
+								double usage = 0.0;
+								if (!npu_data[i].npu_percent["npu-totals"].empty()) {
+									usage = npu_data[i].npu_percent["npu-totals"].back();
+								}
+								result << "  Usage: " << usage << "%\\n\\n";
 							}
-							result << "  Usage: " << usage << "%\\n\\n";
+						} catch (const std::exception& e) {
+							result << "Error: " << e.what();
 						}
-					} catch (const std::exception& e) {
-						result << "Error: " << e.what();
 					}
 				}
 				textContent.strText = result.str();
@@ -682,9 +690,7 @@ public:
 						int npu_count = Npu::get_count();
 
 						result << "System Information\\n";
-						result << "Name: cosmotop\\n";
-						result << "Version: " << Global::Version << "\\n";
-						result << "Plugin Loaded: " << (is_plugin_loaded() ? "Yes" : "No") << "\\n";
+						result << "Name: cosmotop v" << Global::Version << "\\n";
 						result << "CPU Name: " << cpu_name << "\\n";
 						result << "Total Memory: " << total_mem << " bytes\\n";
 						result << "Has Battery: " << (has_battery ? "Yes" : "No") << "\\n";
