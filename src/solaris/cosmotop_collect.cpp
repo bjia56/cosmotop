@@ -176,6 +176,9 @@ namespace Shared {
 		// Initialize Mem
 		Mem::old_uptime = system_uptime();
 		Mem::collect();
+
+		// Initialize Net
+		Net::collect();
 	}
 }
 

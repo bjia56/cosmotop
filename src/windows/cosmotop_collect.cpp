@@ -1108,6 +1108,10 @@ namespace Shared {
 		Mem::old_systime = GetTickCount64();
 		Mem::collect();
 
+		//? Init for namespace Net
+		Logger::debug("NET Init");
+		Net::collect();
+
 		Logger::debug("Connecting to WMI");
 		//? Set up connection to WMI
 		Shared::WMI_init();

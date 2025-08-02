@@ -237,6 +237,7 @@ namespace Config {
 		{"custom_npu_name0",	"#* Custom npu0 model name, empty string to disable."},
 		{"custom_npu_name1",	"#* Custom npu1 model name, empty string to disable."},
 		{"custom_npu_name2",	"#* Custom npu2 model name, empty string to disable."},
+
 	};
 
 	std::unordered_map<std::string_view, string> strings = {

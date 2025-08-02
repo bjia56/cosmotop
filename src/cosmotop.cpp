@@ -48,6 +48,7 @@ tab-size = 4
 #include "cosmotop_draw.hpp"
 #include "cosmotop_menu.hpp"
 #include "cosmotop_plugin.hpp"
+#include "cosmotop_mcp.hpp"
 #include "config.h"
 
 using std::atomic;
@@ -74,7 +75,7 @@ namespace Global {
 		{"#062c43", "██████╗ ██████║ ██████║ ██║     ██║ ██████║ ", "#666666", "  ██║   ██████║ ██║"},
 		{"#000000", "╚═════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ", "#000000", "  ╚═╝   ╚═════╝ ╚═╝"},
 	};
-	const string Version = "0.12.0b1";
+	const string Version = "0.12.0b2";
 
 	int coreCount;
 	string overlay;
@@ -107,6 +108,7 @@ namespace Global {
 
 	bool arg_tty{};
 	bool arg_low_color{};
+	bool arg_mcp{};
 	int arg_preset = -1;
 	int arg_update = 0;
 }
@@ -177,7 +179,8 @@ static void print_help() {
 			"  {0}     --show-themes   {2}list all available themes\n"
 			"  {0}     --licenses      {2}display licenses of open-source software used in cosmotop\n"
 			"  {0}     --debug         {2}start in DEBUG mode: shows microsecond timer for information collect\n"
-			"  {0}                     {2}and screen draw functions and sets loglevel to DEBUG",
+			"  {0}                     {2}and screen draw functions and sets loglevel to DEBUG\n"
+			"  {0}     --mcp           {2}start MCP server mode: exposes system information tools via MCP protocol",
 			"\033[1m", "\033[4m", "\033[0m"
 	);
 }
@@ -448,6 +451,9 @@ void argumentParser(const int argc, char **argv, string& configOverrides) {
 		}
 		else if (argument == "--debug")
 			Global::debug = true;
+		else if (argument == "--mcp") {
+			Global::arg_mcp = true;
+		}
 		else {
 			fmt::println("{0}error:{2} unexpected argument '{1}{3}{2}' found\n", "\033[1;31m", "\033[33m", "\033[0m", argument);
 			print_usage();
@@ -1173,6 +1179,34 @@ int main(int argc, char **argv) {
 
 	//? Plugin init
 	create_plugin_host();
+
+	//? MCP server mode
+	if (Global::arg_mcp) {
+		Logger::debug("Starting in MCP server mode");
+		
+		//? Platform dependent init and error check
+		try {
+			Shared::init();
+		}
+		catch (const std::exception& e) {
+			Global::exit_error_msg = "Exception in Shared::init() -> " + string{e.what()};
+			clean_quit(1);
+		}
+		
+		if (Mcp::init_mcp_server()) {
+			Logger::debug("MCP server started successfully");
+			// Keep the server running until shutdown
+			while (not Global::quitting) {
+				sleep_ms(1000);
+			}
+			Mcp::shutdown_mcp_server();
+			Logger::debug("MCP server shutdown");
+		} else {
+			Logger::error("Failed to start MCP server!");
+			clean_quit(1);
+		}
+		clean_quit(0);
+	}
 
 	//? Initialize terminal and set options
 	if (not Term::init()) {
