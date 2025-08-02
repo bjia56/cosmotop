@@ -40,7 +40,7 @@ namespace Mcp {
 // Task classes for each tool
 class ProcessToolTask : public TinyMCP::ProcessCallToolRequest {
 public:
-	static constexpr const char* TOOL_NAME = "get_processes";
+	static constexpr const char* TOOL_NAME = "get_process_info";
 	static constexpr const char* TOOL_DESCRIPTION = "Get list of running processes";
 	static constexpr const char* TOOL_INPUT_SCHEMA = R"EOF(
 {
@@ -278,7 +278,19 @@ class CpuToolTask : public TinyMCP::ProcessCallToolRequest {
 public:
 	static constexpr const char* TOOL_NAME = "get_cpu_info";
 	static constexpr const char* TOOL_DESCRIPTION = "Get CPU utilization and information";
-	static constexpr const char* TOOL_INPUT_SCHEMA = R"({"type":"object","properties":{},"required":[]})";
+	static constexpr const char* TOOL_INPUT_SCHEMA = R"EOF(
+{
+	"type": "object",
+	"properties": {
+		"cpu": {
+			"type": "integer",
+			"description": "Specific CPU core to report (-1 for all cores)",
+			"default": -1
+		}
+	},
+	"required": []
+}
+)EOF";
 
 	CpuToolTask(const std::shared_ptr<TinyMCP::Request>& spRequest)
 		: ProcessCallToolRequest(spRequest) {}
@@ -329,31 +341,79 @@ public:
 					result << "Plugin not loaded";
 				} else {
 					try {
+						// Parse input arguments
+						int cpu_core = -1;
+						if (spCallToolRequest->jArguments.isObject()) {
+							if (spCallToolRequest->jArguments.isMember("cpu") &&
+								spCallToolRequest->jArguments["cpu"].isIntegral()) {
+								cpu_core = spCallToolRequest->jArguments["cpu"].asInt();
+							}
+						}
+
 						auto cpu_data = Cpu::collect(false);
 						string cpu_name = Cpu::get_cpuName();
 						string cpu_freq = Cpu::get_cpuHz();
 						bool has_sensors = Cpu::get_got_sensors();
 						std::time_t timestamp = std::time(nullptr);
 
-						double cpu_usage = 0.0;
+						double total_cpu_usage = 0.0;
 						if (!cpu_data.cpu_percent.at("total").empty()) {
-							cpu_usage = cpu_data.cpu_percent.at("total").back();
-						}
-
-						double temp = 0.0;
-						if (has_sensors && !cpu_data.temp.empty() && !cpu_data.temp[0].empty()) {
-							temp = cpu_data.temp[0].back();
+							total_cpu_usage = cpu_data.cpu_percent.at("total").back();
 						}
 
 						result << "CPU Information\\n";
 						result << "Name: " << cpu_name << "\\n";
 						result << "Frequency: " << cpu_freq << "\\n";
-						result << "Usage: " << cpu_usage << "%\\n";
-						result << "Temperature: " << temp << "°C (Max: " << cpu_data.temp_max << "°C)\\n";
-						result << "Has Sensors: " << (has_sensors ? "Yes" : "No") << "\\n";
+						result << "Total Usage: " << total_cpu_usage << "%\\n";
 						result << "Load Average: " << cpu_data.load_avg[0] << ", " << cpu_data.load_avg[1] << ", " << cpu_data.load_avg[2] << "\\n";
 						result << "Core Count: " << cpu_data.core_percent.size() << "\\n";
-						result << "Timestamp: " << timestamp << "\\n";
+
+						if (has_sensors && !cpu_data.temp.empty()) {
+							result << "Temperature Max: " << cpu_data.temp_max << "°C\\n";
+						}
+
+						result << "Timestamp: " << timestamp << "\\n\\n";
+
+						// Report specific core or all cores
+						if (cpu_core >= 0 && cpu_core < (int)cpu_data.core_percent.size()) {
+							// Report specific core
+							result << "Core " << cpu_core << ": ";
+							if (!cpu_data.core_percent[cpu_core].empty()) {
+								result << cpu_data.core_percent[cpu_core].back() << "%";
+							} else {
+								result << "N/A";
+							}
+
+							if (has_sensors && cpu_core < (int)cpu_data.temp.size() && !cpu_data.temp[cpu_core].empty()) {
+								result << " (Temp: " << cpu_data.temp[cpu_core].back() << "°C)";
+							}
+							result << "\\n";
+						} else {
+							// Report all cores
+							for (size_t i = 0; i < cpu_data.core_percent.size(); ++i) {
+								result << "Core " << i << ": ";
+								if (!cpu_data.core_percent[i].empty()) {
+									result << cpu_data.core_percent[i].back() << "%";
+								} else {
+									result << "N/A";
+								}
+
+								if (has_sensors && i < cpu_data.temp.size() && !cpu_data.temp[i].empty()) {
+									result << " (Temp: " << cpu_data.temp[i].back() << "°C)";
+								}
+								result << "\\n";
+							}
+						}
+
+						// Add CPU state breakdown
+						result << "\\nCPU State Breakdown:\\n";
+						const vector<string> cpu_states = {"user", "nice", "system", "idle", "iowait", "irq", "softirq", "steal", "guest", "guest_nice"};
+						for (const auto& state : cpu_states) {
+							if (cpu_data.cpu_percent.count(state) && !cpu_data.cpu_percent.at(state).empty()) {
+								result << state << ": " << cpu_data.cpu_percent.at(state).back() << "%\\n";
+							}
+						}
+
 					} catch (const std::exception& e) {
 						result << "Error: " << e.what();
 					}
