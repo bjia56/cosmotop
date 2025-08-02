@@ -21,6 +21,7 @@ tab-size = 4
 #include <unordered_map>
 #include <unordered_set>
 #include <fstream>
+#include <sstream>
 #include <cmath>
 #include <unistd.h>
 #include <numeric>
@@ -57,6 +58,8 @@ extern "C" {
 #undef class
 
 #include <httplib.h>
+#include <rfl/json.hpp>
+#include <rfl.hpp>
 
 using std::clamp;
 using std::cmp_greater;
@@ -397,6 +400,9 @@ namespace Shared {
 
 		//? Init for namespace Net
 		Net::collect();
+    
+		//? Init for namespace Container
+		Container::init();
 
 		Logger::debug("Shared::init() : Initialized.");
 	}
@@ -3698,5 +3704,448 @@ namespace Tools {
 			catch (const std::out_of_range&) {}
 		}
         throw std::runtime_error("Failed to get uptime from " + string{Shared::procPath} + "/uptime");
+	}
+}
+
+namespace Container {
+	vector<container_info> current_containers;
+	string current_sort;
+	string current_filter;
+	bool current_rev{};
+	atomic<int> numcontainers{};
+	string filter_found{};
+	detail_container detailed;
+	string collapse = "-1", expand = "-1";
+
+	// Docker detection and method preference
+	bool has_containers = false;
+	bool use_socket = false;
+	string docker_socket_path = "/var/run/docker.sock";
+
+	// Docker API JSON structures using reflect-cpp
+	struct DockerPort {
+		string IP;
+		uint16_t PrivatePort;
+		uint16_t PublicPort;
+		string Type;
+	};
+
+	struct DockerContainer {
+		string Id;
+		vector<string> Names;
+		string Image;
+		string Command;
+		int64_t Created;
+		string Status;
+		string State;
+		vector<DockerPort> Ports;
+	};
+
+	struct DockerStats {
+		string id;
+		string name;
+		struct {
+			uint64_t usage;
+			uint64_t limit;
+		} memory;
+		struct {
+			double cpu_percent;
+		} cpu;
+		struct {
+			uint64_t rx_bytes;
+			uint64_t tx_bytes;
+		} networks;
+		struct {
+			uint64_t read;
+			uint64_t write;
+		} blkio;
+	};
+
+	//* Initialize Docker detection and choose preferred method
+	void init() {
+		// First try Docker socket
+		if (fs::exists(docker_socket_path) && access(docker_socket_path.c_str(), R_OK) == 0) {
+			// Test socket connectivity by making a simple API call
+			try {
+				httplib::Client cli(docker_socket_path);
+				cli.set_address_family(AF_UNIX);
+				auto result = cli.Get("/version");
+				if (result && result->status == 200) {
+					use_socket = true;
+					has_containers = true;
+					Logger::debug("Container::init() : Using Docker socket");
+					return;
+				}
+			} catch (const std::exception& e) {
+				Logger::debug("Container::init() : Docker socket test failed: " + string(e.what()));
+			}
+		}
+
+		// Fall back to Docker CLI
+		FILE* pipe = popen("docker ps --format '{{.ID}}' 2>/dev/null", "r");
+		if (pipe) {
+			char buffer[128];
+			if (fgets(buffer, sizeof buffer, pipe) != nullptr) {
+				// Successfully executed docker command
+				use_socket = false;
+				has_containers = true;
+				Logger::debug("Container::init() : Using Docker CLI");
+			}
+			pclose(pipe);
+		}
+
+		if (!has_containers) {
+			Logger::debug("Container::init() : Docker not available");
+		}
+	}
+
+	//* Execute docker command and return output
+	string docker_command(const string& cmd) {
+		string result;
+		FILE* pipe = popen(("docker " + cmd + " 2>/dev/null").c_str(), "r");
+		if (!pipe) return "";
+		
+		char buffer[128];
+		while (fgets(buffer, sizeof buffer, pipe) != nullptr) {
+			result += buffer;
+		}
+		pclose(pipe);
+		return result;
+	}
+
+	//* Execute Docker API call via socket
+	string docker_api_call(const string& endpoint) {
+		if (!use_socket) {
+			return ""; // Fall back to CLI method
+		}
+		
+		try {
+			httplib::Client cli(docker_socket_path);
+			cli.set_address_family(AF_UNIX);
+			
+			auto result = cli.Get(endpoint);
+			if (result && result->status == 200) {
+				return result->body;
+			} else {
+				Logger::debug("Docker API call failed for endpoint: " + endpoint);
+				return "";
+			}
+		} catch (const std::exception& e) {
+			Logger::debug("Docker API call exception: " + string(e.what()));
+			return "";
+		}
+	}
+
+	//* Parse container list from Docker API JSON response  
+	vector<container_info> parse_containers_json(const string& json_response) {
+		vector<container_info> containers;
+		
+		try {
+			auto docker_containers = rfl::json::read<vector<DockerContainer>>(json_response);
+			if (!docker_containers) {
+				Logger::debug("Failed to parse containers JSON");
+				return containers;
+			}
+			
+			for (const auto& dc : docker_containers.value()) {
+				container_info container;
+				container.container_id = dc.Id.substr(0, 12); // Short ID
+				container.name = dc.Names.empty() ? "" : dc.Names[0];
+				if (!container.name.empty() && container.name[0] == '/') {
+					container.name = container.name.substr(1); // Remove leading slash
+				}
+				container.image = dc.Image;
+				container.command = dc.Command;
+				container.created = dc.Created;
+				container.status = dc.Status;
+				container.state = dc.State;
+				
+				// Parse ports
+				for (const auto& port : dc.Ports) {
+					string port_str = to_string(port.PrivatePort);
+					if (port.PublicPort > 0) {
+						port_str = to_string(port.PublicPort) + "->" + port_str;
+					}
+					port_str += "/" + port.Type;
+					container.ports.push_back(port_str);
+				}
+				
+				containers.push_back(container);
+			}
+		} catch (const std::exception& e) {
+			Logger::debug("Error parsing containers JSON: " + string(e.what()));
+		}
+		
+		return containers;
+	}
+
+	//* Get container stats via Docker API
+	void get_container_stats_api(vector<container_info>& containers) {
+		for (auto& container : containers) {
+			string endpoint = "/containers/" + container.container_id + "/stats?stream=false";
+			string stats_json = docker_api_call(endpoint);
+			
+			if (stats_json.empty()) continue;
+			
+			try {
+				auto stats = rfl::json::read<DockerStats>(stats_json);
+				if (stats) {
+					container.mem_usage = stats.value().memory.usage;
+					container.mem_limit = stats.value().memory.limit;
+					container.cpu_percent = stats.value().cpu.cpu_percent;
+					container.net_rx = stats.value().networks.rx_bytes;
+					container.net_tx = stats.value().networks.tx_bytes;
+					container.block_read = stats.value().blkio.read;
+					container.block_write = stats.value().blkio.write;
+				}
+			} catch (const std::exception& e) {
+				Logger::debug("Error parsing stats for container " + container.container_id + ": " + string(e.what()));
+			}
+		}
+	}
+
+	//* Parse docker stats output for container metrics
+	void parse_docker_stats(vector<container_info>& containers) {
+		string stats_cmd = "stats --no-stream --format \"table {{.Container}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.NetIO}}\\t{{.BlockIO}}\"";
+		string stats_output = docker_command(stats_cmd);
+		
+		if (stats_output.empty()) return;
+		
+		std::unordered_map<string, container_info*> container_map;
+		for (auto& container : containers) {
+			container_map[container.container_id] = &container;
+		}
+		
+		std::istringstream stats_stream(stats_output);
+		string line;
+		bool first_line = true;
+		
+		while (getline(stats_stream, line)) {
+			if (first_line) { // Skip header
+				first_line = false;
+				continue;
+			}
+			
+			std::istringstream line_stream(line);
+			string container_id, cpu_str, mem_str, net_str, block_str;
+			
+			if (getline(line_stream, container_id, '\t') &&
+				getline(line_stream, cpu_str, '\t') &&
+				getline(line_stream, mem_str, '\t') &&
+				getline(line_stream, net_str, '\t') &&
+				getline(line_stream, block_str, '\t')) {
+				
+				auto it = container_map.find(container_id);
+				if (it != container_map.end()) {
+					container_info* container = it->second;
+					
+					// Parse CPU percentage
+					if (!cpu_str.empty() && cpu_str.back() == '%') {
+						cpu_str.pop_back();
+						try {
+							container->cpu_percent = stod(cpu_str);
+						} catch (...) {
+							container->cpu_percent = 0.0;
+						}
+					}
+					
+					// Parse memory usage
+					size_t slash_pos = mem_str.find(" / ");
+					if (slash_pos != string::npos) {
+						string used_str = mem_str.substr(0, slash_pos);
+						string limit_str = mem_str.substr(slash_pos + 3);
+						
+						// Simple parsing - could be improved for different units
+						try {
+							container->mem_usage = stoull(used_str);
+							container->mem_limit = stoull(limit_str);
+						} catch (...) {
+							container->mem_usage = 0;
+							container->mem_limit = 0;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	//* Get detailed info for selected container
+	void _collect_details(const string& container_id, vector<container_info>& containers) {
+		if (container_id != detailed.last_container_id) {
+			detailed = {};
+			detailed.last_container_id = container_id;
+		}
+		
+		// Find container in list
+		auto it = rng::find(containers, container_id, &container_info::container_id);
+		if (it != containers.end()) {
+			detailed.entry = *it;
+			
+			// Update CPU and memory history for graphs
+			detailed.cpu_percent.push_back((long long)round(detailed.entry.cpu_percent));
+			while (detailed.cpu_percent.size() > 100) detailed.cpu_percent.pop_front();
+			
+			detailed.mem_bytes.push_back((long long)detailed.entry.mem_usage);
+			while (detailed.mem_bytes.size() > 100) detailed.mem_bytes.pop_front();
+			
+			if (detailed.entry.mem_limit > 0) {
+				detailed.mem_percent = (double)detailed.entry.mem_usage / detailed.entry.mem_limit * 100.0;
+			}
+		}
+	}
+
+	auto collect(bool no_update) -> vector<container_info>& {
+		// Early return if Docker is not available
+		if (!has_containers) {
+			current_containers.clear();
+			numcontainers = 0;
+			return current_containers;
+		}
+
+		const auto sorting = Config::getS("container_sorting");
+		const auto reverse = Config::getB("container_reversed");
+		const auto filter = Config::getS("container_filter");
+		bool should_filter = current_filter != filter;
+		if (should_filter) current_filter = filter;
+		
+		bool sorted_change = (sorting != current_sort or reverse != current_rev or should_filter);
+		if (sorted_change) {
+			current_sort = sorting;
+			current_rev = reverse;
+		}
+
+		if (no_update and not current_containers.empty()) {
+			if (sorted_change) {
+				container_sorter(current_containers, sorting, reverse);
+			}
+			return current_containers;
+		}
+
+		current_containers.clear();
+		filter_found = "0";
+
+		// Use Docker API if socket is available, otherwise fall back to CLI
+		if (use_socket) {
+			string containers_json = docker_api_call("/containers/json?all=true");
+			if (!containers_json.empty()) {
+				current_containers = parse_containers_json(containers_json);
+			}
+		}
+		
+		// Fall back to CLI method if API failed or not available
+		if (current_containers.empty()) {
+			string ps_cmd = "ps -a --format \"table {{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Command}}\\t{{.Status}}\\t{{.State}}\\t{{.CreatedAt}}\\t{{.Ports}}\"";
+			string ps_output = docker_command(ps_cmd);
+			
+			if (ps_output.empty()) {
+				numcontainers = 0;
+				return current_containers;
+			}
+
+			// Parse container list using CLI
+			std::istringstream ps_stream(ps_output);
+			string line;
+			bool first_line = true;
+			
+			while (getline(ps_stream, line)) {
+				if (first_line) { // Skip header
+					first_line = false;
+					continue;
+				}
+				
+				container_info container;
+				std::istringstream line_stream(line);
+				string created_str, ports_str;
+				
+				if (getline(line_stream, container.container_id, '\t') &&
+					getline(line_stream, container.name, '\t') &&
+					getline(line_stream, container.image, '\t') &&
+					getline(line_stream, container.command, '\t') &&
+					getline(line_stream, container.status, '\t') &&
+					getline(line_stream, container.state, '\t') &&
+					getline(line_stream, created_str, '\t') &&
+					getline(line_stream, ports_str)) {
+					
+					// Simple created time parsing (could be improved)
+					container.created = 0;
+					
+					// Parse ports
+					if (!ports_str.empty()) {
+						std::istringstream ports_stream(ports_str);
+						string port;
+						while (getline(ports_stream, port, ',')) {
+							container.ports.push_back(port);
+						}
+					}
+					
+					current_containers.push_back(container);
+				}
+			}
+		}
+
+		// Apply filter to containers
+		for (auto& container : current_containers) {
+			if (not filter.empty() and not matches_filter(container, filter)) {
+				container.filtered = true;
+				int val = std::stoi(filter_found.empty() ? "0" : filter_found);
+				filter_found = std::to_string(val + 1);
+			}
+		}
+
+		// Get container stats using API if available, otherwise CLI
+		if (use_socket && !current_containers.empty()) {
+			get_container_stats_api(current_containers);
+		} else {
+			parse_docker_stats(current_containers);
+		}
+
+		// Sort containers
+		if (not current_containers.empty()) {
+			container_sorter(current_containers, sorting, reverse);
+		}
+
+		// Get detailed info if requested
+		const size_t detailed_container_id = Config::getI("detailed_container_id");
+		if (detailed_container_id > 0 and detailed_container_id <= current_containers.size()) {
+			_collect_details(current_containers.at(detailed_container_id - 1).container_id, current_containers);
+		}
+
+		numcontainers = (int)current_containers.size() - std::stoi(filter_found.empty() ? "0" : filter_found);
+		return current_containers;
+	}
+
+	void container_sorter(vector<container_info>& container_vec, const string& sorting, bool reverse) {
+		if (sorting == "id") {
+			rng::sort(container_vec, rng::less{}, &container_info::container_id);
+		}
+		else if (sorting == "name") {
+			rng::sort(container_vec, rng::less{}, &container_info::name);
+		}
+		else if (sorting == "image") {
+			rng::sort(container_vec, rng::less{}, &container_info::image);
+		}
+		else if (sorting == "status") {
+			rng::sort(container_vec, rng::less{}, &container_info::status);
+		}
+		else if (sorting == "cpu") {
+			rng::sort(container_vec, rng::greater{}, &container_info::cpu_percent);
+		}
+		else if (sorting == "memory") {
+			rng::sort(container_vec, rng::greater{}, &container_info::mem_usage);
+		}
+		else if (sorting == "created") {
+			rng::sort(container_vec, rng::greater{}, &container_info::created);
+		}
+		
+		if (reverse) {
+			rng::reverse(container_vec);
+		}
+	}
+
+	bool matches_filter(const container_info& container, const std::string& filter) {
+		return (container.name.find(filter) != string::npos or
+				container.image.find(filter) != string::npos or
+				container.container_id.find(filter) != string::npos or
+				container.status.find(filter) != string::npos);
 	}
 }

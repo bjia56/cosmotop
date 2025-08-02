@@ -2535,3 +2535,133 @@ namespace Draw {
 	}
 }
 
+namespace Container {
+	int width_p = 55, height_p = 68;
+	int min_width = 44, min_height = 16;
+	int x, y, width = 20, height;
+	bool shown = true, redraw = true;
+	std::unordered_map<size_t, Draw::Graph> c_graphs;
+	std::unordered_map<size_t, int> c_counters;
+	int counter = 0;
+	Draw::TextEdit filter;
+	int id_size, name_size, image_size, status_size, cpu_size, mem_size;
+
+	string box;
+
+	string draw(const vector<container_info>& clist, bool force_redraw, bool data_same) {
+		if (Runner::stopping) return "";
+		auto container_gradient = false; // TODO: Add container_gradient config
+		auto container_colors = false; // TODO: Add container_colors config  
+		auto tty_mode = Config::getB("tty_mode");
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol"));
+		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
+		auto mem_bytes = false; // TODO: Add container_mem_bytes config
+		auto vim_keys = Config::getB("vim_keys");
+		auto show_graphs = true; // TODO: Add container_cpu_graphs config
+		int start = std::stoi(Container::start);
+		int selected = std::stoi(Container::selected);
+		int numcontainers = Container::get_numcontainers();
+		if (force_redraw) redraw = true;
+		string out;
+		out.reserve(width * height);
+
+		//* Redraw elements not needed to be updated every cycle
+		if (redraw) {
+			out = box;
+			const string title_left = Theme::c("proc_box") + Symbols::title_left;
+			const string title_right = Theme::c("proc_box") + Symbols::title_right;
+
+			//? Adapt sizes of text fields based on width
+			id_size = min(12, max(8, width / 8));
+			name_size = min(20, max(8, width / 6));
+			image_size = min(25, max(10, width / 5));
+			status_size = 10;
+			cpu_size = 8;
+			mem_size = 10;
+
+			//? Column headers
+			out += Mv::to(y + 1, x + 1) + Theme::c("main_fg") + Fx::b + ljust("Container ID", id_size) + ' '
+				+ ljust("Name", name_size) + ' '
+				+ ljust("Image", image_size) + ' '
+				+ ljust("Status", status_size) + ' ';
+			if (show_graphs) {
+				out += ljust("CPU%", cpu_size) + ' '
+					+ ljust("Memory", mem_size);
+			}
+			out += Fx::ub;
+
+			redraw = false;
+		}
+
+		//* Skip drawing if no containers
+		if (clist.empty() or numcontainers == 0) {
+			out += Mv::to(y + 3, x + 1) + Theme::c("inactive_fg") + "No containers found...";
+			return out;
+		}
+
+		//* Draw container list
+		auto line_color = Theme::c("main_fg");
+		const auto& sort_cmd = Config::getS("container_sorting");
+		int y_pos = y + 2;
+		int shown_containers = 0;
+		const int max_containers = height - 4;
+
+		for (int i = start; i < clist.size() and shown_containers < max_containers; i++) {
+			const auto& container = clist[i];
+			bool is_selected = (i == start + selected - 1);
+			
+			//* Set colors
+			string row_color = line_color;
+			if (is_selected) {
+				row_color = Theme::c("selected_bg") + Theme::c("selected_fg");
+				Container::selected_container_id = container.container_id;
+			}
+
+			//* Container ID (truncated)
+			string container_id_display = container.container_id.substr(0, min(id_size, (int)container.container_id.length()));
+			out += Mv::to(y_pos, x + 1) + row_color + ljust(container_id_display, id_size) + ' ';
+
+			//* Name 
+			string name_display = container.name;
+			if (name_display.starts_with("/")) name_display = name_display.substr(1);
+			out += ljust(uresize(name_display, name_size), name_size) + ' ';
+
+			//* Image
+			out += ljust(uresize(container.image, image_size), image_size) + ' ';
+
+			//* Status with state color
+			string status_color = row_color;
+			if (container.state == "running") status_color += Theme::c("proc_misc");
+			else if (container.state == "exited") status_color += Theme::c("inactive_fg");
+			else if (container.state == "paused") status_color += Theme::c("cpu_box");
+			out += status_color + ljust(uresize(container.status, status_size), status_size) + row_color + ' ';
+
+			//* CPU and Memory if graphs enabled
+			if (show_graphs) {
+				//* CPU percentage
+				string cpu_str = (container.cpu_percent >= 0 ? to_string((int)round(container.cpu_percent)) + "%" : "");
+				out += rjust(cpu_str, cpu_size) + ' ';
+
+				//* Memory usage
+				string mem_str;
+				if (container.mem_usage > 0) {
+					if (mem_bytes) {
+						mem_str = floating_humanizer(container.mem_usage, false, 1);
+					} else {
+						double mem_percent = container.mem_limit > 0 ? 
+							(double)container.mem_usage / container.mem_limit * 100.0 : 0.0;
+						mem_str = to_string((int)round(mem_percent)) + "%";
+					}
+				}
+				out += rjust(mem_str, mem_size);
+			}
+
+			out += Fx::reset;
+			y_pos++;
+			shown_containers++;
+		}
+
+		return out;
+	}
+}
+

@@ -234,6 +234,60 @@ void plugin_initializer(Plugin* plugin) {
 		return Proc::detailed;
 	}));
 
+	plugin->registerHandler<vector<Container::container_info>, bool>("Container::collect", std::function([](bool no_update) {
+#if defined(__linux__)
+		return Container::collect(no_update);
+#else
+		return vector<Container::container_info>();
+#endif
+	}));
+	plugin->registerHandler<int>("Container::get_numcontainers", std::function([]() {
+#if defined(__linux__)
+		return Container::numcontainers.load();
+#else
+		return 0;
+#endif
+	}));
+	plugin->registerHandler<bool, int>("Container::set_collapse", std::function([](int val) {
+#if defined(__linux__)
+		Container::collapse = val;
+		return true;
+#else
+		return false;
+#endif
+	}));
+	plugin->registerHandler<bool, int>("Container::set_expand", std::function([](int val) {
+#if defined(__linux__)
+		Container::expand = val;
+		return true;
+#else
+		return false;
+#endif
+	}));
+	plugin->registerHandler<bool>("Container::increment_filter_found", std::function([]() {
+#if defined(__linux__)
+		int val = std::stoi(Container::filter_found.empty() ? "0" : Container::filter_found);
+		Container::filter_found = std::to_string(val + 1);
+		return true;
+#else
+		return false;
+#endif
+	}));
+	plugin->registerHandler<Container::detail_container>("Container::get_detailed", std::function([]() {
+#if defined(__linux__)
+		return Container::detailed;
+#else
+		return Container::detail_container{};
+#endif
+	}));
+	plugin->registerHandler<bool>("Container::has_containers", std::function([]() {
+#if defined(__linux__)
+		return Container::has_containers;
+#else
+		return false;
+#endif
+	}));
+
 	plugin->registerHandler<bool>("Shared::init", std::function([]() {
 		Shared::init();
 		return true;

@@ -2350,3 +2350,4 @@ namespace Tools {
 		return (double)GetTickCount64() / 1000;
 	}
 }
+

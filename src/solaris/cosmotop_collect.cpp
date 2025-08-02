@@ -1046,3 +1046,4 @@ namespace Tools {
 		return 0.0;
 	}
 }
+
