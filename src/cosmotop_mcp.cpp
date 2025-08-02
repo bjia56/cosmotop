@@ -160,7 +160,7 @@ public:
 							}
 						}
 
-						auto proc_data = Proc::collect(false);
+						const auto& proc_data = Proc::collect(false);
 						int total_processes = Proc::get_numpids();
 						std::time_t timestamp = std::time(nullptr);
 
@@ -354,7 +354,7 @@ public:
 							}
 						}
 
-						auto cpu_data = Cpu::collect(false);
+						const auto& cpu_data = Cpu::collect(false);
 						string cpu_name = Cpu::get_cpuName();
 						string cpu_freq = Cpu::get_cpuHz();
 						bool has_sensors = Cpu::get_got_sensors();
@@ -495,7 +495,7 @@ public:
 					result << "Plugin not loaded";
 				} else {
 					try {
-						auto mem_data = Mem::collect(false);
+						auto& mem_data = Mem::collect(false);
 						uint64_t total_mem = Mem::get_totalMem();
 						bool has_swap = Mem::get_has_swap();
 						std::time_t timestamp = std::time(nullptr);
@@ -541,7 +541,18 @@ class NetworkToolTask : public TinyMCP::ProcessCallToolRequest {
 public:
 	static constexpr const char* TOOL_NAME = "get_network_info";
 	static constexpr const char* TOOL_DESCRIPTION = "Get network interface information";
-	static constexpr const char* TOOL_INPUT_SCHEMA = R"({"type":"object","properties":{},"required":[]})";
+	static constexpr const char* TOOL_INPUT_SCHEMA = R"EOF(
+{
+	"type": "object",
+	"properties": {
+		"interface": {
+			"type": "string",
+			"description": "Specific network interface to report (empty for all interfaces)"
+		}
+	},
+	"required": []
+}
+)EOF";
 
 	NetworkToolTask(const std::shared_ptr<TinyMCP::Request>& spRequest)
 		: ProcessCallToolRequest(spRequest) {}
@@ -592,36 +603,80 @@ public:
 					result << "Plugin not loaded";
 				} else {
 					try {
-						auto net_data = Net::collect(false);
-						string selected_iface = Net::get_selected_iface();
-						auto interfaces = Net::get_interfaces();
-						auto current_net = Net::get_current_net();
+						// Parse input arguments
+						string interface_filter;
+						if (spCallToolRequest->jArguments.isObject()) {
+							if (spCallToolRequest->jArguments.isMember("interface") &&
+								spCallToolRequest->jArguments["interface"].isString()) {
+								interface_filter = spCallToolRequest->jArguments["interface"].asString();
+							}
+						}
+
+						const auto &interfaces = Net::get_interfaces();
 						std::time_t timestamp = std::time(nullptr);
 
-						// Get current network speeds
-						uint64_t download_speed = 0, upload_speed = 0;
-						if (!net_data.bandwidth["download"].empty()) {
-							download_speed = net_data.bandwidth["download"].back();
-						}
-						if (!net_data.bandwidth["upload"].empty()) {
-							upload_speed = net_data.bandwidth["upload"].back();
-						}
-
 						result << "Network Information\\n";
-						result << "Selected Interface: " << selected_iface << "\\n";
-						result << "Connected: " << (net_data.connected ? "Yes" : "No") << "\\n";
-						result << "IPv4: " << net_data.ipv4 << "\\n";
-						result << "IPv6: " << net_data.ipv6 << "\\n";
-						result << "Download Speed: " << download_speed << " bytes/s\\n";
-						result << "Upload Speed: " << upload_speed << " bytes/s\\n";
-						result << "Download Total: " << net_data.stat["download"].total << " bytes\\n";
-						result << "Upload Total: " << net_data.stat["upload"].total << " bytes\\n";
-						result << "Available Interfaces: ";
-						for (const auto& iface : interfaces) {
-							result << iface << " ";
+						result << "Timestamp: " << timestamp << "\\n";
+						if (!interface_filter.empty()) {
+							result << "Filter: '" << interface_filter << "'\\n";
 						}
 						result << "\\n";
-						result << "Timestamp: " << timestamp << "\\n";
+
+						bool found_interface = false;
+
+						// Iterate through all interfaces
+						for (const auto& iface : interfaces) {
+							// Apply filter if specified
+							if (!interface_filter.empty() && iface != interface_filter) {
+								continue;
+							}
+
+							found_interface = true;
+
+							// Set interface and collect data
+							Net::set_selected_iface(iface);
+							auto& net_data = Net::collect(false);
+
+							result << "Interface: " << iface << "\\n";
+							result << "Connected: " << (net_data.connected ? "Yes" : "No") << "\\n";
+
+							// IP addresses
+							if (!net_data.ipv4.empty()) {
+								result << "IPv4: " << net_data.ipv4 << "\\n";
+							}
+							if (!net_data.ipv6.empty()) {
+								result << "IPv6: " << net_data.ipv6 << "\\n";
+							}
+
+							if (!net_data.connected) {
+								result << "\\n";
+								continue;
+							}
+
+							// Current speeds
+							uint64_t download_speed = 0, upload_speed = 0;
+							if (!net_data.bandwidth["download"].empty()) {
+								download_speed = net_data.bandwidth["download"].back();
+							}
+							if (!net_data.bandwidth["upload"].empty()) {
+								upload_speed = net_data.bandwidth["upload"].back();
+							}
+
+							result << "Download Speed: " << download_speed << " bytes/s\\n";
+							result << "Upload Speed: " << upload_speed << " bytes/s\\n";
+							result << "\\n";
+						}
+
+						// Check if interface filter didn't match anything
+						if (!interface_filter.empty() && !found_interface) {
+							result << "No interface found matching '" << interface_filter << "'\\n";
+							result << "Available interfaces: ";
+							for (const auto& iface : interfaces) {
+								result << iface << " ";
+							}
+							result << "\\n";
+						}
+
 					} catch (const std::exception& e) {
 						result << "Error: " << e.what();
 					}
