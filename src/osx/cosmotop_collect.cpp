@@ -215,6 +215,9 @@ namespace Shared {
 		//? Init for namespace Mem
 		Mem::old_uptime = system_uptime();
 		Mem::collect();
+
+		//? Init for namespace Net
+		Net::collect();
 	}
 
 }  // namespace Shared

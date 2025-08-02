@@ -19,3 +19,6 @@
 [submodule "third_party/catppuccin"]
 	path = third_party/catppuccin
 	url = https://github.com/catppuccin/btop.git
+[submodule "third_party/TinyMCP"]
+	path = third_party/TinyMCP
+	url = https://github.com/bjia56/TinyMCP.git
