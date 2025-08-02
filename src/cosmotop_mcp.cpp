@@ -244,6 +244,7 @@ public:
 						for (size_t i = 0; i < processes_to_show; ++i) {
 							const auto& proc = filtered_processes[i];
 							result << "PID: " << proc.pid << "\\n";
+							result << "PPID: " << proc.ppid << "\\n";
 							result << "Name: " << proc.name << "\\n";
 							result << "User: " << proc.user << "\\n";
 							result << "CPU: " << proc.cpu_p << "%\\n";
