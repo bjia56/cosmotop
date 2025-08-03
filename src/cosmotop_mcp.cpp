@@ -1135,6 +1135,276 @@ public:
 	}
 };
 
+class ContainerToolTask : public TinyMCP::ProcessCallToolRequest {
+public:
+	static constexpr const char* TOOL_NAME = "get_container_info";
+	static constexpr const char* TOOL_DESCRIPTION = "Get Docker container information";
+	static constexpr const char* TOOL_INPUT_SCHEMA = R"EOF(
+{
+	"type": "object",
+	"properties": {
+		"filter_name": {
+			"type": "string",
+			"description": "Filter containers by name (partial match)"
+		},
+		"filter_status": {
+			"type": "string",
+			"description": "Filter containers by status (running, exited, etc.)"
+		},
+		"min_cpu": {
+			"type": "number",
+			"description": "Minimum CPU percentage"
+		},
+		"min_memory": {
+			"type": "number",
+			"description": "Minimum memory usage in bytes"
+		},
+		"sort_by": {
+			"type": "string",
+			"enum": ["id", "name", "image", "status", "cpu", "memory", "created"],
+			"description": "Sort containers by field",
+			"default": "id"
+		},
+		"limit": {
+			"type": "integer",
+			"description": "Maximum number of containers to return (-1 for all)",
+			"default": -1
+		}
+	},
+	"required": []
+}
+)EOF";
+
+	ContainerToolTask(const std::shared_ptr<TinyMCP::Request>& spRequest)
+		: ProcessCallToolRequest(spRequest) {}
+
+	std::shared_ptr<TinyMCP::CMCPTask> Clone() const override {
+		auto spClone = std::make_shared<ContainerToolTask>(nullptr);
+		if (spClone) {
+			*spClone = *this;
+		}
+		return spClone;
+	}
+
+	int Cancel() override {
+		return TinyMCP::ERRNO_OK;
+	}
+
+	int Execute() override {
+		int iErrCode = TinyMCP::ERRNO_INTERNAL_ERROR;
+		if (!IsValid())
+			return iErrCode;
+
+		auto spCallToolRequest = std::dynamic_pointer_cast<TinyMCP::CallToolRequest>(m_spRequest);
+		if (!spCallToolRequest || spCallToolRequest->strName.compare(TOOL_NAME) != 0)
+			goto PROC_END;
+
+		try {
+			if (!is_plugin_loaded()) {
+				iErrCode = TinyMCP::ERRNO_INTERNAL_ERROR;
+				goto PROC_END;
+			}
+
+			trigger_plugin_refresh();
+			iErrCode = TinyMCP::ERRNO_OK;
+
+		} catch (const std::exception& e) {
+			iErrCode = TinyMCP::ERRNO_INTERNAL_ERROR;
+		}
+
+	PROC_END:
+		auto spExecuteResult = BuildResult();
+		if (spExecuteResult) {
+			TinyMCP::TextContent textContent;
+			textContent.strType = TinyMCP::CONST_TEXT;
+			if (TinyMCP::ERRNO_OK == iErrCode) {
+				spExecuteResult->bIsError = false;
+				std::ostringstream result;
+				if (!is_plugin_loaded()) {
+					result << "Plugin not loaded";
+				} else {
+					if (!Container::has_containers) {
+						result << "Docker is not available on this system";
+					} else {
+						try {
+							// Parse input arguments
+							string filter_name, filter_status, sort_by = "id";
+							double min_cpu = 0.0;
+							uint64_t min_memory = 0;
+							int limit = -1;
+
+							if (spCallToolRequest->jArguments.isObject()) {
+								if (spCallToolRequest->jArguments.isMember("filter_name") &&
+									spCallToolRequest->jArguments["filter_name"].isString()) {
+									filter_name = spCallToolRequest->jArguments["filter_name"].asString();
+								}
+								if (spCallToolRequest->jArguments.isMember("filter_status") &&
+									spCallToolRequest->jArguments["filter_status"].isString()) {
+									filter_status = spCallToolRequest->jArguments["filter_status"].asString();
+								}
+								if (spCallToolRequest->jArguments.isMember("min_cpu") &&
+									spCallToolRequest->jArguments["min_cpu"].isNumeric()) {
+									min_cpu = spCallToolRequest->jArguments["min_cpu"].asDouble();
+								}
+								if (spCallToolRequest->jArguments.isMember("min_memory") &&
+									spCallToolRequest->jArguments["min_memory"].isNumeric()) {
+									min_memory = spCallToolRequest->jArguments["min_memory"].asUInt64();
+								}
+								if (spCallToolRequest->jArguments.isMember("sort_by") &&
+									spCallToolRequest->jArguments["sort_by"].isString()) {
+									sort_by = spCallToolRequest->jArguments["sort_by"].asString();
+								}
+								if (spCallToolRequest->jArguments.isMember("limit") &&
+									spCallToolRequest->jArguments["limit"].isIntegral()) {
+									limit = spCallToolRequest->jArguments["limit"].asInt();
+								}
+							}
+
+							const auto& container_data = Container::collect(false);
+							int total_containers = Container::get_numcontainers();
+							std::time_t timestamp = std::time(nullptr);
+
+							// Filter containers
+							vector<Container::container_info> filtered_containers;
+							for (const auto& container : container_data) {
+								bool include = true;
+
+								// Apply filters
+								if (!filter_name.empty()) {
+									if (container.name.find(filter_name) == string::npos) {
+										include = false;
+									}
+								}
+								if (!filter_status.empty() && include) {
+									if (container.status.find(filter_status) == string::npos &&
+										container.state.find(filter_status) == string::npos) {
+										include = false;
+									}
+								}
+								if (min_cpu > 0.0 && include) {
+									if (container.cpu_percent < min_cpu) {
+										include = false;
+									}
+								}
+								if (min_memory > 0 && include) {
+									if (container.mem_usage < min_memory) {
+										include = false;
+									}
+								}
+
+								if (include) {
+									filtered_containers.push_back(container);
+								}
+							}
+
+							// Sort containers using existing sorter
+							if (sort_by == "cpu") {
+								std::sort(filtered_containers.begin(), filtered_containers.end(),
+									[](const Container::container_info& a, const Container::container_info& b) {
+										return a.cpu_percent > b.cpu_percent;
+									});
+							} else if (sort_by == "memory") {
+								std::sort(filtered_containers.begin(), filtered_containers.end(),
+									[](const Container::container_info& a, const Container::container_info& b) {
+										return a.mem_usage > b.mem_usage;
+									});
+							} else if (sort_by == "name") {
+								std::sort(filtered_containers.begin(), filtered_containers.end(),
+									[](const Container::container_info& a, const Container::container_info& b) {
+										return a.name < b.name;
+									});
+							} else if (sort_by == "status") {
+								std::sort(filtered_containers.begin(), filtered_containers.end(),
+									[](const Container::container_info& a, const Container::container_info& b) {
+										return a.status < b.status;
+									});
+							} else if (sort_by == "created") {
+								std::sort(filtered_containers.begin(), filtered_containers.end(),
+									[](const Container::container_info& a, const Container::container_info& b) {
+										return a.created > b.created;
+									});
+							} else if (sort_by == "image") {
+								std::sort(filtered_containers.begin(), filtered_containers.end(),
+									[](const Container::container_info& a, const Container::container_info& b) {
+										return a.image < b.image;
+									});
+							} else { // sort by id (default)
+								std::sort(filtered_containers.begin(), filtered_containers.end(),
+									[](const Container::container_info& a, const Container::container_info& b) {
+										return a.container_id < b.container_id;
+									});
+							}
+
+							// Apply limit
+							size_t containers_to_show = filtered_containers.size();
+							if (limit > 0 && limit < (int)containers_to_show) {
+								containers_to_show = limit;
+							}
+
+							result << "Container Information\\n";
+							result << "Total Containers: " << total_containers << "\\n";
+							result << "Filtered Containers: " << filtered_containers.size() << "\\n";
+							result << "Showing: " << containers_to_show << "\\n";
+							result << "Timestamp: " << timestamp << "\\n";
+							if (!filter_name.empty()) result << "Name Filter: '" << filter_name << "'\\n";
+							if (!filter_status.empty()) result << "Status Filter: '" << filter_status << "'\\n";
+							if (min_cpu > 0.0) result << "Min CPU: " << min_cpu << "%\\n";
+							if (min_memory > 0) result << "Min Memory: " << min_memory << " bytes\\n";
+							result << "Sort By: " << sort_by << "\\n\\n";
+
+							if (containers_to_show == 0 && (!filter_name.empty() || !filter_status.empty() || min_cpu > 0.0 || min_memory > 0)) {
+								result << "No containers found matching the specified filters.\\n";
+							} else {
+								for (size_t i = 0; i < containers_to_show; ++i) {
+									const auto& container = filtered_containers[i];
+									result << "Container ID: " << container.container_id << "\\n";
+									result << "Name: " << container.name << "\\n";
+									result << "Image: " << container.image << "\\n";
+									result << "Status: " << container.status << "\\n";
+									result << "State: " << container.state << "\\n";
+									if (!container.command.empty()) {
+										result << "Command: " << container.command << "\\n";
+									}
+									result << "Created: " << container.created << "\\n";
+									result << "CPU: " << container.cpu_percent << "%\\n";
+									result << "Memory Usage: " << container.mem_usage << " bytes\\n";
+									if (container.mem_limit > 0) {
+										result << "Memory Limit: " << container.mem_limit << " bytes\\n";
+									}
+									result << "Network RX: " << container.net_rx << " bytes\\n";
+									result << "Network TX: " << container.net_tx << " bytes\\n";
+									result << "Block Read: " << container.block_read << " bytes\\n";
+									result << "Block Write: " << container.block_write << " bytes\\n";
+									if (!container.ports.empty()) {
+										result << "Ports: ";
+										for (size_t j = 0; j < container.ports.size(); ++j) {
+											if (j > 0) result << ", ";
+											result << container.ports[j];
+										}
+										result << "\\n";
+									}
+									result << "\\n";
+								}
+							}
+
+						} catch (const std::exception& e) {
+							result << "Error: " << e.what();
+						}
+					}
+				}
+				textContent.strText = result.str();
+			} else {
+				spExecuteResult->bIsError = true;
+				textContent.strText = "Unfortunately, the execution failed. Error code: " + std::to_string(iErrCode);
+			}
+			spExecuteResult->vecTextContent.push_back(textContent);
+			iErrCode = NotifyResult(spExecuteResult);
+		}
+
+		return iErrCode;
+	}
+};
+
 class SystemToolTask : public TinyMCP::ProcessCallToolRequest {
 public:
 	static constexpr const char* TOOL_NAME = "get_system_info";
@@ -1307,6 +1577,16 @@ public:
 			vecTools.push_back(npuTool);
 		}
 
+		// Container tool (only if containers are available)
+		if (Container::has_containers) {
+			TinyMCP::Tool containerTool;
+			containerTool.strName = ContainerToolTask::TOOL_NAME;
+			containerTool.strDescription = ContainerToolTask::TOOL_DESCRIPTION;
+			if (!reader.parse(ContainerToolTask::TOOL_INPUT_SCHEMA, containerTool.jInputSchema) || !containerTool.jInputSchema.isObject())
+				return TinyMCP::ERRNO_PARSE_ERROR;
+			vecTools.push_back(containerTool);
+		}
+
 		// System tool
 		TinyMCP::Tool systemTool;
 		systemTool.strName = SystemToolTask::TOOL_NAME;
@@ -1328,6 +1608,9 @@ public:
 		}
 		if (Npu::get_count() > 0) {
 			RegisterToolsTasks(NpuToolTask::TOOL_NAME, std::make_shared<NpuToolTask>(nullptr));
+		}
+		if (Container::has_containers) {
+			RegisterToolsTasks(ContainerToolTask::TOOL_NAME, std::make_shared<ContainerToolTask>(nullptr));
 		}
 		RegisterToolsTasks(SystemToolTask::TOOL_NAME, std::make_shared<SystemToolTask>(nullptr));
 
