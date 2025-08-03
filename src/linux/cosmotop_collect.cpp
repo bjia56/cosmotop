@@ -4148,4 +4148,8 @@ namespace Container {
 				container.container_id.find(filter) != string::npos or
 				container.status.find(filter) != string::npos);
 	}
+
+	int get_numcontainers() {
+		return numcontainers.load();
+	}
 }
