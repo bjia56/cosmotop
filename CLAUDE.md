@@ -108,6 +108,7 @@ Exposes system monitoring tools via Model Context Protocol:
 ## Development Workflow
 
 Sample commands included, assuming run on Linux and from the repo's root directory.
+Note that bundling is required to run the host and plugin together.
 
 1. **Host Development**: Use cosmocc toolchain on Linux for best results
    - `CXX=cosmoc++ CC=cosmocc cmake -B build-cosmotop`
