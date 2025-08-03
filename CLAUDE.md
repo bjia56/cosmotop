@@ -20,7 +20,7 @@ cmake -B build-cosmotop -DTARGET=host
 cmake --build build-cosmotop
 
 # Build platform-native plugin binaries
-cmake -B build-plugin -DTARGET=plugin  
+cmake -B build-plugin -DTARGET=plugin
 cmake --build build-plugin
 ```
 
@@ -64,7 +64,7 @@ The project uses a unique dual-binary architecture:
 ### Third-Party Dependencies
 
 - **libcosmo_plugin**: Custom plugin communication library
-- **TinyMCP**: Model Context Protocol implementation  
+- **TinyMCP**: Model Context Protocol implementation
 - **cpp-httplib**: HTTP client/server functionality
 - **fmt**: String formatting library
 - **range-v3**: Range algorithms (C++20 ranges on Windows)
@@ -76,7 +76,7 @@ The project uses a unique dual-binary architecture:
 ### Core Platforms (Bundled Plugins)
 - Linux x86_64/aarch64, Windows x86_64, macOS x86_64/aarch64
 
-### Extended Platforms (Downloaded Plugins)  
+### Extended Platforms (Downloaded Plugins)
 - FreeBSD, NetBSD, OpenBSD, DragonFlyBSD, Solaris
 - Various architectures: i386, powerpc64le, s390x, riscv64, loongarch64
 
@@ -96,7 +96,7 @@ The project uses a unique dual-binary architecture:
 
 ### NPU Monitoring
 - **Intel**: `/sys/devices/pci0000:00/0000:00:0b.0` access required
-- **Rockchip**: `/sys/kernel/debug/rknpu` access required  
+- **Rockchip**: `/sys/kernel/debug/rknpu` access required
 - **Apple Neural Engine**: Built-in support on Apple Silicon
 
 ### MCP Mode
@@ -107,13 +107,22 @@ Exposes system monitoring tools via Model Context Protocol:
 
 ## Development Workflow
 
+Sample commands included, assuming run on Linux and from the repo's root directory.
+
 1. **Host Development**: Use cosmocc toolchain on Linux for best results
+   - `CXX=cosmoc++ CC=cosmocc cmake -B build-cosmotop`
+   - `cmake --build build-cosmotop --parallel 4`
 2. **Plugin Development**: Use native compilers for each target platform
+   - `cmake -B build-plugin -DTARGET=plugin`
+   - `cmake --build build-plugin --parallel 4`
 3. **Bundling**: Combine host executable with plugins using `zip` command
+   - `cp build-cosmotop/cosmotop.com .`
+   - `cp build-plugin/cosmotop-plugin.exe cosmotop-linux-x86_64.exe`
+   - `zip -r cosmotop.com cosmotop-linux-x86_64.exe themes/`
 4. **Distribution**: Optional Chimp executable creation for extended platform support
 
 ## Configuration
 
 - **Config Path**: `~/.config/cosmotop/cosmotop.conf`
-- **Themes Path**: `~/.config/cosmotop/themes`  
+- **Themes Path**: `~/.config/cosmotop/themes`
 - **Plugin Cache**: `~/.cosmotop` (extracted/downloaded plugins)
