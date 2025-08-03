@@ -49,6 +49,7 @@ Options:
        --licenses      display licenses of open-source software used in cosmotop
        --debug         start in DEBUG mode: shows microsecond timer for information collect
                        and screen draw functions and sets loglevel to DEBUG
+       --mcp           start MCP server mode: exposes system information tools via MCP protocol
 ```
 
 ### GPU monitoring
@@ -76,6 +77,19 @@ the first time the program runs.
 ### Themes
 
 A number of themes are available within `cosmotop`. Place custom themes at `~/.config/cosmotop/themes`.
+
+### MCP mode
+
+Model Context Protocol (MCP) mode is enabled with the `--mcp` flag and starts `cosmotop` as a MCP server using the STDIO transport
+and protocol version `2024-11-05`. Normal graphical metrics reporting is disabled during this mode. Tools exposed by `cosmotop`:
+- `get_process_info`
+- `get_cpu_info`
+- `get_memory_info`
+- `get_network_info`
+- `get_disk_info`
+- `get_gpu_info` (not available if no GPUs are detected)
+- `get_npu_info` (not available if no NPUs are detected)
+- `get_system_info`
 
 ## Supported platforms
 
