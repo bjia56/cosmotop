@@ -573,7 +573,8 @@ namespace Container {
 	extern bool shown, redraw;
 	extern int select_max_rows;
 	extern atomic<int> detailed_container_id;
-	extern string selected_container_id, start, selected, collapse, expand, filter_found, selected_depth;
+	extern string selected_container_id, collapse, expand, filter_found, selected_depth;
+	extern int start, selected;
 	extern string selected_name;
 
 	void set_collapse(int val);
@@ -582,6 +583,7 @@ namespace Container {
 
 	void init();
 	extern bool has_containers;
+	bool get_has_containers();
 
 	int get_width();
 	void set_redraw(bool val);
@@ -613,19 +615,19 @@ namespace Container {
 	//* Container for container information
 	struct container_info {
 		string container_id{};
-		string name{};          
-		string image{};         
-		string command{};       
-		string status{};        
-		string state{};         
-		uint64_t created{};     
-		uint64_t mem_usage{};   
-		uint64_t mem_limit{};   
-		double cpu_percent{};   
-		uint64_t net_rx{};      
-		uint64_t net_tx{};      
-		uint64_t block_read{};  
-		uint64_t block_write{}; 
+		string name{};
+		string image{};
+		string command{};
+		string status{};
+		string state{};
+		uint64_t created{};
+		uint64_t mem_usage{};
+		uint64_t mem_limit{};
+		double cpu_percent{};
+		uint64_t net_rx{};
+		uint64_t net_tx{};
+		uint64_t block_read{};
+		uint64_t block_write{};
 		vector<string> ports{};
 		bool filtered{};
 	};

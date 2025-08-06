@@ -2539,7 +2539,12 @@ namespace Container {
 	int width_p = 55, height_p = 68;
 	int min_width = 44, min_height = 16;
 	int x, y, width = 20, height;
+	int start, selected;
 	bool shown = true, redraw = true;
+	int select_max_rows;
+	atomic<int> detailed_container_id;
+	string selected_container_id, collapse, expand, filter_found, selected_depth;
+	string selected_name;
 	std::unordered_map<size_t, Draw::Graph> c_graphs;
 	std::unordered_map<size_t, int> c_counters;
 	int counter = 0;
@@ -2551,15 +2556,15 @@ namespace Container {
 	string draw(const vector<container_info>& clist, bool force_redraw, bool data_same) {
 		if (Runner::stopping) return "";
 		auto container_gradient = false; // TODO: Add container_gradient config
-		auto container_colors = false; // TODO: Add container_colors config  
+		auto container_colors = false; // TODO: Add container_colors config
 		auto tty_mode = Config::getB("tty_mode");
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol"));
 		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
 		auto mem_bytes = false; // TODO: Add container_mem_bytes config
 		auto vim_keys = Config::getB("vim_keys");
 		auto show_graphs = true; // TODO: Add container_cpu_graphs config
-		int start = std::stoi(Container::start);
-		int selected = std::stoi(Container::selected);
+		auto& start = Container::start;
+		auto& selected = Container::selected;
 		int numcontainers = Container::get_numcontainers();
 		if (force_redraw) redraw = true;
 		string out;
@@ -2609,7 +2614,7 @@ namespace Container {
 		for (int i = start; i < clist.size() and shown_containers < max_containers; i++) {
 			const auto& container = clist[i];
 			bool is_selected = (i == start + selected - 1);
-			
+
 			//* Set colors
 			string row_color = line_color;
 			if (is_selected) {
@@ -2621,7 +2626,7 @@ namespace Container {
 			string container_id_display = container.container_id.substr(0, min(id_size, (int)container.container_id.length()));
 			out += Mv::to(y_pos, x + 1) + row_color + ljust(container_id_display, id_size) + ' ';
 
-			//* Name 
+			//* Name
 			string name_display = container.name;
 			if (name_display.starts_with("/")) name_display = name_display.substr(1);
 			out += ljust(uresize(name_display, name_size), name_size) + ' ';
@@ -2648,7 +2653,7 @@ namespace Container {
 					if (mem_bytes) {
 						mem_str = floating_humanizer(container.mem_usage, false, 1);
 					} else {
-						double mem_percent = container.mem_limit > 0 ? 
+						double mem_percent = container.mem_limit > 0 ?
 							(double)container.mem_usage / container.mem_limit * 100.0 : 0.0;
 						mem_str = to_string((int)round(mem_percent)) + "%";
 					}

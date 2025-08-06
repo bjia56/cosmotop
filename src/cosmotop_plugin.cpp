@@ -280,7 +280,7 @@ void plugin_initializer(Plugin* plugin) {
 		return Container::detail_container{};
 #endif
 	}));
-	plugin->registerHandler<bool>("Container::has_containers", std::function([]() {
+	plugin->registerHandler<bool>("Container::get_has_containers", std::function([]() {
 #if defined(__linux__)
 		return Container::has_containers;
 #else
@@ -1015,6 +1015,25 @@ namespace Proc {
 	detail_container get_detailed() {
 		typedef detail_container result_type;
 		PLUGIN_FETCH_REMOTE(result_type, "Proc::get_detailed");
+	}
+}
+
+namespace Container {
+	vector<container_info>& collect(bool no_update) {
+		static vector<container_info> result;
+		static int cache_counter = -1;
+		if (cache_counter == plugin_cache_counter and no_update) return result;
+		result = pluginHost->call<vector<container_info>>("Container::collect", std::move(no_update));
+		cache_counter = plugin_cache_counter;
+		return result;
+	}
+	bool get_has_containers() {
+		typedef bool result_type;
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Container::get_has_containers");
+	}
+	int get_numcontainers() {
+		typedef int result_type;
+		PLUGIN_FETCH_REMOTE_ONCE(result_type, "Container::get_numcontainers");
 	}
 }
 

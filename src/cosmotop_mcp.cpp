@@ -1223,7 +1223,7 @@ public:
 				if (!is_plugin_loaded()) {
 					result << "Plugin not loaded";
 				} else {
-					if (!Container::has_containers) {
+					if (!Container::get_has_containers()) {
 						result << "Docker is not available on this system";
 					} else {
 						try {
@@ -1578,7 +1578,7 @@ public:
 		}
 
 		// Container tool (only if containers are available)
-		if (Container::has_containers) {
+		if (Container::get_has_containers()) {
 			TinyMCP::Tool containerTool;
 			containerTool.strName = ContainerToolTask::TOOL_NAME;
 			containerTool.strDescription = ContainerToolTask::TOOL_DESCRIPTION;
@@ -1609,7 +1609,7 @@ public:
 		if (Npu::get_count() > 0) {
 			RegisterToolsTasks(NpuToolTask::TOOL_NAME, std::make_shared<NpuToolTask>(nullptr));
 		}
-		if (Container::has_containers) {
+		if (Container::get_has_containers()) {
 			RegisterToolsTasks(ContainerToolTask::TOOL_NAME, std::make_shared<ContainerToolTask>(nullptr));
 		}
 		RegisterToolsTasks(SystemToolTask::TOOL_NAME, std::make_shared<SystemToolTask>(nullptr));
