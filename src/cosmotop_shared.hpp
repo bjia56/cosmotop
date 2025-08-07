@@ -573,8 +573,8 @@ namespace Container {
 	extern bool shown, redraw;
 	extern int select_max_rows;
 	extern atomic<int> detailed_container_id;
-	extern string selected_container_id, collapse, expand, filter_found, selected_depth;
-	extern int start, selected;
+	extern string selected_container_id;
+	extern int start, selected, filter_found;
 	extern string selected_name;
 
 	void set_collapse(int val);
@@ -601,24 +601,12 @@ namespace Container {
 		"created",
 	};
 
-	//? Translation from container state to explanative string
-	const std::unordered_map<string, string> container_states = {
-		{"created", "Created"},
-		{"restarting", "Restarting"},
-		{"running", "Running"},
-		{"removing", "Removing"},
-		{"paused", "Paused"},
-		{"exited", "Exited"},
-		{"dead", "Dead"}
-	};
-
 	//* Container for container information
 	struct container_info {
 		string container_id{};
 		string name{};
 		string image{};
 		string command{};
-		string status{};
 		string state{};
 		uint64_t created{};
 		uint64_t mem_usage{};
@@ -628,7 +616,6 @@ namespace Container {
 		uint64_t net_tx{};
 		uint64_t block_read{};
 		uint64_t block_write{};
-		vector<string> ports{};
 		bool filtered{};
 	};
 

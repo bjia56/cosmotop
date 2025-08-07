@@ -622,6 +622,7 @@ jobs:
           cp ${{ github.workspace }}/third_party/rocm_smi_lib/third_party/shared_mutex/LICENSE shared_mutex
           cp ${{ github.workspace }}/third_party/TinyMCP/LICENSE TinyMCP
           cp ${{ github.workspace }}/third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt jsoncpp
+          cp ${{ github.workspace }}/third_party/date/LICENSE.txt date
           curl -L -o igt-gpu-tools https://gitlab.freedesktop.org/drm/igt-gpu-tools/-/raw/0f02dc176959e6296866b1bafd3982e277a5e44b/COPYING
           cp $(dirname $(dirname $(which cosmocc)))/LICENSE "Cosmopolitan Libc"
           cp $(dirname $(which zig))/LICENSE "Zig Programming Language"

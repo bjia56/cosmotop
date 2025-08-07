@@ -1147,9 +1147,9 @@ public:
 			"type": "string",
 			"description": "Filter containers by name (partial match)"
 		},
-		"filter_status": {
+		"filter_state": {
 			"type": "string",
-			"description": "Filter containers by status (running, exited, etc.)"
+			"description": "Filter containers by state (running, exited, etc.)"
 		},
 		"min_cpu": {
 			"type": "number",
@@ -1161,7 +1161,7 @@ public:
 		},
 		"sort_by": {
 			"type": "string",
-			"enum": ["id", "name", "image", "status", "cpu", "memory", "created"],
+			"enum": ["id", "name", "image", "state", "cpu", "memory", "created"],
 			"description": "Sort containers by field",
 			"default": "id"
 		},
@@ -1228,7 +1228,7 @@ public:
 					} else {
 						try {
 							// Parse input arguments
-							string filter_name, filter_status, sort_by = "id";
+							string filter_name, filter_state, sort_by = "id";
 							double min_cpu = 0.0;
 							uint64_t min_memory = 0;
 							int limit = -1;
@@ -1238,9 +1238,9 @@ public:
 									spCallToolRequest->jArguments["filter_name"].isString()) {
 									filter_name = spCallToolRequest->jArguments["filter_name"].asString();
 								}
-								if (spCallToolRequest->jArguments.isMember("filter_status") &&
-									spCallToolRequest->jArguments["filter_status"].isString()) {
-									filter_status = spCallToolRequest->jArguments["filter_status"].asString();
+								if (spCallToolRequest->jArguments.isMember("filter_state") &&
+									spCallToolRequest->jArguments["filter_state"].isString()) {
+									filter_state = spCallToolRequest->jArguments["filter_state"].asString();
 								}
 								if (spCallToolRequest->jArguments.isMember("min_cpu") &&
 									spCallToolRequest->jArguments["min_cpu"].isNumeric()) {
@@ -1275,9 +1275,8 @@ public:
 										include = false;
 									}
 								}
-								if (!filter_status.empty() && include) {
-									if (container.status.find(filter_status) == string::npos &&
-										container.state.find(filter_status) == string::npos) {
+								if (!filter_state.empty() && include) {
+									if (container.state.find(filter_state) == string::npos) {
 										include = false;
 									}
 								}
@@ -1313,10 +1312,10 @@ public:
 									[](const Container::container_info& a, const Container::container_info& b) {
 										return a.name < b.name;
 									});
-							} else if (sort_by == "status") {
+							} else if (sort_by == "state") {
 								std::sort(filtered_containers.begin(), filtered_containers.end(),
 									[](const Container::container_info& a, const Container::container_info& b) {
-										return a.status < b.status;
+										return a.state < b.state;
 									});
 							} else if (sort_by == "created") {
 								std::sort(filtered_containers.begin(), filtered_containers.end(),
@@ -1347,12 +1346,12 @@ public:
 							result << "Showing: " << containers_to_show << "\\n";
 							result << "Timestamp: " << timestamp << "\\n";
 							if (!filter_name.empty()) result << "Name Filter: '" << filter_name << "'\\n";
-							if (!filter_status.empty()) result << "Status Filter: '" << filter_status << "'\\n";
+							if (!filter_state.empty()) result << "State Filter: '" << filter_state << "'\\n";
 							if (min_cpu > 0.0) result << "Min CPU: " << min_cpu << "%\\n";
 							if (min_memory > 0) result << "Min Memory: " << min_memory << " bytes\\n";
 							result << "Sort By: " << sort_by << "\\n\\n";
 
-							if (containers_to_show == 0 && (!filter_name.empty() || !filter_status.empty() || min_cpu > 0.0 || min_memory > 0)) {
+							if (containers_to_show == 0 && (!filter_name.empty() || !filter_state.empty() || min_cpu > 0.0 || min_memory > 0)) {
 								result << "No containers found matching the specified filters.\\n";
 							} else {
 								for (size_t i = 0; i < containers_to_show; ++i) {
@@ -1360,7 +1359,6 @@ public:
 									result << "Container ID: " << container.container_id << "\\n";
 									result << "Name: " << container.name << "\\n";
 									result << "Image: " << container.image << "\\n";
-									result << "Status: " << container.status << "\\n";
 									result << "State: " << container.state << "\\n";
 									if (!container.command.empty()) {
 										result << "Command: " << container.command << "\\n";
@@ -1375,14 +1373,6 @@ public:
 									result << "Network TX: " << container.net_tx << " bytes\\n";
 									result << "Block Read: " << container.block_read << " bytes\\n";
 									result << "Block Write: " << container.block_write << " bytes\\n";
-									if (!container.ports.empty()) {
-										result << "Ports: ";
-										for (size_t j = 0; j < container.ports.size(); ++j) {
-											if (j > 0) result << ", ";
-											result << container.ports[j];
-										}
-										result << "\\n";
-									}
 									result << "\\n";
 								}
 							}

@@ -22,3 +22,6 @@
 [submodule "third_party/TinyMCP"]
 	path = third_party/TinyMCP
 	url = https://github.com/bjia56/TinyMCP.git
+[submodule "third_party/date"]
+	path = third_party/date
+	url = https://github.com/HowardHinnant/date.git

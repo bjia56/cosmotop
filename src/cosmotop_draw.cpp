@@ -2543,13 +2543,13 @@ namespace Container {
 	bool shown = true, redraw = true;
 	int select_max_rows;
 	atomic<int> detailed_container_id;
-	string selected_container_id, collapse, expand, filter_found, selected_depth;
+	string selected_container_id;
 	string selected_name;
 	std::unordered_map<size_t, Draw::Graph> c_graphs;
 	std::unordered_map<size_t, int> c_counters;
 	int counter = 0;
 	Draw::TextEdit filter;
-	int id_size, name_size, image_size, status_size, cpu_size, mem_size;
+	int id_size, name_size, image_size, state_size, cpu_size, mem_size;
 
 	string box;
 
@@ -2580,7 +2580,7 @@ namespace Container {
 			id_size = min(12, max(8, width / 8));
 			name_size = min(20, max(8, width / 6));
 			image_size = min(25, max(10, width / 5));
-			status_size = 10;
+			state_size = 10;
 			cpu_size = 8;
 			mem_size = 10;
 
@@ -2588,7 +2588,7 @@ namespace Container {
 			out += Mv::to(y + 1, x + 1) + Theme::c("main_fg") + Fx::b + ljust("Container ID", id_size) + ' '
 				+ ljust("Name", name_size) + ' '
 				+ ljust("Image", image_size) + ' '
-				+ ljust("Status", status_size) + ' ';
+				+ ljust("State", state_size) + ' ';
 			if (show_graphs) {
 				out += ljust("CPU%", cpu_size) + ' '
 					+ ljust("Memory", mem_size);
@@ -2634,12 +2634,12 @@ namespace Container {
 			//* Image
 			out += ljust(uresize(container.image, image_size), image_size) + ' ';
 
-			//* Status with state color
-			string status_color = row_color;
-			if (container.state == "running") status_color += Theme::c("proc_misc");
-			else if (container.state == "exited") status_color += Theme::c("inactive_fg");
-			else if (container.state == "paused") status_color += Theme::c("cpu_box");
-			out += status_color + ljust(uresize(container.status, status_size), status_size) + row_color + ' ';
+			//* State with state color
+			string state_color = row_color;
+			if (container.state == "running") state_color += Theme::c("proc_misc");
+			else if (container.state == "exited") state_color += Theme::c("inactive_fg");
+			else if (container.state == "paused") state_color += Theme::c("cpu_box");
+			out += state_color + ljust(uresize(container.state, state_size), state_size) + row_color + ' ';
 
 			//* CPU and Memory if graphs enabled
 			if (show_graphs) {

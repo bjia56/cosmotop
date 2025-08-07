@@ -248,31 +248,6 @@ void plugin_initializer(Plugin* plugin) {
 		return 0;
 #endif
 	}));
-	plugin->registerHandler<bool, int>("Container::set_collapse", std::function([](int val) {
-#if defined(__linux__)
-		Container::collapse = val;
-		return true;
-#else
-		return false;
-#endif
-	}));
-	plugin->registerHandler<bool, int>("Container::set_expand", std::function([](int val) {
-#if defined(__linux__)
-		Container::expand = val;
-		return true;
-#else
-		return false;
-#endif
-	}));
-	plugin->registerHandler<bool>("Container::increment_filter_found", std::function([]() {
-#if defined(__linux__)
-		int val = std::stoi(Container::filter_found.empty() ? "0" : Container::filter_found);
-		Container::filter_found = std::to_string(val + 1);
-		return true;
-#else
-		return false;
-#endif
-	}));
 	plugin->registerHandler<Container::detail_container>("Container::get_detailed", std::function([]() {
 #if defined(__linux__)
 		return Container::detailed;

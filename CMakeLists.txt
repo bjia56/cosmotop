@@ -39,6 +39,7 @@ set(THIRD_PARTY_INCLUDES
   ${PROJECT_SOURCE_DIR}/third_party/fmt/include
   ${PROJECT_SOURCE_DIR}/third_party/widecharwidth
   ${PROJECT_SOURCE_DIR}/third_party/range-v3/include
+  ${PROJECT_SOURCE_DIR}/third_party/date/include
 )
 
 # Generate build info
