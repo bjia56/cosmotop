@@ -3973,35 +3973,4 @@ namespace Container {
 		numcontainers = (int)current_containers.size() - filter_found;
 		return current_containers;
 	}
-
-	void container_sorter(vector<container_info>& container_vec, const string& sorting, bool reverse) {
-		if (sorting == "id") {
-			rng::sort(container_vec, rng::less{}, &container_info::container_id);
-		}
-		else if (sorting == "name") {
-			rng::sort(container_vec, rng::less{}, &container_info::name);
-		}
-		else if (sorting == "image") {
-			rng::sort(container_vec, rng::less{}, &container_info::image);
-		}
-		else if (sorting == "cpu") {
-			rng::sort(container_vec, rng::greater{}, &container_info::cpu_percent);
-		}
-		else if (sorting == "memory") {
-			rng::sort(container_vec, rng::greater{}, &container_info::mem_usage);
-		}
-		else if (sorting == "created") {
-			rng::sort(container_vec, rng::greater{}, &container_info::created);
-		}
-
-		if (reverse) {
-			rng::reverse(container_vec);
-		}
-	}
-
-	bool matches_filter(const container_info& container, const std::string& filter) {
-		return (container.name.find(filter) != string::npos or
-				container.image.find(filter) != string::npos or
-				container.container_id.find(filter) != string::npos);
-	}
 }
