@@ -235,21 +235,21 @@ void plugin_initializer(Plugin* plugin) {
 	}));
 
 	plugin->registerHandler<vector<Container::container_info>, bool>("Container::collect", std::function([](bool no_update) {
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 		return Container::collect(no_update);
 #else
 		return vector<Container::container_info>();
 #endif
 	}));
 	plugin->registerHandler<int>("Container::get_numcontainers", std::function([]() {
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 		return Container::numcontainers.load();
 #else
 		return 0;
 #endif
 	}));
 	plugin->registerHandler<bool>("Container::get_has_containers", std::function([]() {
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 		return Container::has_containers;
 #else
 		return false;
