@@ -248,13 +248,6 @@ void plugin_initializer(Plugin* plugin) {
 		return 0;
 #endif
 	}));
-	plugin->registerHandler<Container::detail_container>("Container::get_detailed", std::function([]() {
-#if defined(__linux__)
-		return Container::detailed;
-#else
-		return Container::detail_container{};
-#endif
-	}));
 	plugin->registerHandler<bool>("Container::get_has_containers", std::function([]() {
 #if defined(__linux__)
 		return Container::has_containers;

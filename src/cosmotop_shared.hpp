@@ -598,7 +598,6 @@ namespace Container {
 		"status",
 		"cpu",
 		"memory",
-		"created",
 	};
 
 	//* Container for container information
@@ -618,21 +617,6 @@ namespace Container {
 		uint64_t block_write{};
 		bool filtered{};
 	};
-
-	//* Container for container info box
-	struct detail_container {
-		string last_container_id{};
-		container_info entry;
-		string uptime, image, command, ports, mounts;
-		long long first_mem = -1;
-		deque<long long> cpu_percent;
-		deque<long long> mem_bytes;
-		double mem_percent = 0.0;
-	};
-
-	//? Contains all info for container detailed box
-	extern detail_container detailed;
-	detail_container get_detailed();
 
 	//* Collect and sort container information
 	auto collect(bool no_update = false) -> vector<container_info>&;

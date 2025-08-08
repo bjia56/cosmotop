@@ -38,7 +38,6 @@ tab-size = 4
 #include <regex>
 #include <chrono>
 
-#include <date/date.h>
 #include <range/v3/all.hpp>
 
 #if defined(RSMI_STATIC)
@@ -3717,9 +3716,8 @@ namespace Container {
 	int filter_found{};
 	detail_container detailed;
 
-	// Docker detection and method preference
+	// Docker detection
 	bool has_containers = false;
-	bool use_socket = false;
 	string docker_socket_path = "/var/run/docker.sock";
 
 	// Docker API JSON structures using reflect-cpp
@@ -3772,107 +3770,15 @@ namespace Container {
 			uint64_t limit;
 		} memory_stats;
 		DockerCpuStats cpu_stats;
-		DockerCpuStats precpu_stats;
+		//DockerCpuStats precpu_stats;
 		std::unordered_map<string, DockerNetworkEntry> networks;
 		struct {
 			vector<DockerBlockStatEntry> io_service_bytes_recursive;
 		} blkio_stats;
 	};
 
-	// Docker CLI JSON structure for ps command
-	struct DockerCliContainer {
-		string ID;
-		string Names;
-		string Image;
-		string Command;
-		string CreatedAt;
-		string State;
-	};
-
-	// Docker CLI JSON structure for stats command
-	struct DockerCliStats {
-		string Container;
-		string CPUPerc;
-		string MemUsage;
-		string NetIO;
-		string BlockIO;
-	};
-
-	//* Initialize Docker detection and choose preferred method
-	void init() {
-		// First try Docker socket
-		if (fs::exists(docker_socket_path) && access(docker_socket_path.c_str(), R_OK) == 0) {
-			// Test socket connectivity by making a simple API call
-			try {
-				httplib::Client cli(docker_socket_path);
-				cli.set_address_family(AF_UNIX);
-				httplib::Headers headers{
-					{"Host", "localhost"},
-					{"Connection", "close"},
-					{"Content-Type", "application/json"}
-				};
-				auto result = cli.Get("/version", headers);
-				if (result && result->status == 200) {
-					use_socket = true;
-					has_containers = true;
-					Logger::debug("Container::init() : Using Docker socket");
-					return;
-				} else {
-					Logger::debug("Container::init() : Docker socket test failed, status: " + to_string(result ? result->status : 0));
-				}
-			} catch (const std::exception& e) {
-				Logger::debug("Container::init() : Docker socket test failed: " + string(e.what()));
-			}
-		} else {
-			int errsv = errno;
-			Logger::debug("Container::init() : Docker socket not accessible, errno: " + string(strerror(errsv)));
-		}
-
-		// Fall back to Docker CLI
-		FILE* pipe = popen("docker ps --format '{{.ID}}' 2>/dev/null", "r");
-		if (pipe) {
-			char buffer[128];
-			if (fgets(buffer, sizeof buffer, pipe) != nullptr) {
-				// Successfully executed docker command
-				use_socket = false;
-				has_containers = true;
-				Logger::debug("Container::init() : Using Docker CLI");
-			} else {
-				// No containers found or command failed
-				has_containers = false;
-				Logger::debug("Container::init() : Docker CLI returned no containers");
-			}
-			pclose(pipe);
-		} else {
-			int errsv = errno;
-			Logger::debug("Container::init() : Docker CLI not accessible, errno: " + string(strerror(errsv)));
-		}
-
-		if (!has_containers) {
-			Logger::debug("Container::init() : Docker not available");
-		}
-	}
-
-	//* Execute docker command and return output
-	string docker_command(const string& cmd) {
-		string result;
-		FILE* pipe = popen(("docker " + cmd + " 2>/dev/null").c_str(), "r");
-		if (!pipe) return "";
-
-		char buffer[128];
-		while (fgets(buffer, sizeof buffer, pipe) != nullptr) {
-			result += buffer;
-		}
-		pclose(pipe);
-		return result;
-	}
-
 	//* Execute Docker API call via socket
 	string docker_api_call(const string& endpoint) {
-		if (!use_socket) {
-			return ""; // Fall back to CLI method
-		}
-
 		try {
 			httplib::Client cli(docker_socket_path);
 			cli.set_address_family(AF_UNIX);
@@ -3894,6 +3800,30 @@ namespace Container {
 			return "";
 		}
 	}
+
+	//* Initialize Docker detection and choose preferred method
+	void init() {
+		// First try Docker socket
+		if (fs::exists(docker_socket_path) && access(docker_socket_path.c_str(), R_OK) == 0) {
+			// Test socket connectivity by making a simple API call
+			auto result = docker_api_call("/version");
+			if (!result.empty()) {
+				has_containers = true;
+				Logger::debug("Container::init() : Using Docker socket");
+				return;
+			} else {
+				Logger::debug("Container::init() : Docker socket test failed");
+			}
+		} else {
+			int errsv = errno;
+			Logger::debug("Container::init() : Docker socket not accessible, errno: " + string(strerror(errsv)));
+		}
+
+		// No Docker socket available - containers not supported
+		has_containers = false;
+		Logger::debug("Container::init() : Docker not available");
+	}
+
 
 	//* Parse container list from Docker API JSON response
 	vector<container_info> parse_containers_json(const string& json_response) {
@@ -3929,238 +3859,70 @@ namespace Container {
 
 	//* Get container stats via Docker API
 	void get_container_stats_api(vector<container_info>& containers) {
-		// If containers list is empty, first get all containers
-		if (containers.empty()) {
-			string containers_json = docker_api_call("/containers/json");
-			if (!containers_json.empty()) {
-				containers = parse_containers_json(containers_json);
-			}
+		string containers_json = docker_api_call("/containers/json");
+		if (!containers_json.empty()) {
+			containers = parse_containers_json(containers_json);
+		} else {
+			containers.clear();
 		}
 
+		std::vector<std::future<void>> futures;
 		for (auto& container : containers) {
-			string endpoint = "/containers/" + container.container_id + "/stats?stream=false";
-			string stats_json = docker_api_call(endpoint);
+			futures.push_back(std::async(std::launch::async, [&container]() {
+				string endpoint = "/containers/" + container.container_id + "/stats?stream=false&one-shot=true";
+				string stats_json_pre = docker_api_call(endpoint);
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				string stats_json = docker_api_call(endpoint);
 
-			//Logger::debug("Container stats API call for " + container.container_id + ": " + stats_json);
+				//Logger::debug("Container stats API call for " + container.container_id + ": " + stats_json);
 
-			if (stats_json.empty()) continue;
+				if (stats_json.empty()) return;
 
-			try {
-				auto stats = rfl::json::read<DockerStats>(stats_json);
-				if (stats) {
-					container.mem_usage = stats.value().memory_stats.usage;
-					container.mem_limit = stats.value().memory_stats.limit;
+				try {
+					auto stats_pre = rfl::json::read<DockerStats>(stats_json_pre);
+					auto stats = rfl::json::read<DockerStats>(stats_json);
+					if (stats_pre && stats) {
+						container.mem_usage = stats.value().memory_stats.usage;
+						container.mem_limit = stats.value().memory_stats.limit;
 
-					uint64_t cpu_delta = stats.value().cpu_stats.cpu_usage.total_usage - stats.value().precpu_stats.cpu_usage.total_usage;
-					uint64_t system_delta = stats.value().cpu_stats.system_cpu_usage - stats.value().precpu_stats.system_cpu_usage;
-					uint64_t cpu_count = stats.value().cpu_stats.online_cpus;
-					if (system_delta > 0 && cpu_delta > 0 && cpu_count > 0) {
-						container.cpu_percent = (cpu_delta * 100.0 / system_delta) * cpu_count;
-					} else {
-						container.cpu_percent = 0.0;
-					}
-
-					uint64_t net_rx = 0, net_tx = 0;
-					for (const auto& [iface, net] : stats.value().networks) {
-						net_rx += net.rx_bytes;
-						net_tx += net.tx_bytes;
-					}
-					container.net_rx = net_rx;
-					container.net_tx = net_tx;
-
-					uint64_t blkio_read = 0, blkio_write = 0;
-					for (const auto& blkio : stats.value().blkio_stats.io_service_bytes_recursive) {
-						if (blkio.op[0] == 'r' || blkio.op[0] == 'R') {
-							blkio_read += blkio.value;
-						} else if (blkio.op[0] == 'w' || blkio.op[0] == 'W') {
-							blkio_write += blkio.value;
+						uint64_t cpu_delta = stats.value().cpu_stats.cpu_usage.total_usage - stats_pre.value().cpu_stats.cpu_usage.total_usage;
+						uint64_t system_delta = stats.value().cpu_stats.system_cpu_usage - stats_pre.value().cpu_stats.system_cpu_usage;
+						uint64_t cpu_count = stats.value().cpu_stats.online_cpus;
+						if (system_delta > 0 && cpu_delta > 0 && cpu_count > 0) {
+							container.cpu_percent = (cpu_delta * 100.0 / system_delta) * cpu_count;
+						} else {
+							container.cpu_percent = 0.0;
 						}
-					}
-					container.block_read = blkio_read;
-					container.block_write = blkio_write;
-				} else {
-					Logger::debug("Failed to parse stats JSON for container " + container.container_id);
-				}
-			} catch (const std::exception& e) {
-				Logger::debug("Error parsing stats for container " + container.container_id + ": " + string(e.what()));
-			}
-		}
-	}
 
-	//* Parse datetime string to Unix timestamp (e.g., "2025-08-06 20:54:06 -0400 EDT")
-	uint64_t parse_datetime_string(const string& datetime_str) {
-		if (datetime_str.empty()) return 0;
+						uint64_t net_rx = 0, net_tx = 0;
+						for (const auto& [iface, net] : stats.value().networks) {
+							net_rx += net.rx_bytes;
+							net_tx += net.tx_bytes;
+						}
+						container.net_rx = net_rx;
+						container.net_tx = net_tx;
 
-		try {
-			// Parse format: "2025-08-06 20:54:06 -0400 EDT" using C++20 chrono
-			std::istringstream ss(datetime_str);
-			std::chrono::sys_time<std::chrono::seconds> tp;
-
-			// Parse with timezone offset support
-			if (ss >> date::parse("%Y-%m-%d %H:%M:%S %z", tp)) {
-				// Convert to Unix timestamp
-				auto duration = tp.time_since_epoch();
-				return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(duration).count());
-			}
-		} catch (...) {
-			// If parsing fails, return 0
-		}
-
-		return 0;
-	}
-
-	//* Parse size string with units (e.g., "89.98MiB", "5.19kB") to bytes
-	uint64_t parse_size_string(const string& size_str) {
-		if (size_str.empty() || size_str == "0B") return 0;
-
-		try {
-			double value = 0.0;
-			string unit;
-
-			// Extract number and unit
-			size_t i = 0;
-			while (i < size_str.length() && (isdigit(size_str[i]) || size_str[i] == '.')) {
-				i++;
-			}
-
-			if (i > 0) {
-				value = stod(size_str.substr(0, i));
-				unit = size_str.substr(i);
-			}
-
-			// Convert to bytes based on unit
-			if (unit == "B") return (uint64_t)value;
-			else if (unit == "kB") return (uint64_t)(value * 1000);
-			else if (unit == "MB") return (uint64_t)(value * 1000 * 1000);
-			else if (unit == "GB") return (uint64_t)(value * 1000 * 1000 * 1000);
-			else if (unit == "KiB") return (uint64_t)(value * 1024);
-			else if (unit == "MiB") return (uint64_t)(value * 1024 * 1024);
-			else if (unit == "GiB") return (uint64_t)(value * 1024 * 1024 * 1024);
-			else return (uint64_t)value; // No unit, assume bytes
-		} catch (...) {
-			return 0;
-		}
-	}
-
-	//* Parse container list from Docker CLI output using JSON format
-	vector<container_info> parse_containers_cli() {
-		vector<container_info> containers;
-		// Note that Command is already quoted when added to the format string
-		string ps_cmd = "ps --format '{\"ID\":\"{{.ID}}\",\"Names\":\"{{.Names}}\",\"Image\":\"{{.Image}}\",\"Command\":{{.Command}},\"CreatedAt\":\"{{.CreatedAt}}\",\"State\":\"{{.State}}\"}'";
-		string ps_output = docker_command(ps_cmd);
-
-		if (ps_output.empty()) return containers;
-
-		// Each line is a separate JSON object
-		std::istringstream ps_stream(ps_output);
-		string line;
-
-		while (getline(ps_stream, line)) {
-			if (line.empty()) continue;
-
-			//Logger::debug("Parsing Docker CLI container line: " + line);
-
-			try {
-				auto docker_cli_container = rfl::json::read<DockerCliContainer>(line);
-				if (docker_cli_container) {
-					const auto& dc = docker_cli_container.value();
-					container_info container;
-
-					container.container_id = dc.ID.substr(0, 12); // Short ID
-					container.name = dc.Names;
-					container.image = dc.Image;
-					container.command = dc.Command;
-					container.created = parse_datetime_string(dc.CreatedAt);
-					container.state = dc.State;
-
-					containers.push_back(container);
-				}
-			} catch (const std::exception& e) {
-				Logger::debug("Error parsing container JSON: " + string(e.what()) + ", line: " + line);
-			}
-		}
-
-		return containers;
-	}
-
-	//* Parse docker stats output for container metrics using JSON format
-	void parse_docker_stats(vector<container_info>& containers) {
-		// If containers list is empty, first get all containers
-		if (containers.empty()) {
-			containers = parse_containers_cli();
-		}
-
-		string stats_cmd = "stats --no-stream --format '{\"Container\":\"{{.Container}}\",\"CPUPerc\":\"{{.CPUPerc}}\",\"MemUsage\":\"{{.MemUsage}}\",\"NetIO\":\"{{.NetIO}}\",\"BlockIO\":\"{{.BlockIO}}\"}'";
-		string stats_output = docker_command(stats_cmd);
-
-		if (stats_output.empty()) return;
-
-		std::unordered_map<string, container_info*> container_map;
-		for (auto& container : containers) {
-			container_map[container.container_id] = &container;
-		}
-
-		// Each line is a separate JSON object
-		std::istringstream stats_stream(stats_output);
-		string line;
-
-		while (getline(stats_stream, line)) {
-			if (line.empty()) continue;
-
-			try {
-				auto docker_cli_stats = rfl::json::read<DockerCliStats>(line);
-				if (docker_cli_stats) {
-					const auto& ds = docker_cli_stats.value();
-
-					auto it = container_map.find(ds.Container);
-					if (it != container_map.end()) {
-						container_info* container = it->second;
-
-						// Parse CPU percentage
-						if (!ds.CPUPerc.empty() && ds.CPUPerc.back() == '%') {
-							string cpu_str = ds.CPUPerc;
-							cpu_str.pop_back();
-							try {
-								container->cpu_percent = stod(cpu_str);
-							} catch (...) {
-								container->cpu_percent = 0.0;
+						uint64_t blkio_read = 0, blkio_write = 0;
+						for (const auto& blkio : stats.value().blkio_stats.io_service_bytes_recursive) {
+							if (blkio.op[0] == 'r' || blkio.op[0] == 'R') {
+								blkio_read += blkio.value;
+							} else if (blkio.op[0] == 'w' || blkio.op[0] == 'W') {
+								blkio_write += blkio.value;
 							}
 						}
-
-						// Parse memory usage
-						size_t slash_pos = ds.MemUsage.find(" / ");
-						if (slash_pos != string::npos) {
-							string used_str = ds.MemUsage.substr(0, slash_pos);
-							string limit_str = ds.MemUsage.substr(slash_pos + 3);
-
-							container->mem_usage = parse_size_string(used_str);
-							container->mem_limit = parse_size_string(limit_str);
-						}
-
-						// Parse network I/O
-						size_t net_slash_pos = ds.NetIO.find(" / ");
-						if (net_slash_pos != string::npos) {
-							string rx_str = ds.NetIO.substr(0, net_slash_pos);
-							string tx_str = ds.NetIO.substr(net_slash_pos + 3);
-
-							container->net_rx = parse_size_string(rx_str);
-							container->net_tx = parse_size_string(tx_str);
-						}
-
-						// Parse block I/O
-						size_t block_slash_pos = ds.BlockIO.find(" / ");
-						if (block_slash_pos != string::npos) {
-							string read_str = ds.BlockIO.substr(0, block_slash_pos);
-							string write_str = ds.BlockIO.substr(block_slash_pos + 3);
-
-							container->block_read = parse_size_string(read_str);
-							container->block_write = parse_size_string(write_str);
-						}
+						container.block_read = blkio_read;
+						container.block_write = blkio_write;
+					} else {
+						Logger::debug("Failed to parse stats JSON for container " + container.container_id);
 					}
+				} catch (const std::exception& e) {
+					Logger::debug("Error parsing stats for container " + container.container_id + ": " + string(e.what()));
 				}
-			} catch (const std::exception& e) {
-				Logger::debug("Error parsing stats JSON: " + string(e.what()) + ", line: " + line);
-			}
+			}));
+		}
+
+		for (auto& future : futures) {
+			future.wait();
 		}
 	}
 
@@ -4214,14 +3976,9 @@ namespace Container {
 			return current_containers;
 		}
 
-		// Get container stats using API if available, otherwise CLI
+		// Get container stats using Docker API
 		current_containers.clear();
-		if (use_socket) {
-			get_container_stats_api(current_containers);
-		} else {
-			parse_docker_stats(current_containers);
-		}
-
+		get_container_stats_api(current_containers);
 
 		// Apply filter to containers
 		if (not filter.empty()) {

@@ -257,6 +257,8 @@ namespace Draw {
 					 const string title, const string title2, const int num) {
 		string out;
 
+		Logger::debug("Creating box at (" + to_string(y) + ", " + to_string(x) + ") with width " + to_string(width) + " and height " + to_string(height) + " for title '" + title + "' and title2 '" + title2 + "'");
+
 		if (line_color.empty())
 			line_color = Theme::c("div_line");
 
@@ -1637,7 +1639,7 @@ namespace Net {
 }
 
 namespace Proc {
-	int width_p = 55, height_p = 68;
+	int width_p = 55, height_p = 36;
 	int min_width = 44, min_height = 16;
 	int x, y, width = 20, height;
 	int start, selected, select_max_rows;
@@ -1934,7 +1936,7 @@ namespace Proc {
 				out += Mv::to(y+1, x+1) + Theme::c("title") + Fx::b
 					+ rjust("Pid:", 8) + ' '
 					+ ljust("Program:", prog_size) + ' '
-					+ (cmd_size > 0 ? ljust("Command:", cmd_size) : "") + ' ';
+					+ (cmd_size > 0 ? ljust("Command:", cmd_size) + ' ' : "");
 			else
 				out += Mv::to(y+1, x+1) + Theme::c("title") + Fx::b
 					+ ljust("Tree:", tree_size) + ' ';
@@ -2223,6 +2225,171 @@ namespace Proc {
 
 }
 
+namespace Container {
+	int width_p = 55, height_p = 32;
+	int min_width = 44, min_height = 16;
+	int x, y, width = 20, height;
+	int start, selected;
+	bool shown = true, redraw = true;
+	int select_max_rows;
+	atomic<int> detailed_container_id;
+	string selected_container_id;
+	string selected_name;
+	std::unordered_map<string, Draw::Graph> c_graphs;
+	std::unordered_map<string, int> c_counters;
+	int counter = 0;
+	Draw::TextEdit filter;
+	int id_size, name_size, image_size, state_size, cpu_size, mem_size;
+
+	string box;
+
+	string draw(const vector<container_info>& clist, bool force_redraw, bool data_same) {
+		if (Runner::stopping) return "";
+		auto container_gradient = false; // TODO: Add container_gradient config
+		auto container_colors = false; // TODO: Add container_colors config
+		auto tty_mode = Config::getB("tty_mode");
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol"));
+		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
+		auto mem_bytes = Config::getB("container_mem_bytes");
+		auto show_graphs = Config::getB("container_cpu_graphs");
+		auto& start = Container::start;
+		auto& selected = Container::selected;
+		int numcontainers = Container::get_numcontainers();
+		if (force_redraw) redraw = true;
+		string out;
+		out.reserve(width * height);
+
+		//* Redraw elements not needed to be updated every cycle
+		if (redraw) {
+			out = box;
+			const string title_left = Theme::c("cont_box") + Symbols::title_left;
+			const string title_right = Theme::c("cont_box") + Symbols::title_right;
+
+			//? Adapt sizes of text fields based on width
+			id_size = (width < 75 ? 8 : 12);
+			name_size = (width > 70 ? 16 : ( width > 55 ? 8 : width - id_size - 33));
+			image_size = (width > 55 ? width - name_size - id_size - 33 : -1);
+			state_size = width - image_size - name_size - id_size - 24;
+			cpu_size = show_graphs ? 10 : 5;
+			mem_size = 5;
+			if (not show_graphs) {
+				name_size += 2;
+				image_size += 3;
+			}
+
+			//? Column headers
+			out += Mv::to(y + 1, x + 1) + Theme::c("main_fg") + Fx::b + ljust("ID:", id_size) + ' '
+				+ ljust("Name:", name_size) + ' '
+				+ (image_size > 0 ? ljust("Image:", image_size) + ' ' : "")
+				+ ljust("State:", state_size) + ' '
+				+ rjust(mem_bytes ? "MemB" : "Mem%", mem_size) + ' '
+				+ rjust("Cpu%", cpu_size);
+			out += Fx::ub;
+
+			redraw = false;
+		}
+
+		//* Draw container list
+		auto line_color = Theme::c("main_fg");
+		int y_pos = y + 2;
+		int shown_containers = 0;
+		const int max_containers = height - 4;
+
+		for (int i = start; i < clist.size() and shown_containers < max_containers; i++) {
+			const auto& container = clist[i];
+			bool is_selected = (i == start + selected - 1);
+
+			//* Graphs
+			bool has_graph = show_graphs ? c_counters.contains(container.container_id) : false;
+			if (show_graphs and ((container.cpu_percent > 0 and not has_graph) or (not data_same and has_graph))) {
+				if (not has_graph) {
+					c_graphs[container.container_id] = Draw::Graph{5, 1, "", {}, graph_symbol};
+					c_counters[container.container_id] = 0;
+				}
+				else if (container.cpu_percent < 0.1 and ++c_counters[container.container_id] >= 10) {
+					if (c_graphs.contains(container.container_id)) c_graphs.erase(container.container_id);
+					c_counters.erase(container.container_id);
+				}
+				else
+					c_counters[container.container_id] = 0;
+			}
+
+			//* Set colors
+			string row_color = line_color;
+			if (is_selected) {
+				row_color = Theme::c("selected_bg") + Theme::c("selected_fg");
+				Container::selected_container_id = container.container_id;
+			}
+
+			//* Container ID (truncated)
+			string container_id_display = container.container_id.substr(0, min(id_size, (int)container.container_id.length()));
+			out += Mv::to(y_pos, x + 1) + row_color + ljust(container_id_display, id_size) + ' ';
+
+			//* Name
+			string name_display = container.name;
+			if (name_display.starts_with("/")) name_display = name_display.substr(1);
+			out += ljust(uresize(name_display, name_size), name_size) + ' ';
+
+			//* Image
+			if (image_size > 0) out += ljust(uresize(container.image, image_size), image_size) + ' ';
+
+			//* State with state color
+			string state_color = row_color;
+			if (container.state == "running") state_color += Theme::c("cont_active");
+			else state_color += Theme::c("cont_inactive");
+			out += state_color + ljust(uresize(container.state, state_size), state_size) + row_color + ' ';
+
+			//* Memory usage
+			string mem_str;
+			if (container.mem_usage > 0) {
+				if (mem_bytes) {
+					mem_str = floating_humanizer(container.mem_usage, true);
+				} else {
+					double mem_percent = clamp(static_cast<double>(container.mem_usage) / container.mem_limit * 100.0, 0.0, 100.0);
+					mem_str = to_string(mem_percent);
+					if (mem_str.size() < 4) mem_str = "0";
+					else mem_str.resize((mem_percent < 10 || mem_percent >= 100 ? 3 : 4));
+					mem_str += '%';
+				}
+			}
+			out += rjust(mem_str, mem_size) + ' ';
+
+			//* CPU percentage
+			string cpu_str = to_string(container.cpu_percent);
+			if (container.cpu_percent < 10 || (container.cpu_percent >= 100 && container.cpu_percent < 1000)) cpu_str.resize(3);
+			else if (container.cpu_percent >= 10'000) {
+				cpu_str = to_string(container.cpu_percent / 1000);
+				cpu_str.resize(3);
+				if (cpu_str.ends_with('.')) cpu_str.pop_back();
+				cpu_str += "k";
+			}
+			out += (show_graphs ? graph_bg * 5 : "");
+			out += (c_graphs.contains(container.container_id) ? Mv::l(5) + c_graphs.at(container.container_id)({(container.cpu_percent >= 0.1 && container.cpu_percent < 5 ? 5ll : static_cast<long long>(round(container.cpu_percent)))}, data_same) : "")
+				+ row_color + ' ';
+			out += rjust(cpu_str, 4) + ' ';
+
+			out += Fx::reset;
+			y_pos++;
+			shown_containers++;
+		}
+
+		//? Clear out left over graphs from dead containers at a regular interval
+		if (not data_same and ++counter >= 100) {
+			counter = 0;
+
+			std::erase_if(c_graphs, [&](const auto& pair) {
+				return rng::find(clist, pair.first, &container_info::container_id) == clist.end();
+			});
+
+			std::erase_if(c_counters, [&](const auto& pair) {
+				return rng::find(clist, pair.first, &container_info::container_id) == clist.end();
+			});
+		}
+
+		return out;
+	}
+}
+
 namespace Draw {
 	void calcSizes() {
 		atomic_wait(Runner::active);
@@ -2237,21 +2404,24 @@ namespace Draw {
 		Mem::box.clear();
 		Net::box.clear();
 		Proc::box.clear();
+		Container::box.clear();
 		Global::clock.clear();
 		Global::overlay.clear();
 		Runner::pause_output = false;
 		Runner::redraw = true;
 		Proc::p_counters.clear();
 		Proc::p_graphs.clear();
+		Container::c_counters.clear();
+		Container::c_graphs.clear();
 		if (Menu::active) Menu::redraw = true;
 
 		Input::mouse_mappings.clear();
 
-		Cpu::x = Mem::x = Net::x = Proc::x = 1;
-		Cpu::y = Mem::y = Net::y = Proc::y = 1;
-		Cpu::width = Mem::width = Net::width = Proc::width = 0;
-		Cpu::height = Mem::height = Net::height = Proc::height = 0;
-		Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = true;
+		Cpu::x = Mem::x = Net::x = Proc::x = Container::x = 1;
+		Cpu::y = Mem::y = Net::y = Proc::y = Container::y = 1;
+		Cpu::width = Mem::width = Net::width = Proc::width = Container::width = 0;
+		Cpu::height = Mem::height = Net::height = Proc::height = Container::height = 0;
+		Cpu::redraw = Mem::redraw = Net::redraw = Proc::redraw = Container::redraw = true;
 
 		Cpu::shown = s_contains(boxes, "cpu");
 
@@ -2286,6 +2456,8 @@ namespace Draw {
 		Mem::shown = s_contains(boxes, "mem");
 		Net::shown = s_contains(boxes, "net");
 		Proc::shown = s_contains(boxes, "proc");
+
+		Container::shown = s_contains(boxes, "cont") and Container::get_has_containers();
 
 		//* Calculate and draw cpu box outlines
 		if (Cpu::shown) {
@@ -2449,9 +2621,9 @@ namespace Draw {
 			auto mem_graphs = Config::getB("mem_graphs");
 			auto has_swap = get_has_swap();
 
-			width = round((double)Term::width * (Proc::shown ? width_p : 100) / 100);
+			width = round((double)Term::width * (Proc::shown or Container::shown ? width_p : 100) / 100);
 			height = ceil((double)Term::height * (100 - Net::height_p * Net::shown*4 / ((Gpu::shown != 0 and Cpu::shown) + 4)) / 100) - Cpu::height - Gpu::height*Gpu::shown;
-			x = (proc_left and Proc::shown) ? Term::width - width + 1: 1;
+			x = (proc_left and (Proc::shown or Container::shown)) ? Term::width - width + 1: 1;
 			if (mem_below_net and Net::shown)
 				y = Term::height - height + 1 - (cpu_bottom ? Cpu::height + Gpu::height*Gpu::shown : 0);
 			else
@@ -2503,9 +2675,9 @@ namespace Draw {
 		//* Calculate and draw net box outlines
 		if (Net::shown) {
 			using namespace Net;
-			width = round((double)Term::width * (Proc::shown ? width_p : 100) / 100);
+			width = round((double)Term::width * (Proc::shown or Container::shown ? width_p : 100) / 100);
 			height = Term::height - Cpu::height - Gpu::height*Gpu::shown - Mem::height;
-			x = (proc_left and Proc::shown) ? Term::width - width + 1 : 1;
+			x = (proc_left and (Proc::shown or Container::shown)) ? Term::width - width + 1 : 1;
 			if (mem_below_net and Mem::shown)
 				y = cpu_bottom ? 1 : Cpu::height + Gpu::height*Gpu::shown + 1;
 			else
@@ -2526,147 +2698,22 @@ namespace Draw {
 		if (Proc::shown) {
 			using namespace Proc;
 			width = Term::width - (Mem::shown ? Mem::width : (Net::shown ? Net::width : 0));
-			height = Term::height - Cpu::height - Gpu::height*Gpu::shown;
+			height = ceil((double)Term::height * (100 - Container::height_p * Container::shown*4 / ((Gpu::shown != 0 and Cpu::shown) + 4)) / 100) - Cpu::height - Gpu::height*Gpu::shown;
 			x = proc_left ? 1 : Term::width - width + 1;
 			y = (cpu_bottom and Cpu::shown) ? 1 : Cpu::height + Gpu::height*Gpu::shown + 1;
 			select_max_rows = height - 3;
 			box = createBox(x, y, width, height, Theme::c("proc_box"), true, "proc", "", 4);
 		}
+
+		//* Calculate and draw container box outlines
+		if (Container::shown) {
+			using namespace Container;
+			width = Term::width - (Mem::shown ? Mem::width : (Net::shown ? Net::width : 0));
+			height = Term::height - Cpu::height - Gpu::height*Gpu::shown - Proc::height;
+			x = proc_left ? 1 : Term::width - width + 1;
+			y = (cpu_bottom and Cpu::shown) ? 1 : Cpu::height + Gpu::height*Gpu::shown + 1 + (Proc::shown ? Proc::height : 0);
+			select_max_rows = height - 3;
+			box = createBox(x, y, width, height, Theme::c("cont_box"), true, "cont", "", 5);
+		}
 	}
 }
-
-namespace Container {
-	int width_p = 55, height_p = 68;
-	int min_width = 44, min_height = 16;
-	int x, y, width = 20, height;
-	int start, selected;
-	bool shown = true, redraw = true;
-	int select_max_rows;
-	atomic<int> detailed_container_id;
-	string selected_container_id;
-	string selected_name;
-	std::unordered_map<size_t, Draw::Graph> c_graphs;
-	std::unordered_map<size_t, int> c_counters;
-	int counter = 0;
-	Draw::TextEdit filter;
-	int id_size, name_size, image_size, state_size, cpu_size, mem_size;
-
-	string box;
-
-	string draw(const vector<container_info>& clist, bool force_redraw, bool data_same) {
-		if (Runner::stopping) return "";
-		auto container_gradient = false; // TODO: Add container_gradient config
-		auto container_colors = false; // TODO: Add container_colors config
-		auto tty_mode = Config::getB("tty_mode");
-		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol"));
-		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
-		auto mem_bytes = false; // TODO: Add container_mem_bytes config
-		auto vim_keys = Config::getB("vim_keys");
-		auto show_graphs = true; // TODO: Add container_cpu_graphs config
-		auto& start = Container::start;
-		auto& selected = Container::selected;
-		int numcontainers = Container::get_numcontainers();
-		if (force_redraw) redraw = true;
-		string out;
-		out.reserve(width * height);
-
-		//* Redraw elements not needed to be updated every cycle
-		if (redraw) {
-			out = box;
-			const string title_left = Theme::c("proc_box") + Symbols::title_left;
-			const string title_right = Theme::c("proc_box") + Symbols::title_right;
-
-			//? Adapt sizes of text fields based on width
-			id_size = min(12, max(8, width / 8));
-			name_size = min(20, max(8, width / 6));
-			image_size = min(25, max(10, width / 5));
-			state_size = 10;
-			cpu_size = 8;
-			mem_size = 10;
-
-			//? Column headers
-			out += Mv::to(y + 1, x + 1) + Theme::c("main_fg") + Fx::b + ljust("Container ID", id_size) + ' '
-				+ ljust("Name", name_size) + ' '
-				+ ljust("Image", image_size) + ' '
-				+ ljust("State", state_size) + ' ';
-			if (show_graphs) {
-				out += ljust("CPU%", cpu_size) + ' '
-					+ ljust("Memory", mem_size);
-			}
-			out += Fx::ub;
-
-			redraw = false;
-		}
-
-		//* Skip drawing if no containers
-		if (clist.empty() or numcontainers == 0) {
-			out += Mv::to(y + 3, x + 1) + Theme::c("inactive_fg") + "No containers found...";
-			return out;
-		}
-
-		//* Draw container list
-		auto line_color = Theme::c("main_fg");
-		const auto& sort_cmd = Config::getS("container_sorting");
-		int y_pos = y + 2;
-		int shown_containers = 0;
-		const int max_containers = height - 4;
-
-		for (int i = start; i < clist.size() and shown_containers < max_containers; i++) {
-			const auto& container = clist[i];
-			bool is_selected = (i == start + selected - 1);
-
-			//* Set colors
-			string row_color = line_color;
-			if (is_selected) {
-				row_color = Theme::c("selected_bg") + Theme::c("selected_fg");
-				Container::selected_container_id = container.container_id;
-			}
-
-			//* Container ID (truncated)
-			string container_id_display = container.container_id.substr(0, min(id_size, (int)container.container_id.length()));
-			out += Mv::to(y_pos, x + 1) + row_color + ljust(container_id_display, id_size) + ' ';
-
-			//* Name
-			string name_display = container.name;
-			if (name_display.starts_with("/")) name_display = name_display.substr(1);
-			out += ljust(uresize(name_display, name_size), name_size) + ' ';
-
-			//* Image
-			out += ljust(uresize(container.image, image_size), image_size) + ' ';
-
-			//* State with state color
-			string state_color = row_color;
-			if (container.state == "running") state_color += Theme::c("proc_misc");
-			else if (container.state == "exited") state_color += Theme::c("inactive_fg");
-			else if (container.state == "paused") state_color += Theme::c("cpu_box");
-			out += state_color + ljust(uresize(container.state, state_size), state_size) + row_color + ' ';
-
-			//* CPU and Memory if graphs enabled
-			if (show_graphs) {
-				//* CPU percentage
-				string cpu_str = (container.cpu_percent >= 0 ? to_string((int)round(container.cpu_percent)) + "%" : "");
-				out += rjust(cpu_str, cpu_size) + ' ';
-
-				//* Memory usage
-				string mem_str;
-				if (container.mem_usage > 0) {
-					if (mem_bytes) {
-						mem_str = floating_humanizer(container.mem_usage, false, 1);
-					} else {
-						double mem_percent = container.mem_limit > 0 ?
-							(double)container.mem_usage / container.mem_limit * 100.0 : 0.0;
-						mem_str = to_string((int)round(mem_percent)) + "%";
-					}
-				}
-				out += rjust(mem_str, mem_size);
-			}
-
-			out += Fx::reset;
-			y_pos++;
-			shown_containers++;
-		}
-
-		return out;
-	}
-}
-

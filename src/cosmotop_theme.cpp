@@ -61,6 +61,9 @@ namespace Theme {
 		{ "mem_box", "#3b4261" },
 		{ "net_box", "#3b4261" },
 		{ "proc_box", "#3b4261" },
+		{ "cont_box", "#3b4261" },
+		{ "cont_active", "#2f80ed" },
+		{ "cont_inactive", "#525b6c" },
 		{ "div_line", "#273043" },
 		{ "temp_start", "#7928ca" },
 		{ "temp_mid", "#ff0080" },
@@ -326,6 +329,18 @@ namespace Theme {
 			if (not colors.contains("graph_text")) {
 				colors["graph_text"] = colors.at("inactive_fg");
 				rgbs["graph_text"] = rgbs.at("inactive_fg");
+			}
+			if (not colors.contains("cont_box")) {
+				colors["cont_box"] = colors.at("proc_box");
+				rgbs["cont_box"] = rgbs.at("proc_box");
+			}
+			if (not colors.contains("cont_active")) {
+				colors["cont_active"] = colors.at("cpu_start");
+				rgbs["cont_active"] = rgbs.at("cpu_start");
+			}
+			if (not colors.contains("cont_inactive")) {
+				colors["cont_inactive"] = colors.at("inactive_fg");
+				rgbs["cont_inactive"] = rgbs.at("inactive_fg");
 			}
 		}
 
