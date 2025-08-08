@@ -268,6 +268,35 @@ namespace Theme {
 			return {-1 ,-1 ,-1};
 		}
 
+		//* Sets backup colors. Primarily for backward compatibility with themes that do not define the newest colors.
+		void populateBackupColors() {
+			//? Set fallback values for optional colors not defined in theme file
+			if (not colors.contains("meter_bg")) {
+				colors["meter_bg"] = colors.at("inactive_fg");
+				rgbs["meter_bg"] = rgbs.at("inactive_fg");
+			}
+			if (not colors.contains("process_start")) {
+				colors["process_start"] = colors.at("cpu_start");
+				colors["process_mid"] = colors.at("cpu_mid");
+				colors["process_end"] = colors.at("cpu_end");
+				rgbs["process_start"] = rgbs.at("cpu_start");
+				rgbs["process_mid"] = rgbs.at("cpu_mid");
+				rgbs["process_end"] = rgbs.at("cpu_end");
+			}
+			if (not colors.contains("graph_text")) {
+				colors["graph_text"] = colors.at("inactive_fg");
+				rgbs["graph_text"] = rgbs.at("inactive_fg");
+			}
+			if (not colors.contains("cont_box")) {
+				colors["cont_box"] = colors.at("proc_box");
+				colors["cont_active"] = colors.at("cpu_start");
+				colors["cont_inactive"] = colors.at("inactive_fg");
+				rgbs["cont_box"] = rgbs.at("proc_box");
+				rgbs["cont_active"] = rgbs.at("cpu_start");
+				rgbs["cont_inactive"] = rgbs.at("inactive_fg");
+			}
+		}
+
 		//* Generate colors and rgb decimal vectors for the theme
 		void generateColors(const std::unordered_map<string, string>& source) {
 			vector<string> t_rgb;
@@ -307,40 +336,11 @@ namespace Theme {
 						}
 					}
 				}
-				if (not colors.contains(name) and not is_in(name, "meter_bg", "process_start", "process_mid", "process_end", "graph_text")) {
+				if (not colors.contains(name) and not is_in(name, "meter_bg", "process_start", "process_mid", "process_end", "graph_text", "cont_box", "cont_active", "cont_inactive")) {
 					Logger::debug("Missing color value for \"" + name + "\". Using value from default.");
 					colors[name] = hex_to_color(color, t_to_256, depth);
 					rgbs[name] = hex_to_dec(color);
 				}
-			}
-			//? Set fallback values for optional colors not defined in theme file
-			if (not colors.contains("meter_bg")) {
-				colors["meter_bg"] = colors.at("inactive_fg");
-				rgbs["meter_bg"] = rgbs.at("inactive_fg");
-			}
-			if (not colors.contains("process_start")) {
-				colors["process_start"] = colors.at("cpu_start");
-				colors["process_mid"] = colors.at("cpu_mid");
-				colors["process_end"] = colors.at("cpu_end");
-				rgbs["process_start"] = rgbs.at("cpu_start");
-				rgbs["process_mid"] = rgbs.at("cpu_mid");
-				rgbs["process_end"] = rgbs.at("cpu_end");
-			}
-			if (not colors.contains("graph_text")) {
-				colors["graph_text"] = colors.at("inactive_fg");
-				rgbs["graph_text"] = rgbs.at("inactive_fg");
-			}
-			if (not colors.contains("cont_box")) {
-				colors["cont_box"] = colors.at("proc_box");
-				rgbs["cont_box"] = rgbs.at("proc_box");
-			}
-			if (not colors.contains("cont_active")) {
-				colors["cont_active"] = colors.at("cpu_start");
-				rgbs["cont_active"] = rgbs.at("cpu_start");
-			}
-			if (not colors.contains("cont_inactive")) {
-				colors["cont_inactive"] = colors.at("inactive_fg");
-				rgbs["cont_inactive"] = rgbs.at("inactive_fg");
 			}
 		}
 
@@ -529,6 +529,7 @@ namespace Theme {
 			}
 			generateGradients();
 		}
+		populateBackupColors();
 		Term::fg = colors.at("main_fg");
 		Term::bg = colors.at("main_bg");
 		Fx::reset = Fx::reset_base + Term::fg + Term::bg;
