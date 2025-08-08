@@ -1133,6 +1133,10 @@ namespace Shared {
 			atomic_wait_for(Proc::WMI_running, true, 1000);
 		}
 
+		//? Init for namespace Container
+		Logger::debug("CONT Init");
+		Container::init();
+
 		Logger::debug("Drawing to screen");
 	}
 
