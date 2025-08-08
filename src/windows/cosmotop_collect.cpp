@@ -2361,7 +2361,6 @@ namespace Container {
 
 	// Docker detection
 	bool has_containers = false;
-	std::unique_ptr<cosmotop::DockerHttpClient> docker_client;
 
 	// Docker API JSON structures using reflect-cpp
 	struct DockerPort {
@@ -2417,11 +2416,9 @@ namespace Container {
 	//* Execute Docker API call via named pipe
 	string docker_api_call(const string& endpoint) {
 		try {
-			if (!docker_client) {
-				docker_client = std::make_unique<cosmotop::DockerHttpClient>();
-			}
+			cosmotop::DockerHttpClient client;
 
-			auto response = docker_client->get(endpoint);
+			auto response = client.get(endpoint);
 			if (response.success && response.status_code == 200) {
 				return response.body;
 			} else {
@@ -2437,9 +2434,6 @@ namespace Container {
 
 	//* Initialize Docker detection and choose preferred method
 	void init() {
-		// Try Docker named pipe
-		docker_client = std::make_unique<cosmotop::DockerHttpClient>();
-
 		// Test connectivity by making a simple API call
 		auto result = docker_api_call("/version");
 		if (!result.empty()) {
