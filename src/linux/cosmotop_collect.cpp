@@ -3714,7 +3714,6 @@ namespace Container {
 	bool current_rev{};
 	atomic<int> numcontainers{};
 	int filter_found{};
-	detail_container detailed;
 
 	// Docker detection
 	bool has_containers = false;
@@ -3926,31 +3925,6 @@ namespace Container {
 		}
 	}
 
-	//* Get detailed info for selected container
-	void _collect_details(const string& container_id, vector<container_info>& containers) {
-		if (container_id != detailed.last_container_id) {
-			detailed = {};
-			detailed.last_container_id = container_id;
-		}
-
-		// Find container in list
-		auto it = rng::find(containers, container_id, &container_info::container_id);
-		if (it != containers.end()) {
-			detailed.entry = *it;
-
-			// Update CPU and memory history for graphs
-			detailed.cpu_percent.push_back((long long)round(detailed.entry.cpu_percent));
-			while (detailed.cpu_percent.size() > 100) detailed.cpu_percent.pop_front();
-
-			detailed.mem_bytes.push_back((long long)detailed.entry.mem_usage);
-			while (detailed.mem_bytes.size() > 100) detailed.mem_bytes.pop_front();
-
-			if (detailed.entry.mem_limit > 0) {
-				detailed.mem_percent = (double)detailed.entry.mem_usage / detailed.entry.mem_limit * 100.0;
-			}
-		}
-	}
-
 	auto collect(bool no_update) -> vector<container_info>& {
 		// Early return if Docker is not available
 		if (!has_containers) {
@@ -3994,12 +3968,6 @@ namespace Container {
 		// Sort containers
 		if (not current_containers.empty()) {
 			container_sorter(current_containers, sorting, reverse);
-		}
-
-		// Get detailed info if requested
-		const auto& detailed_container_id = Config::getS("detailed_container_id");
-		if (!detailed_container_id.empty()) {
-			_collect_details(detailed_container_id, current_containers);
 		}
 
 		numcontainers = (int)current_containers.size() - filter_found;
