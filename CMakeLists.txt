@@ -165,6 +165,7 @@ elseif(${TARGET} STREQUAL "plugin")
       src/cosmotop_shared.cpp
       src/cosmotop_tools_shared.cpp
       src/windows/cosmotop_collect.cpp
+      src/windows/docker_http_client.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
 
