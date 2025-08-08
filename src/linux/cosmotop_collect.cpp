@@ -3691,23 +3691,6 @@ namespace Proc {
 	}
 }
 
-namespace Tools {
-	double system_uptime() {
-		string upstr;
-		ifstream pread(Shared::procPath / "uptime");
-		if (pread.good()) {
-			try {
-				getline(pread, upstr, ' ');
-				pread.close();
-				return stod(upstr);
-			}
-			catch (const std::invalid_argument&) {}
-			catch (const std::out_of_range&) {}
-		}
-        throw std::runtime_error("Failed to get uptime from " + string{Shared::procPath} + "/uptime");
-	}
-}
-
 namespace Container {
 	vector<container_info> current_containers;
 	string current_sort;
@@ -3972,5 +3955,22 @@ namespace Container {
 
 		numcontainers = (int)current_containers.size() - filter_found;
 		return current_containers;
+	}
+}
+
+namespace Tools {
+	double system_uptime() {
+		string upstr;
+		ifstream pread(Shared::procPath / "uptime");
+		if (pread.good()) {
+			try {
+				getline(pread, upstr, ' ');
+				pread.close();
+				return stod(upstr);
+			}
+			catch (const std::invalid_argument&) {}
+			catch (const std::out_of_range&) {}
+		}
+        throw std::runtime_error("Failed to get uptime from " + string{Shared::procPath} + "/uptime");
 	}
 }
