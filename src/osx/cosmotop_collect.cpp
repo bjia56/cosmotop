@@ -54,6 +54,7 @@ tab-size = 4
 #include <unistd.h>
 #include <stdexcept>
 #include <utility>
+#include <future>
 
 #include <cmath>
 #include <fstream>
@@ -72,6 +73,10 @@ tab-size = 4
 #endif
 #include "smc.hpp"
 #include "ioreport.hpp"
+
+#include <httplib.h>
+#include <rfl/json.hpp>
+#include <rfl.hpp>
 
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
@@ -1522,13 +1527,15 @@ namespace Proc {
 	}
 }  // namespace Proc
 
+#if defined(__x86_64__) || defined(__aarch64__)
+
 namespace Container {
 	vector<container_info> current_containers;
 	string current_sort;
 	bool current_rev{};
 	atomic<int> numcontainers{};
-	string filter_found{};
-	
+	int filter_found{};
+
 	// Docker detection
 	bool has_containers = false;
 	string docker_socket_path = "/var/run/docker.sock";
@@ -1789,6 +1796,8 @@ namespace Container {
 		return current_containers;
 	}
 }  // namespace Container
+
+#endif // defined(__x86_64__) || defined(__aarch64__)
 
 namespace Tools {
 	double system_uptime() {
