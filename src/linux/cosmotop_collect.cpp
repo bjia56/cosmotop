@@ -3700,7 +3700,7 @@ namespace Container {
 
 	// Docker detection
 	bool has_containers = false;
-	string docker_socket_path = "/var/run/docker.sock";
+	string docker_socket_path = "unix:///var/run/docker.sock";
 
 	// Docker API JSON structures using reflect-cpp
 	struct DockerPort {
@@ -3721,17 +3721,6 @@ namespace Container {
 		vector<DockerPort> Ports;
 	};
 
-	struct DockerCpuStats {
-		struct {
-			uint64_t total_usage;
-			//vector<uint64_t> percpu_usage;
-			//uint64_t usage_in_kernelmode;
-			//uint64_t usage_in_usermode;
-		} cpu_usage;
-		uint64_t system_cpu_usage;
-		uint64_t online_cpus;
-	};
-
 	struct DockerNetworkEntry {
 		uint64_t rx_bytes;
 		uint64_t tx_bytes;
@@ -3745,15 +3734,18 @@ namespace Container {
 	};
 
 	struct DockerStats {
-		//string id;
-		//string name;
 		struct {
 			uint64_t usage;
 			uint64_t limit;
 		} memory_stats;
-		DockerCpuStats cpu_stats;
-		//DockerCpuStats precpu_stats;
-		std::unordered_map<string, DockerNetworkEntry> networks;
+		struct {
+			struct {
+				uint64_t total_usage;
+			} cpu_usage;
+			uint64_t system_cpu_usage;
+			uint64_t online_cpus;
+		} cpu_stats;
+		std::optional<std::unordered_map<string, DockerNetworkEntry>> networks;
 		struct {
 			vector<DockerBlockStatEntry> io_service_bytes_recursive;
 		} blkio_stats;
@@ -3763,7 +3755,9 @@ namespace Container {
 	string docker_api_call(const string& endpoint) {
 		try {
 			httplib::Client cli(docker_socket_path);
-			cli.set_address_family(AF_UNIX);
+			if (docker_socket_path.length() > 0 && docker_socket_path[0] == '/') {
+				cli.set_address_family(AF_UNIX);
+			}
 			httplib::Headers headers{
 				{"Host", "localhost"},
 				{"Connection", "close"},
@@ -3785,27 +3779,29 @@ namespace Container {
 
 	//* Initialize Docker detection and choose preferred method
 	void init() {
-		// First try Docker socket
-		if (fs::exists(docker_socket_path) && access(docker_socket_path.c_str(), R_OK) == 0) {
-			// Test socket connectivity by making a simple API call
-			auto result = docker_api_call("/version");
-			if (!result.empty()) {
-				has_containers = true;
-				Logger::debug("Container::init() : Using Docker socket");
-				return;
-			} else {
-				Logger::debug("Container::init() : Docker socket test failed");
-			}
-		} else {
-			int errsv = errno;
-			Logger::debug("Container::init() : Docker socket not accessible, errno: " + string(strerror(errsv)));
+		// Check if DOCKER_HOST environment variable is set
+		const char* docker_host = getenv("DOCKER_HOST");
+		if (docker_host) {
+			// Use the socket path from DOCKER_HOST
+			docker_socket_path = docker_host;
+			Logger::debug("Container::init() : Using DOCKER_HOST: " + docker_socket_path);
 		}
 
-		// No Docker socket available - containers not supported
-		has_containers = false;
-		Logger::debug("Container::init() : Docker not available");
-	}
+		if (docker_socket_path.starts_with("unix://")) {
+			// Remove "unix://" prefix
+			docker_socket_path = docker_socket_path.substr(7);
+		}
 
+		// Test socket connectivity by making a simple API call
+		auto result = docker_api_call("/version");
+		if (!result.empty()) {
+			has_containers = true;
+			Logger::debug("Container::init() : Using Docker socket");
+		} else {
+			has_containers = false;
+			Logger::debug("Container::init() : Docker socket test failed");
+		}
+	}
 
 	//* Parse container list from Docker API JSON response
 	vector<container_info> parse_containers_json(const string& json_response) {
@@ -3877,9 +3873,11 @@ namespace Container {
 						}
 
 						uint64_t net_rx = 0, net_tx = 0;
-						for (const auto& [iface, net] : stats.value().networks) {
-							net_rx += net.rx_bytes;
-							net_tx += net.tx_bytes;
+						if (stats.value().networks) {
+							for (const auto& [iface, net] : *stats.value().networks) {
+								net_rx += net.rx_bytes;
+								net_tx += net.tx_bytes;
+							}
 						}
 						container.net_rx = net_rx;
 						container.net_tx = net_tx;
