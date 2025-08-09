@@ -2385,36 +2385,26 @@ namespace Container {
 		vector<DockerPort> Ports;
 	};
 
-	struct DockerCpuStats {
-		struct {
-			uint64_t total_usage;
-		} cpu_usage;
-		uint64_t system_cpu_usage;
-		uint64_t online_cpus;
-	};
-
 	struct DockerNetworkEntry {
 		uint64_t rx_bytes;
 		uint64_t tx_bytes;
 	};
 
-	struct DockerBlockStatEntry {
-		uint64_t major;
-		uint64_t minor;
-		string op;
-		uint64_t value;
-	};
-
 	struct DockerStats {
 		struct {
-			uint64_t usage;
-			uint64_t limit;
+			uint64_t privateworkingset;
 		} memory_stats;
-		DockerCpuStats cpu_stats;
+		struct {
+			struct {
+				uint64_t total_usage;
+			} cpu_usage;
+		} cpu_stats;
 		std::unordered_map<string, DockerNetworkEntry> networks;
 		struct {
-			vector<DockerBlockStatEntry> io_service_bytes_recursive;
-		} blkio_stats;
+			uint64_t read_size_bytes;
+			uint64_t write_size_bytes;
+		} storage_stats;
+		uint64_t num_procs;
 	};
 
 	//* Execute Docker API call via named pipe
@@ -2497,9 +2487,13 @@ namespace Container {
 		std::vector<std::future<void>> futures;
 		for (auto& container : containers) {
 			futures.push_back(std::async(std::launch::async, [&container]() {
+				constexpr auto sleep_duration = std::chrono::milliseconds(100);
+				constexpr auto sleep_in_ns = sleep_duration.count() * 1'000'000; // Convert to nanoseconds
+				constexpr auto sleep_in_100ns = sleep_in_ns / 100; // Convert to 100-nanosecond intervals
+
 				string endpoint = "/containers/" + container.container_id + "/stats?stream=false&one-shot=true";
 				string stats_json_pre = docker_api_call(endpoint);
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				std::this_thread::sleep_for(sleep_duration);
 				string stats_json = docker_api_call(endpoint);
 
 				if (stats_json.empty()) return;
@@ -2508,14 +2502,13 @@ namespace Container {
 					auto stats_pre = rfl::json::read<DockerStats>(stats_json_pre);
 					auto stats = rfl::json::read<DockerStats>(stats_json);
 					if (stats_pre && stats) {
-						container.mem_usage = stats.value().memory_stats.usage;
-						container.mem_limit = stats.value().memory_stats.limit;
+						container.mem_usage = stats.value().memory_stats.privateworkingset;
+						container.mem_limit = Mem::totalMem; // Docker does not provide memory limit, use system total memory
 
-						uint64_t cpu_delta = stats.value().cpu_stats.cpu_usage.total_usage - stats_pre.value().cpu_stats.cpu_usage.total_usage;
-						uint64_t system_delta = stats.value().cpu_stats.system_cpu_usage - stats_pre.value().cpu_stats.system_cpu_usage;
-						uint64_t cpu_count = stats.value().cpu_stats.online_cpus;
-						if (system_delta > 0 && cpu_delta > 0 && cpu_count > 0) {
-							container.cpu_percent = (cpu_delta * 100.0 / system_delta) * cpu_count;
+						double used_intervals = stats.value().cpu_stats.cpu_usage.total_usage - stats_pre.value().cpu_stats.cpu_usage.total_usage;
+						double total_intervals = sleep_in_100ns * container.num_procs;
+						if (total_intervals > 0) {
+							container.cpu_percent = (used_intervals / total_intervals) * 100.0;
 						} else {
 							container.cpu_percent = 0.0;
 						}
@@ -2528,16 +2521,8 @@ namespace Container {
 						container.net_rx = net_rx;
 						container.net_tx = net_tx;
 
-						uint64_t blkio_read = 0, blkio_write = 0;
-						for (const auto& blkio : stats.value().blkio_stats.io_service_bytes_recursive) {
-							if (blkio.op[0] == 'r' || blkio.op[0] == 'R') {
-								blkio_read += blkio.value;
-							} else if (blkio.op[0] == 'w' || blkio.op[0] == 'W') {
-								blkio_write += blkio.value;
-							}
-						}
-						container.block_read = blkio_read;
-						container.block_write = blkio_write;
+						container.block_read = stats.value().storage_stats.read_size_bytes;
+						container.block_write = stats.value().storage_stats.write_size_bytes;
 					} else {
 						Logger::debug("Failed to parse stats JSON for container " + container.container_id);
 					}
