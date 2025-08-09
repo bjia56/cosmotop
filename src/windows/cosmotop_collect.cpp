@@ -2506,7 +2506,7 @@ namespace Container {
 						container.mem_limit = Mem::totalMem; // Docker does not provide memory limit, use system total memory
 
 						double used_intervals = stats.value().cpu_stats.cpu_usage.total_usage - stats_pre.value().cpu_stats.cpu_usage.total_usage;
-						double total_intervals = sleep_in_100ns * container.num_procs;
+						double total_intervals = sleep_in_100ns * stats.value().num_procs;
 						if (total_intervals > 0) {
 							container.cpu_percent = (used_intervals / total_intervals) * 100.0;
 						} else {
