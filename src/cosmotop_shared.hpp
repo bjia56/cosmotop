@@ -563,3 +563,72 @@ namespace Proc {
 				   int cur_depth, bool collapsed, const string& filter,
 				   bool found = false, bool no_update = false, bool should_filter = false);
 }
+
+namespace Container {
+	extern atomic<int> numcontainers;
+	int get_numcontainers();
+
+	extern string box;
+	extern int x, y, width, height, min_width, min_height;
+	extern bool shown, redraw;
+	extern int select_max_rows;
+	extern atomic<int> detailed_container_id;
+	extern string selected_container_id;
+	extern int start, selected, filter_found;
+	extern string selected_name;
+
+	void set_collapse(int val);
+	void set_expand(int val);
+	void increment_filter_found();
+
+	void init();
+	extern bool has_containers;
+	bool get_has_containers();
+
+	int get_width();
+	void set_redraw(bool val);
+	string get_selected_container_id();
+	int get_select_max();
+
+	//? Contains the valid sorting options for containers
+	const vector<string> sort_vector = {
+		"id",
+		"name",
+		"image",
+		"status",
+		"cpu",
+		"memory",
+	};
+
+	//* Container for container information
+	struct container_info {
+		string container_id{};
+		string name{};
+		string image{};
+		string command{};
+		string state{};
+		uint64_t created{};
+		uint64_t mem_usage{};
+		uint64_t mem_limit{};
+		double cpu_percent{};
+		uint64_t net_rx{};
+		uint64_t net_tx{};
+		uint64_t block_read{};
+		uint64_t block_write{};
+		bool filtered{};
+	};
+
+	//* Collect and sort container information
+	auto collect(bool no_update = false) -> vector<container_info>&;
+
+	//* Update current selection and view, returns -1 if no change otherwise the current selection
+	int selection(const string& cmd_key);
+
+	//* Draw contents of container box using <clist> as data source
+	string draw(const vector<container_info>& clist, bool force_redraw = false, bool data_same = false);
+
+	//* Sort vector of container_info's
+	void container_sorter(vector<container_info>& container_vec, const string& sorting, bool reverse);
+
+	bool matches_filter(const container_info& container, const std::string& filter);
+}

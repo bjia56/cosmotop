@@ -69,6 +69,17 @@ Utilization monitoring of Intel and Rockchip NPUs is supported on Linux, provide
 
 Utilization monitoring of the Apple Neural Engine is supported on Apple Silicon. Sudo is not required.
 
+### Container monitoring
+
+Monitoring of running OCI containers is suppored on Linux, Windows, and MacOS using Docker-compatible APIs.
+On Linux and MacOS, the standard locations of `/run/docker.sock` and `/var/run/docker.sock` are used by default,
+but can be overriden with the `DOCKER_HOST` variable to point to an HTTP endpoint or a different socket (e.g.
+`/var/run/podman/podman.sock` for Podman containers). Access to the socket must be over plaintext (i.e. no TLS).
+
+When using tools like [linuxserver/socket-proxy](https://github.com/linuxserver/docker-socket-proxy) to secure
+the Docker API, read-only access to the `/version` and `/containers` endpoints is required for monitoring to be
+enabled.
+
 ### Configuration
 
 The configuration file for `cosmotop` is stored at `~/.config/cosmotop/cosmotop.conf`, populated with defaults
@@ -89,6 +100,7 @@ and protocol version `2024-11-05`. Normal graphical metrics reporting is disable
 - `get_disk_info`
 - `get_gpu_info` (not available if no GPUs are detected)
 - `get_npu_info` (not available if no NPUs are detected)
+- `get_container_info` (not available if no container engines are detected)
 - `get_system_info`
 
 ## Supported platforms

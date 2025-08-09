@@ -103,7 +103,7 @@ The project uses a unique dual-binary architecture:
 Exposes system monitoring tools via Model Context Protocol:
 - `get_process_info`, `get_cpu_info`, `get_memory_info`
 - `get_network_info`, `get_disk_info`, `get_gpu_info`, `get_npu_info`
-- `get_system_info`
+- `get_container_info`, `get_system_info`
 
 ## Development Workflow
 

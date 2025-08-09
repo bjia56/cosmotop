@@ -1429,3 +1429,4 @@ namespace Tools {
 		return 0.0;
 	}
 }  // namespace Tools
+
