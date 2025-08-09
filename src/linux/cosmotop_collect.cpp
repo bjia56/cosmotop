@@ -3700,7 +3700,7 @@ namespace Container {
 
 	// Docker detection
 	bool has_containers = false;
-	string docker_socket_path = "unix:///var/run/docker.sock";
+	string docker_socket_path = "/run/docker.sock";
 
 	// Docker API JSON structures using reflect-cpp
 	struct DockerPort {
