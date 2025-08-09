@@ -235,21 +235,21 @@ void plugin_initializer(Plugin* plugin) {
 	}));
 
 	plugin->registerHandler<vector<Container::container_info>, bool>("Container::collect", std::function([](bool no_update) {
-#if defined(__linux__) || defined(_WIN32)
+#if defined(__linux__) || defined(_WIN32) || (defined(__APPLE__) && (defined(__x86_64__) || defined(__aarch64__)))
 		return Container::collect(no_update);
 #else
 		return vector<Container::container_info>();
 #endif
 	}));
 	plugin->registerHandler<int>("Container::get_numcontainers", std::function([]() {
-#if defined(__linux__) || defined(_WIN32)
+#if defined(__linux__) || defined(_WIN32) || (defined(__APPLE__) && (defined(__x86_64__) || defined(__aarch64__)))
 		return Container::numcontainers.load();
 #else
 		return 0;
 #endif
 	}));
 	plugin->registerHandler<bool>("Container::get_has_containers", std::function([]() {
-#if defined(__linux__) || defined(_WIN32)
+#if defined(__linux__) || defined(_WIN32) || (defined(__APPLE__) && (defined(__x86_64__) || defined(__aarch64__)))
 		return Container::has_containers;
 #else
 		return false;
