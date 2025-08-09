@@ -257,7 +257,7 @@ namespace Draw {
 					 const string title, const string title2, const int num) {
 		string out;
 
-		Logger::debug("Creating box at (" + to_string(y) + ", " + to_string(x) + ") with width " + to_string(width) + " and height " + to_string(height) + " for title '" + title + "' and title2 '" + title2 + "'");
+		//Logger::debug("Creating box at (" + to_string(y) + ", " + to_string(x) + ") with width " + to_string(width) + " and height " + to_string(height) + " for title '" + title + "' and title2 '" + title2 + "'");
 
 		if (line_color.empty())
 			line_color = Theme::c("div_line");
