@@ -273,27 +273,27 @@ namespace Theme {
 			//? Set fallback values for optional colors not defined in theme file
 			if (not colors.contains("meter_bg")) {
 				colors["meter_bg"] = colors.at("inactive_fg");
-				rgbs["meter_bg"] = rgbs.at("inactive_fg");
+				if (rgbs.contains("inactive_fg")) rgbs["meter_bg"] = rgbs.at("inactive_fg");
 			}
 			if (not colors.contains("process_start")) {
 				colors["process_start"] = colors.at("cpu_start");
 				colors["process_mid"] = colors.at("cpu_mid");
 				colors["process_end"] = colors.at("cpu_end");
-				rgbs["process_start"] = rgbs.at("cpu_start");
-				rgbs["process_mid"] = rgbs.at("cpu_mid");
-				rgbs["process_end"] = rgbs.at("cpu_end");
+				if (rgbs.contains("cpu_start")) rgbs["process_start"] = rgbs.at("cpu_start");
+				if (rgbs.contains("cpu_mid")) rgbs["process_mid"] = rgbs.at("cpu_mid");
+				if (rgbs.contains("cpu_end")) rgbs["process_end"] = rgbs.at("cpu_end");
 			}
 			if (not colors.contains("graph_text")) {
 				colors["graph_text"] = colors.at("inactive_fg");
-				rgbs["graph_text"] = rgbs.at("inactive_fg");
+				if (rgbs.contains("inactive_fg")) rgbs["graph_text"] = rgbs.at("inactive_fg");
 			}
 			if (not colors.contains("cont_box")) {
 				colors["cont_box"] = colors.at("proc_box");
 				colors["cont_active"] = colors.at("cpu_start");
 				colors["cont_inactive"] = colors.at("inactive_fg");
-				rgbs["cont_box"] = rgbs.at("proc_box");
-				rgbs["cont_active"] = rgbs.at("cpu_start");
-				rgbs["cont_inactive"] = rgbs.at("inactive_fg");
+				if (rgbs.contains("proc_box")) rgbs["cont_box"] = rgbs.at("proc_box");
+				if (rgbs.contains("cpu_start")) rgbs["cont_active"] = rgbs.at("cpu_start");
+				if (rgbs.contains("inactive_fg")) rgbs["cont_inactive"] = rgbs.at("inactive_fg");
 			}
 		}
 

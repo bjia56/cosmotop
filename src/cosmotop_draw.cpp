@@ -2254,7 +2254,6 @@ namespace Container {
 		auto show_graphs = Config::getB("container_cpu_graphs");
 		auto& start = Container::start;
 		auto& selected = Container::selected;
-		int numcontainers = Container::get_numcontainers();
 		if (force_redraw) redraw = true;
 		string out;
 		out.reserve(width * height);
@@ -2292,10 +2291,10 @@ namespace Container {
 		//* Draw container list
 		auto line_color = Theme::c("main_fg");
 		int y_pos = y + 2;
-		int shown_containers = 0;
-		const int max_containers = height - 4;
+		int current_line = 0;
+		const int max_lines = height - 3;
 
-		for (int i = start; i < clist.size() and shown_containers < max_containers; i++) {
+		for (int i = start; i < clist.size() and current_line < max_lines; i++) {
 			const auto& container = clist[i];
 			bool is_selected = (i == start + selected - 1);
 
@@ -2370,8 +2369,10 @@ namespace Container {
 
 			out += Fx::reset;
 			y_pos++;
-			shown_containers++;
+			current_line++;
 		}
+
+		while (current_line++ < max_lines) out += Mv::to(y+current_line+1, x+1) + string(width - 2, ' ');
 
 		//? Clear out left over graphs from dead containers at a regular interval
 		if (not data_same and ++counter >= 100) {
