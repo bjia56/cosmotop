@@ -1777,14 +1777,13 @@ namespace Container {
 
 		// Apply filter to containers
 		if (not filter.empty()) {
-			int filter_found_count = 0;
+			filter_found = 0;
 			for (auto& container : current_containers) {
 				if (not matches_filter(container, filter)) {
 					container.filtered = true;
-					filter_found_count++;
+					filter_found++;
 				}
 			}
-			filter_found = std::to_string(filter_found_count);
 		}
 
 		// Sort containers
@@ -1792,7 +1791,7 @@ namespace Container {
 			container_sorter(current_containers, sorting, reverse);
 		}
 
-		numcontainers = (int)current_containers.size() - std::stoi(filter_found.empty() ? "0" : filter_found);
+		numcontainers = (int)current_containers.size() - filter_found;
 		return current_containers;
 	}
 }  // namespace Container
