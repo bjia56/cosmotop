@@ -223,6 +223,12 @@ namespace Shared {
 
 		//? Init for namespace Net
 		Net::collect();
+
+
+#if defined(__x86_64__) || defined(__aarch64__)
+		//? Init for namespace Container
+		Container::init();
+#endif
 	}
 
 }  // namespace Shared
