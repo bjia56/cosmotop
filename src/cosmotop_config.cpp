@@ -131,6 +131,8 @@ namespace Config {
 
 		{"cont_cpu_graphs",     "#* Show cpu graph for each container."},
 
+		{"cont_show_exited",     "#* Show exited containers in container list."},
+
 		{"cpu_graph_upper", 	"#* Sets the CPU stat shown in upper half of the CPU graph, \"total\" is always available.\n"
 								"#* Select from a list of detected attributes from the options menu."},
 
@@ -312,6 +314,7 @@ namespace Config {
 		{"cont_reversed", false},
 		{"cont_mem_bytes", true},
 		{"cont_cpu_graphs", true},
+		{"cont_show_exited", false},
 		{"cpu_invert_lower", true},
 		{"cpu_single_graph", false},
 		{"cpu_bottom", false},

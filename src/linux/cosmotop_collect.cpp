@@ -3806,6 +3806,7 @@ namespace Container {
 	//* Parse container list from Docker API JSON response
 	vector<container_info> parse_containers_json(const string& json_response) {
 		vector<container_info> containers;
+		auto skip_exited = not Config::getB("cont_show_exited");
 
 		try {
 			auto docker_containers = rfl::json::read<vector<DockerContainer>>(json_response);
@@ -3815,6 +3816,8 @@ namespace Container {
 			}
 
 			for (const auto& dc : docker_containers.value()) {
+				if (skip_exited && is_in(dc.State, "exited", "dead")) continue;
+
 				container_info container;
 				container.container_id = dc.Id.substr(0, 12); // Short ID
 				container.name = dc.Names.empty() ? "" : dc.Names[0];

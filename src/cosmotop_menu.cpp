@@ -861,6 +861,10 @@ namespace Menu {
 				"Show cpu graph for each container.",
 				"",
 				"True or False"},
+			{"cont_show_exited",
+				"Show exited containers in container list.",
+				"",
+				"True or False"},
 		}
 	};
 
