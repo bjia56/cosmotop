@@ -3837,7 +3837,7 @@ namespace Container {
 
 	//* Get container stats via Docker API
 	void get_container_stats_api(vector<container_info>& containers) {
-		string containers_json = docker_api_call("/containers/json");
+		string containers_json = docker_api_call("/containers/json?all=true");
 		if (!containers_json.empty()) {
 			containers = parse_containers_json(containers_json);
 		} else {
