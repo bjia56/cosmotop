@@ -173,8 +173,9 @@ namespace Menu {
 		{"2", "Toggle MEM box."},
 		{"3", "Toggle NET box."},
 		{"4", "Toggle PROC box."},
-		{"5", "Toggle GPU box."},
-		{"6", "Toggle NPU box."},
+		{"5", "Toggle CONT box."},
+		{"6", "Toggle GPU box."},
+		{"7", "Toggle NPU box."},
 		{"d", "Toggle disks view in MEM box."},
 		{"F2, o", "Shows options."},
 		{"F1, ?, h", "Shows this window."},
@@ -838,6 +839,28 @@ namespace Menu {
 				"",
 				"Set to 'True' to filter out internal",
 				"processes started by the Linux kernel."},
+		},
+		// cont
+		{
+			{"cont_sorting",
+				"Container sorting option.",
+				"",
+				"Possible values:",
+				"\"id\", \"name\", \"image\", \"status\",",
+				"\"cpu\", \"memory\"."},
+			{"cont_reversed",
+				"Reverse container sorting order.",
+				"",
+				"True or False."},
+			{"cont_mem_bytes",
+				"Show memory as bytes in container list.",
+				" ",
+				"Will show percentage of total memory",
+				"if False."},
+			{"cont_cpu_graphs",
+				"Show cpu graph for each container.",
+				"",
+				"True or False"},
 		}
 	};
 
@@ -1390,8 +1413,8 @@ namespace Menu {
 			if (--selected_cat < 0) selected_cat = (int)categories.size() - 1;
 			page = selected = 0;
 		}
-		else if (is_in(key, "1", "2", "3", "4", "5", "6") or key.starts_with("select_cat_")) {
-		selected_cat = key.back() - '0' - 1;
+		else if (is_in(key, "1", "2", "3", "4", "5", "6", "7", "8", "9") or key.starts_with("select_cat_")) {
+			selected_cat = key.back() - '0' - 1;
 			page = selected = 0;
 		}
 		else if (is_in(key, "left", "right") or (vim_keys and is_in(key, "h", "l"))) {
@@ -1489,7 +1512,7 @@ namespace Menu {
 			//? Category buttons
 			out += Mv::to(y+7, x+2);
 
-			static const array titles = {"general"s, "cpu"s, "gpu"s, "npu"s, "mem"s, "disk"s, "net"s, "proc"s};
+			static const array titles = {"general"s, "cpu"s, "gpu"s, "npu"s, "mem"s, "disk"s, "net"s, "proc"s, "cont"s};
 
 			// Get expected size of each category title, allow 2 spaces on each side next to the border
 			const int title_width = (menubox_width - 4) / titles.size();

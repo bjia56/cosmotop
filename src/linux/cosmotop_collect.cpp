@@ -3914,9 +3914,9 @@ namespace Container {
 			return current_containers;
 		}
 
-		const auto& sorting = Config::getS("container_sorting");
-		const auto reverse = Config::getB("container_reversed");
-		const auto& filter = Config::getS("container_filter");
+		const auto& sorting = Config::getS("cont_sorting");
+		const auto reverse = Config::getB("cont_reversed");
+		const auto& filter = Config::getS("cont_filter");
 
 		bool sorted_change = (sorting != current_sort or reverse != current_rev );
 		if (sorted_change) {

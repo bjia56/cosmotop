@@ -2250,8 +2250,8 @@ namespace Container {
 		auto tty_mode = Config::getB("tty_mode");
 		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol"));
 		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
-		auto mem_bytes = Config::getB("container_mem_bytes");
-		auto show_graphs = Config::getB("container_cpu_graphs");
+		auto mem_bytes = Config::getB("cont_mem_bytes");
+		auto show_graphs = Config::getB("cont_cpu_graphs");
 		auto& start = Container::start;
 		auto& selected = Container::selected;
 		if (force_redraw) redraw = true;

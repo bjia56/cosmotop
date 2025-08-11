@@ -99,8 +99,6 @@ namespace Config {
 		{"services_sorting",	"#* Services sorting, \"service\" \"caption\" \"status\" \"memory\" \"cpu lazy\" \"cpu direct\",\n"
 								"#* \"cpu lazy\" sorts top service over time (easier to follow), \"cpu direct\" updates top service directly."},
 
-		{"container_sorting",		"#* Container sorting, \"id\" \"name\" \"image\" \"status\" \"cpu\" \"memory\"."},
-
 		{"proc_reversed",		"#* Reverse sorting order, True or False."},
 
 		{"proc_tree",			"#* Show processes as a tree."},
@@ -124,6 +122,14 @@ namespace Config {
 		{"proc_filter_kernel",  "#* (Linux) Filter processes tied to the Linux kernel(similar behavior to htop)."},
 
 		{"proc_aggregate",		"#* In tree-view, always accumulate child process resources in the parent process."},
+
+		{"cont_sorting",		"#* Container sorting, \"id\" \"name\" \"image\" \"status\" \"cpu\" \"memory\"."},
+
+		{"cont_reversed",		"#* Container sorting order, True or False."},
+
+		{"cont_mem_bytes", 		"#* Show container memory as bytes instead of percent."},
+
+		{"cont_cpu_graphs",     "#* Show cpu graph for each container."},
 
 		{"cpu_graph_upper", 	"#* Sets the CPU stat shown in upper half of the CPU graph, \"total\" is always available.\n"
 								"#* Select from a list of detected attributes from the options menu."},
@@ -253,9 +259,9 @@ namespace Config {
 		{"graph_symbol_proc", "default"},
 		{"proc_sorting", "cpu lazy"},
 		{"services_sorting", "cpu lazy"},
-		{"container_sorting", "cpu"},
-		{"container_filter", ""},
-		{"detailed_container_id", ""},
+		{"cont_sorting", "cpu"},
+		{"cont_filter", ""},
+		{"detailed_cont_id", ""},
 		{"cpu_graph_upper", "Auto"},
 		{"cpu_graph_lower", "Auto"},
 		{"cpu_sensor", "Auto"},
@@ -303,9 +309,9 @@ namespace Config {
 		{"proc_info_smaps", false},
 		{"proc_left", false},
 		{"proc_filter_kernel", false},
-		{"container_reversed", false},
-		{"container_mem_bytes", true},
-		{"container_cpu_graphs", true},
+		{"cont_reversed", false},
+		{"cont_mem_bytes", true},
+		{"cont_cpu_graphs", true},
 		{"cpu_invert_lower", true},
 		{"cpu_single_graph", false},
 		{"cpu_bottom", false},
