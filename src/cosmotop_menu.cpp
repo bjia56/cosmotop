@@ -274,7 +274,7 @@ namespace Menu {
 			{"shown_boxes",
 				"Manually set which boxes to show.",
 				"",
-				"Available values are \"cpu mem net proc\".",
+				"Available values are \"cpu mem net proc cont\".",
 				"Or \"gpu0\" through \"gpu5\" for GPU boxes.",
 				"Or \"npu0\" through \"npu2\" for NPU boxes.",
 				"Separate values with whitespace.",
