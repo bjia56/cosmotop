@@ -517,9 +517,10 @@ namespace Theme {
 				break;
 			}
 		}
-		if (theme == "TTY" or Config::getB("tty_mode"))
+		if (theme == "TTY" or Config::getB("tty_mode")) {
 			generateTTYColors();
-		else {
+			populateBackupColors();
+		} else {
 			if (theme == "Default" or theme_path.empty()) {
 				generateColors(Default_theme);
 			} else if (theme == "Classic") {
@@ -527,9 +528,9 @@ namespace Theme {
 			} else {
 				generateColors(loadFile(theme_path));
 			}
+			populateBackupColors();
 			generateGradients();
 		}
-		populateBackupColors();
 		Term::fg = colors.at("main_fg");
 		Term::bg = colors.at("main_bg");
 		Fx::reset = Fx::reset_base + Term::fg + Term::bg;
