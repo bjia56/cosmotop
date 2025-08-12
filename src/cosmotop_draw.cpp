@@ -2003,7 +2003,7 @@ namespace Proc {
 		all_proc_heights.reserve(plist.size());
 		for (const auto& p : plist) {
 			vector<string> cmd_lines;
-			if (proc_tree) {
+			if (proc_tree || p.cmd.empty()) {
 				all_proc_heights.push_back(1);
 				p_cmdlines[p.pid] = {p.cmd};
 				continue;
