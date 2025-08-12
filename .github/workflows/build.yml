@@ -116,7 +116,7 @@ jobs:
           shell: bash
           run: |
             set -e
-            apt update && apt -y install gcc-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
+            apt update && apt -y install binutils-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
             ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Compress plugin
