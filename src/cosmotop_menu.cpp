@@ -842,6 +842,12 @@ namespace Menu {
 		},
 		// cont
 		{
+			{"graph_symbol_cont",
+				"Graph symbol to use for graphs in cont box.",
+				"",
+				"\"default\", \"braille\", \"block\" or \"tty\".",
+				"",
+				"\"default\" for the general default symbol.",},
 			{"cont_sorting",
 				"Container sorting option.",
 				"",
@@ -1270,6 +1276,7 @@ namespace Menu {
 			{"graph_symbol_mem", std::cref(Config::valid_graph_symbols_def)},
 			{"graph_symbol_net", std::cref(Config::valid_graph_symbols_def)},
 			{"graph_symbol_proc", std::cref(Config::valid_graph_symbols_def)},
+			{"graph_symbol_cont", std::cref(Config::valid_graph_symbols_def)},
 			{"cpu_graph_upper", std::cref(Cpu::get_available_fields())},
 			{"cpu_graph_lower", std::cref(Cpu::get_available_fields())},
 			{"cpu_sensor", std::cref(Cpu::get_available_sensors())},

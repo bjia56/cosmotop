@@ -2248,7 +2248,7 @@ namespace Container {
 		auto container_gradient = false; // TODO: Add container_gradient config
 		auto container_colors = false; // TODO: Add container_colors config
 		auto tty_mode = Config::getB("tty_mode");
-		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol"));
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_cont"));
 		auto& graph_bg = Symbols::graph_symbols.at((graph_symbol == "default" ? Config::getS("graph_symbol") + "_up" : graph_symbol + "_up")).at(6);
 		auto mem_bytes = Config::getB("cont_mem_bytes");
 		auto show_graphs = Config::getB("cont_cpu_graphs");

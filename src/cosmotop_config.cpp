@@ -81,11 +81,13 @@ namespace Config {
 
 		{"graph_symbol_npu", 	"# Graph symbol to use for graphs in npu box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
-		{"graph_symbol_mem", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
+		{"graph_symbol_mem", 	"# Graph symbol to use for graphs in mem box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
-		{"graph_symbol_net", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
+		{"graph_symbol_net", 	"# Graph symbol to use for graphs in net box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
-		{"graph_symbol_proc", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
+		{"graph_symbol_proc", 	"# Graph symbol to use for graphs in proc box, \"default\", \"braille\", \"block\" or \"tty\"."},
+
+		{"graph_symbol_cont", 	"# Graph symbol to use for graphs in cont box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
 		{"shown_boxes", 		"#* Manually set which boxes to show. Available values are \"cpu mem net proc cont\", \"gpu0\" through \"gpu5\", and \"npu0\" through \"npu2\", separate values with whitespace."},
 
@@ -259,6 +261,7 @@ namespace Config {
 		{"graph_symbol_mem", "default"},
 		{"graph_symbol_net", "default"},
 		{"graph_symbol_proc", "default"},
+		{"graph_symbol_cont", "default"},
 		{"proc_sorting", "cpu lazy"},
 		{"services_sorting", "cpu lazy"},
 		{"cont_sorting", "cpu"},
@@ -458,7 +461,7 @@ namespace Config {
 	vector<string> available_batteries = {"Auto"};
 
 	vector<string> current_boxes;
-	vector<string> preset_list = {"cpu:0:default,mem:0:default,net:0:default,proc:0:default,container:0:default"};
+	vector<string> preset_list = {"cpu:0:default,mem:0:default,net:0:default,proc:0:default,cont:0:default"};
 	int current_preset = -1;
 
 	bool presetsValid(const string& presets) {
