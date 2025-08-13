@@ -180,6 +180,9 @@ jobs:
           vm_image: ${{ secrets.VM_IMAGE }}
           vm_image_sha256: ${{ secrets.VM_IMAGE_SHA256 }}
           ssh_key: ${{ secrets.VM_KEY }}
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          s3_endpoint_url: ${{ secrets.S3_ENDPOINT }}
 
       - name: Checkout
         shell: macppc {0}
