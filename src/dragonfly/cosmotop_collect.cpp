@@ -190,6 +190,10 @@ namespace Shared {
 		Mem::collect();
 		Logger::debug("Init -> Mem::get_zpools()");
 		Mem::get_zpools();
+
+		//? Init for namespace Net
+		Logger::debug("Init -> Net::collect()");
+		Net::collect();
 	}
 }  // namespace Shared
 
@@ -1345,3 +1349,4 @@ namespace Tools {
 		return 0.0;
 	}
 }  // namespace Tools
+

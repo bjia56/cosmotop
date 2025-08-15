@@ -34,9 +34,12 @@ endif()
 set(THIRD_PARTY_INCLUDES
   ${LIBCOSMO_PLUGIN_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/third_party/cpp-httplib
+  ${PROJECT_SOURCE_DIR}/third_party/TinyMCP/Source/Protocol
+  ${PROJECT_SOURCE_DIR}/third_party/TinyMCP/Source/External/jsoncpp/include
   ${PROJECT_SOURCE_DIR}/third_party/fmt/include
   ${PROJECT_SOURCE_DIR}/third_party/widecharwidth
   ${PROJECT_SOURCE_DIR}/third_party/range-v3/include
+  ${PROJECT_SOURCE_DIR}/third_party/date/include
 )
 
 # Generate build info
@@ -67,12 +70,25 @@ if(${TARGET} STREQUAL "host")
     src/cosmotop_draw.cpp
     src/cosmotop_input.cpp
     src/cosmotop_menu.cpp
+    src/cosmotop_mcp.cpp
     src/cosmotop_shared.cpp
     src/cosmotop_theme.cpp
     src/cosmotop_tools_host.cpp
     src/cosmotop_tools_shared.cpp
     src/cosmotop_plugin.cpp
     ${LIBCOSMO_PLUGIN_SOURCES}
+    third_party/TinyMCP/Source/Protocol/Entity/Server.cpp
+    third_party/TinyMCP/Source/Protocol/Message/BasicMessage.cpp
+    third_party/TinyMCP/Source/Protocol/Message/Message.cpp
+    third_party/TinyMCP/Source/Protocol/Message/Notification.cpp
+    third_party/TinyMCP/Source/Protocol/Message/Request.cpp
+    third_party/TinyMCP/Source/Protocol/Message/Response.cpp
+    third_party/TinyMCP/Source/Protocol/Session/Session.cpp
+    third_party/TinyMCP/Source/Protocol/Task/BasicTask.cpp
+    third_party/TinyMCP/Source/Protocol/Transport/Transport.cpp
+    third_party/TinyMCP/Source/External/jsoncpp/src/lib_json/json_reader.cpp
+    third_party/TinyMCP/Source/External/jsoncpp/src/lib_json/json_value.cpp
+    third_party/TinyMCP/Source/External/jsoncpp/src/lib_json/json_writer.cpp
   )
 
   target_compile_options(cosmotop.com PRIVATE -mcosmo)
@@ -149,6 +165,7 @@ elseif(${TARGET} STREQUAL "plugin")
       src/cosmotop_shared.cpp
       src/cosmotop_tools_shared.cpp
       src/windows/cosmotop_collect.cpp
+      src/windows/docker_http_client.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
 
@@ -160,7 +177,7 @@ elseif(${TARGET} STREQUAL "plugin")
     if(NOT CXX_HAVE_RANGES)
       message(FATAL_ERROR "The compiler doesn't support <ranges>")
     endif()
-  elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
+  elseif(CMAKE_SYSTEM MATCHES "FreeBSD" OR CMAKE_SYSTEM MATCHES "MidnightBSD")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
       src/cosmotop_shared.cpp
@@ -251,6 +268,10 @@ elseif(${TARGET} STREQUAL "plugin")
   find_package(Threads REQUIRED)
 
   target_link_libraries(${BINARY_NAME} PRIVATE Threads::Threads)
+  if((NOT CMAKE_SYSTEM MATCHES "Darwin") AND (NOT CMAKE_SYSTEM MATCHES "Windows") AND (NOT CMAKE_SYSTEM MATCHES "SunOS"))
+    target_link_libraries(${BINARY_NAME} PRIVATE -static-libgcc -static-libstdc++)
+  endif()
+
   if(CMAKE_SYSTEM MATCHES "Linux" AND RSMI_STATIC)
     target_link_libraries(${BINARY_NAME} PRIVATE ROCm)
   elseif(CMAKE_SYSTEM MATCHES "Darwin")
@@ -263,10 +284,10 @@ elseif(${TARGET} STREQUAL "plugin")
       list(APPEND PLUGIN_LIBRARIES IOReport)
     endif()
     target_link_libraries(${BINARY_NAME} PRIVATE ${PLUGIN_LIBRARIES})
-  elseif(CMAKE_SYSTEM MATCHES "FreeBSD")
+  elseif(CMAKE_SYSTEM MATCHES "FreeBSD" OR CMAKE_SYSTEM MATCHES "MidnightBSD")
     target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm elf::elf)
   elseif(CMAKE_SYSTEM MATCHES "DragonFly")
-    target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm -static-libgcc -static-libstdc++)
+    target_link_libraries(${BINARY_NAME} PRIVATE devstat::devstat kvm::kvm)
   elseif(CMAKE_SYSTEM MATCHES "NetBSD")
     target_link_libraries(${BINARY_NAME} PRIVATE kvm::kvm proplib::proplib)
   elseif(CMAKE_SYSTEM MATCHES "OpenBSD")

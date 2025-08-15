@@ -24,7 +24,7 @@ on:
 env:
   zig_version: 0.14.0
   blink_version: 4da95da865a1d3ccdc2e802cccfbddd8507d1c95
-  chimplink_version: v0.5.0
+  chimplink_version: v0.6.0
   cosmocc_version: 4.0.2
 
 jobs:
@@ -116,7 +116,7 @@ jobs:
           shell: bash
           run: |
             set -e
-            apt update && apt -y install gcc-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
+            apt update && apt -y install binutils-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
             ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Compress plugin
@@ -169,11 +169,23 @@ jobs:
 
   build_macppc_plugin:
     name: Build plugin MacOS ppc
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
+      - run: |
+          echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null
+          sudo dpkg-reconfigure man-db
+      - uses: jlumbroso/free-disk-space@v1.3.1
+
       - name: Start VM
-        uses: bjia56/custom-actions/macppc-vm@main
+        uses: bjia56/macppc-vm@main
+        with:
+          vm_image: ${{ secrets.VM_IMAGE }}
+          vm_image_sha256: ${{ secrets.VM_IMAGE_SHA256 }}
+          ssh_key: ${{ secrets.VM_KEY }}
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          s3_endpoint_url: ${{ secrets.S3_ENDPOINT }}
 
       - name: Checkout
         shell: macppc {0}
@@ -390,7 +402,6 @@ jobs:
         uses: vmactions/dragonflybsd-vm@v1
         with:
           sync: nfs
-          arch: ${{ matrix.arch }}
           release: "6.4.0"
           prepare: |
             pkg install -y cmake gcc14 bash
@@ -410,6 +421,51 @@ jobs:
         with:
           name: plugin-dragonflybsd-${{ matrix.arch }}
           path: ./cosmotop-dragonflybsd-${{ matrix.arch }}.exe
+
+  build_midnightbsd_plugin:
+    name: Build plugin MidnightBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Start VM
+        uses: bjia56/midnightbsd-vm@main
+
+      - name: Checkout
+        shell: midnightbsd {0}
+        run: |
+          git init .
+          git remote add origin https://github.com/${{ github.repository }}.git
+          if ( "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ) then
+            git fetch origin "refs/pull/${{ github.event.pull_request.number }}/merge"
+            git checkout FETCH_HEAD
+          else
+            git fetch --depth=1 origin ${{ github.sha }}
+            git checkout ${{ github.sha }}
+          endif
+          git submodule update --init --depth 1 --recursive
+
+      - name: Build plugin
+        shell: midnightbsd {0}
+        run: |
+          setenv CC gcc14
+          setenv CXX g++14
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop-plugin.exe ./cosmotop-midnightbsd-${{ matrix.arch }}.exe
+
+      - name: Copy out of VM
+        run: |
+          scp midnightbsd:/root/cosmotop-midnightbsd-${{ matrix.arch }}.exe .
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-midnightbsd-${{ matrix.arch }}
+          path: ./cosmotop-midnightbsd-${{ matrix.arch }}.exe
 
   build_solaris_plugin:
     name: Build plugin Solaris ${{ matrix.arch }}
@@ -461,6 +517,7 @@ jobs:
       - build_netbsd_plugin
       - build_openbsd_plugin
       - build_dragonflybsd_plugin
+      - build_midnightbsd_plugin
       - build_solaris_plugin
 
     steps:
@@ -502,6 +559,7 @@ jobs:
             "blink-tiny-openbsd7.6-aarch64-stripped blink-openbsd-aarch64" \
             "blink-tiny-openbsd7.6-x86_64-stripped blink-openbsd-x86_64" \
             "blink-tiny-dragonflybsd6.4.0-x86_64-stripped blink-dragonflybsd-x86_64" \
+            "blink-tiny-midnightbsd3.2.3-x86_64-stripped blink-midnightbsd-x86_64" \
             "blink-tiny-solaris11.4-x86_64-stripped blink-solaris-x86_64" \
             "blink-tiny-linux-powerpc64le-stripped blink-linux-powerpc64le" \
             "blink-tiny-linux-i386-stripped blink-linux-i386" \
@@ -511,7 +569,7 @@ jobs:
             "blink-tiny-macos10.4-powerpc-stripped blink-macos-powerpc"
           do
             set -- $item
-            wget "https://github.com/bjia56/blinkverse/releases/download/v7/$1" -O "$2"
+            wget "https://github.com/bjia56/blinkverse/releases/download/v8/$1" -O "$2"
             chmod +x "$2"
             if [[ "$2" == "blink-linux-powerpc64le" || "$2" == "blink-linux-i386" ]]; then
               upx --best "$2"
@@ -574,6 +632,8 @@ jobs:
           cp ${{ github.workspace }}/third_party/widecharwidth/LICENSE widecharwidth
           cp ${{ github.workspace }}/third_party/rocm_smi_lib/License.txt "ROCm SMI"
           cp ${{ github.workspace }}/third_party/rocm_smi_lib/third_party/shared_mutex/LICENSE shared_mutex
+          cp ${{ github.workspace }}/third_party/TinyMCP/LICENSE TinyMCP
+          cp ${{ github.workspace }}/third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt jsoncpp
           curl -L -o igt-gpu-tools https://gitlab.freedesktop.org/drm/igt-gpu-tools/-/raw/0f02dc176959e6296866b1bafd3982e277a5e44b/COPYING
           cp $(dirname $(dirname $(which cosmocc)))/LICENSE "Cosmopolitan Libc"
           cp $(dirname $(which zig))/LICENSE "Zig Programming Language"
@@ -613,6 +673,7 @@ jobs:
             --os OpenBSD /tmp/blink/blink-openbsd-* \
             --os DragonFly /tmp/blink/blink-dragonflybsd-* \
             --os Solaris /tmp/blink/blink-solaris-* \
+            --os MidnightBSD /tmp/blink/blink-midnightbsd-* \
             --os Darwin /tmp/blink/blink-macos-*
 
           cosmo_bin=$(dirname $(which cosmocc))

@@ -81,13 +81,15 @@ namespace Config {
 
 		{"graph_symbol_npu", 	"# Graph symbol to use for graphs in npu box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
-		{"graph_symbol_mem", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
+		{"graph_symbol_mem", 	"# Graph symbol to use for graphs in mem box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
-		{"graph_symbol_net", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
+		{"graph_symbol_net", 	"# Graph symbol to use for graphs in net box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
-		{"graph_symbol_proc", 	"# Graph symbol to use for graphs in cpu box, \"default\", \"braille\", \"block\" or \"tty\"."},
+		{"graph_symbol_proc", 	"# Graph symbol to use for graphs in proc box, \"default\", \"braille\", \"block\" or \"tty\"."},
 
-		{"shown_boxes", 		"#* Manually set which boxes to show. Available values are \"cpu mem net proc\", \"gpu0\" through \"gpu5\", and \"npu0\" through \"npu2\", separate values with whitespace."},
+		{"graph_symbol_cont", 	"# Graph symbol to use for graphs in cont box, \"default\", \"braille\", \"block\" or \"tty\"."},
+
+		{"shown_boxes", 		"#* Manually set which boxes to show. Available values are \"cpu mem net proc cont\", \"gpu0\" through \"gpu5\", and \"npu0\" through \"npu2\", separate values with whitespace."},
 
 		{"update_ms", 			"#* Update time in milliseconds, recommended 2000 ms or above for better sample times for graphs."},
 
@@ -122,6 +124,16 @@ namespace Config {
 		{"proc_filter_kernel",  "#* (Linux) Filter processes tied to the Linux kernel(similar behavior to htop)."},
 
 		{"proc_aggregate",		"#* In tree-view, always accumulate child process resources in the parent process."},
+
+		{"cont_sorting",		"#* Container sorting, \"id\" \"name\" \"image\" \"status\" \"cpu\" \"memory\"."},
+
+		{"cont_reversed",		"#* Container sorting order, True or False."},
+
+		{"cont_mem_bytes", 		"#* Show container memory as bytes instead of percent."},
+
+		{"cont_cpu_graphs",     "#* Show cpu graph for each container."},
+
+		{"cont_show_exited",     "#* Show exited containers in container list."},
 
 		{"cpu_graph_upper", 	"#* Sets the CPU stat shown in upper half of the CPU graph, \"total\" is always available.\n"
 								"#* Select from a list of detected attributes from the options menu."},
@@ -235,11 +247,12 @@ namespace Config {
 		{"custom_npu_name0",	"#* Custom npu0 model name, empty string to disable."},
 		{"custom_npu_name1",	"#* Custom npu1 model name, empty string to disable."},
 		{"custom_npu_name2",	"#* Custom npu2 model name, empty string to disable."},
+
 	};
 
 	std::unordered_map<std::string_view, string> strings = {
 		{"color_theme", "Default"},
-		{"shown_boxes", "cpu mem net proc"},
+		{"shown_boxes", "cpu mem net proc cont"},
 		{"graph_symbol", "braille"},
 		{"presets", "cpu:1:default,proc:0:default cpu:0:default,mem:0:default,net:0:default cpu:0:block,net:0:tty"},
 		{"graph_symbol_cpu", "default"},
@@ -248,8 +261,12 @@ namespace Config {
 		{"graph_symbol_mem", "default"},
 		{"graph_symbol_net", "default"},
 		{"graph_symbol_proc", "default"},
+		{"graph_symbol_cont", "default"},
 		{"proc_sorting", "cpu lazy"},
 		{"services_sorting", "cpu lazy"},
+		{"cont_sorting", "cpu"},
+		{"cont_filter", ""},
+		{"detailed_cont_id", ""},
 		{"cpu_graph_upper", "Auto"},
 		{"cpu_graph_lower", "Auto"},
 		{"cpu_sensor", "Auto"},
@@ -297,6 +314,10 @@ namespace Config {
 		{"proc_info_smaps", false},
 		{"proc_left", false},
 		{"proc_filter_kernel", false},
+		{"cont_reversed", false},
+		{"cont_mem_bytes", true},
+		{"cont_cpu_graphs", true},
+		{"cont_show_exited", false},
 		{"cpu_invert_lower", true},
 		{"cpu_single_graph", false},
 		{"cpu_bottom", false},
@@ -440,7 +461,7 @@ namespace Config {
 	vector<string> available_batteries = {"Auto"};
 
 	vector<string> current_boxes;
-	vector<string> preset_list = {"cpu:0:default,mem:0:default,net:0:default,proc:0:default"};
+	vector<string> preset_list = {"cpu:0:default,mem:0:default,net:0:default,proc:0:default,cont:0:default"};
 	int current_preset = -1;
 
 	bool presetsValid(const string& presets) {
@@ -461,7 +482,7 @@ namespace Config {
 					validError = "Malformatted preset in config value presets!";
 					return false;
 				}
-				if (not is_in(vals.at(0), "cpu", "mem", "net", "proc", "gpu0", "gpu1", "gpu2", "gpu3", "gpu4", "gpu5")) {
+				if (not is_in(vals.at(0), "cpu", "mem", "net", "proc", "cont", "gpu0", "gpu1", "gpu2", "gpu3", "gpu4", "gpu5")) {
 					validError = "Invalid box name in config value presets!";
 					return false;
 				}
@@ -500,7 +521,7 @@ namespace Config {
 			const auto& vals = ssplit(box, ':');
 			if (vals.at(0) == "cpu") set("cpu_bottom", (vals.at(1) == "0" ? false : true));
 			else if (vals.at(0) == "mem") set("mem_below_net", (vals.at(1) == "0" ? false : true));
-			else if (vals.at(0) == "proc") set("proc_left", (vals.at(1) == "0" ? false : true));
+			else if (vals.at(0) == "proc" or vals.at(0) == "cont") set("proc_left", (vals.at(1) == "0" ? false : true));
 			set("graph_symbol_" + vals.at(0), vals.at(2));
 		}
 

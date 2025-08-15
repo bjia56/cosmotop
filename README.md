@@ -49,6 +49,7 @@ Options:
        --licenses      display licenses of open-source software used in cosmotop
        --debug         start in DEBUG mode: shows microsecond timer for information collect
                        and screen draw functions and sets loglevel to DEBUG
+       --mcp           start MCP server mode: exposes system information tools via MCP protocol
 ```
 
 ### GPU monitoring
@@ -68,6 +69,17 @@ Utilization monitoring of Intel and Rockchip NPUs is supported on Linux, provide
 
 Utilization monitoring of the Apple Neural Engine is supported on Apple Silicon. Sudo is not required.
 
+### Container monitoring
+
+Monitoring of running OCI containers is suppored on Linux, Windows, and MacOS using Docker-compatible APIs.
+On Linux and MacOS, the standard locations of `/run/docker.sock` and `/var/run/docker.sock` are used by default,
+but can be overriden with the `DOCKER_HOST` variable to point to an HTTP endpoint or a different socket (e.g.
+`/var/run/podman/podman.sock` for Podman containers). Access to the socket must be over plaintext (i.e. no TLS).
+
+When using tools like [linuxserver/socket-proxy](https://github.com/linuxserver/docker-socket-proxy) to secure
+the Docker API, read-only access to the `/version` and `/containers` endpoints is required for monitoring to be
+enabled.
+
 ### Configuration
 
 The configuration file for `cosmotop` is stored at `~/.config/cosmotop/cosmotop.conf`, populated with defaults
@@ -76,6 +88,20 @@ the first time the program runs.
 ### Themes
 
 A number of themes are available within `cosmotop`. Place custom themes at `~/.config/cosmotop/themes`.
+
+### MCP mode
+
+Model Context Protocol (MCP) mode is enabled with the `--mcp` flag and starts `cosmotop` as a MCP server using the STDIO transport
+and protocol version `2024-11-05`. Normal graphical metrics reporting is disabled during this mode. Tools exposed by `cosmotop`:
+- `get_process_info`
+- `get_cpu_info`
+- `get_memory_info`
+- `get_network_info`
+- `get_disk_info`
+- `get_gpu_info` (not available if no GPUs are detected)
+- `get_npu_info` (not available if no NPUs are detected)
+- `get_container_info` (not available if no container engines are detected)
+- `get_system_info`
 
 ## Supported platforms
 
@@ -88,9 +114,10 @@ A number of themes are available within `cosmotop`. Place custom themes at `~/.c
 | MacOS 13+ | x86_64, aarch64 |
 | MacOS 10.4+ | powerpc |
 | FreeBSD 13+ | x86_64, aarch64 |
-| DragonFlyBSD 6.4+ | x86_64 |
 | NetBSD 10.0+ | x86_64, aarch64 |
 | OpenBSD 7.6+ | x86_64, aarch64 |
+| DragonFlyBSD 6.4+ | x86_64 |
+| MidnightBSD 3.2.3+ | x86_64 |
 | Solaris 11.4+ | x86_64 |
 | Haiku R1/beta5+ | x86_64 |
 

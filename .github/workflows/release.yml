@@ -36,6 +36,7 @@ jobs:
       version: ${{ inputs.version }}
       beta: ${{ inputs.beta && 'true' || 'false' }}
       dry_run: ${{ inputs.dry_run && 'true' || 'false' }}
+    secrets: inherit
 
   publish:
     name: Publish

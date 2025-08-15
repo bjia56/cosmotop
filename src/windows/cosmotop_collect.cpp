@@ -30,6 +30,9 @@ tab-size = 4
 #include <string>
 #include <sstream>
 #include <stdexcept>
+#include <future>
+#include <thread>
+#include <unordered_map>
 
 #define _WIN32_DCOM
 #define _WIN32_WINNT 0x0600
@@ -65,6 +68,10 @@ tab-size = 4
 #include "../cosmotop_shared.hpp"
 #include "../cosmotop_config.hpp"
 #include "../cosmotop_tools.hpp"
+#include "./docker_http_client.hpp"
+
+#include <rfl/json.hpp>
+#include <rfl.hpp>
 
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
@@ -1108,6 +1115,10 @@ namespace Shared {
 		Mem::old_systime = GetTickCount64();
 		Mem::collect();
 
+		//? Init for namespace Net
+		Logger::debug("NET Init");
+		Net::collect();
+
 		Logger::debug("Connecting to WMI");
 		//? Set up connection to WMI
 		Shared::WMI_init();
@@ -1121,6 +1132,10 @@ namespace Shared {
 			atomic_wait_for(Proc::WMI_running, false, 100);
 			atomic_wait_for(Proc::WMI_running, true, 1000);
 		}
+
+		//? Init for namespace Container
+		Logger::debug("CONT Init");
+		Container::init();
 
 		Logger::debug("Drawing to screen");
 	}
@@ -2341,8 +2356,248 @@ namespace Proc {
 	}
 }
 
+namespace Container {
+	vector<container_info> current_containers;
+	string current_sort;
+	bool current_rev{};
+	atomic<int> numcontainers{};
+	int filter_found{};
+
+	// Docker detection
+	bool has_containers = false;
+
+	// Docker API JSON structures using reflect-cpp
+	struct DockerPort {
+		string IP;
+		uint16_t PrivatePort;
+		uint16_t PublicPort;
+		string Type;
+	};
+
+	struct DockerContainer {
+		string Id;
+		vector<string> Names;
+		string Image;
+		string Command;
+		int64_t Created;
+		string Status;
+		string State;
+		vector<DockerPort> Ports;
+	};
+
+	struct DockerNetworkEntry {
+		uint64_t rx_bytes;
+		uint64_t tx_bytes;
+	};
+
+	struct DockerStats {
+		struct {
+			uint64_t privateworkingset;
+		} memory_stats;
+		struct {
+			struct {
+				uint64_t total_usage;
+			} cpu_usage;
+		} cpu_stats;
+		std::unordered_map<string, DockerNetworkEntry> networks;
+		struct {
+			uint64_t read_size_bytes;
+			uint64_t write_size_bytes;
+		} storage_stats;
+		uint64_t num_procs;
+	};
+
+	//* Execute Docker API call via named pipe
+	string docker_api_call(const string& endpoint) {
+		try {
+			cosmotop::DockerHttpClient client;
+
+			auto response = client.get(endpoint);
+			if (response.success && response.status_code == 200) {
+				return response.body;
+			} else {
+				Logger::debug("Docker API call failed for endpoint: " + endpoint +
+							 " (status: " + std::to_string(response.status_code) + ")");
+				return "";
+			}
+		} catch (const std::exception& e) {
+			Logger::debug("Docker API call exception: " + string(e.what()));
+			return "";
+		}
+	}
+
+	//* Initialize Docker detection and choose preferred method
+	void init() {
+		// Test connectivity by making a simple API call
+		auto result = docker_api_call("/version");
+		if (!result.empty()) {
+			has_containers = true;
+			Logger::debug("Container::init() : Using Docker named pipe");
+			return;
+		} else {
+			Logger::debug("Container::init() : Docker named pipe test failed");
+		}
+
+		// No Docker available - containers not supported
+		has_containers = false;
+		Logger::debug("Container::init() : Docker not available");
+	}
+
+	//* Parse container list from Docker API JSON response
+	vector<container_info> parse_containers_json(const string& json_response) {
+		vector<container_info> containers;
+		auto skip_exited = not Config::getB("cont_show_exited");
+
+		try {
+			auto docker_containers = rfl::json::read<vector<DockerContainer>>(json_response);
+			if (!docker_containers) {
+				Logger::debug("Failed to parse containers JSON");
+				return containers;
+			}
+
+			for (const auto& dc : docker_containers.value()) {
+				if (skip_exited && is_in(dc.State, "exited", "dead")) continue;
+
+				container_info container;
+				container.container_id = dc.Id.substr(0, 12); // Short ID
+				container.name = dc.Names.empty() ? "" : dc.Names[0];
+				if (!container.name.empty() && container.name[0] == '/') {
+					container.name = container.name.substr(1); // Remove leading slash
+				}
+				container.image = dc.Image;
+				container.command = dc.Command;
+				container.created = dc.Created;
+				container.state = dc.State;
+
+				containers.push_back(container);
+			}
+		} catch (const std::exception& e) {
+			Logger::debug("Error parsing containers JSON: " + string(e.what()));
+		}
+
+		return containers;
+	}
+
+	//* Get container stats via Docker API
+	void get_container_stats_api(vector<container_info>& containers) {
+		string containers_json = docker_api_call("/containers/json?all=true");
+		if (!containers_json.empty()) {
+			containers = parse_containers_json(containers_json);
+		} else {
+			containers.clear();
+		}
+
+		std::vector<std::future<void>> futures;
+		for (auto& container : containers) {
+			futures.push_back(std::async(std::launch::async, [&container]() {
+				constexpr auto sleep_duration = std::chrono::milliseconds(100);
+				constexpr auto sleep_in_ns = sleep_duration.count() * 1'000'000; // Convert to nanoseconds
+				constexpr auto sleep_in_100ns = sleep_in_ns / 100; // Convert to 100-nanosecond intervals
+
+				string endpoint = "/containers/" + container.container_id + "/stats?stream=false&one-shot=true";
+				string stats_json_pre = docker_api_call(endpoint);
+				std::this_thread::sleep_for(sleep_duration);
+				string stats_json = docker_api_call(endpoint);
+
+				if (stats_json.empty()) return;
+
+				try {
+					auto stats_pre = rfl::json::read<DockerStats>(stats_json_pre);
+					auto stats = rfl::json::read<DockerStats>(stats_json);
+					if (stats_pre && stats) {
+						container.mem_usage = stats.value().memory_stats.privateworkingset;
+						container.mem_limit = Mem::totalMem; // Docker does not provide memory limit, use system total memory
+
+						double used_intervals = stats.value().cpu_stats.cpu_usage.total_usage - stats_pre.value().cpu_stats.cpu_usage.total_usage;
+						double total_intervals = sleep_in_100ns * stats.value().num_procs;
+						if (total_intervals > 0) {
+							container.cpu_percent = (used_intervals / total_intervals) * 100.0;
+						} else {
+							container.cpu_percent = 0.0;
+						}
+
+						uint64_t net_rx = 0, net_tx = 0;
+						for (const auto& [iface, net] : stats.value().networks) {
+							net_rx += net.rx_bytes;
+							net_tx += net.tx_bytes;
+						}
+						container.net_rx = net_rx;
+						container.net_tx = net_tx;
+
+						container.block_read = stats.value().storage_stats.read_size_bytes;
+						container.block_write = stats.value().storage_stats.write_size_bytes;
+					} else {
+						Logger::debug("Failed to parse stats JSON for container " + container.container_id);
+					}
+				} catch (const std::exception& e) {
+					Logger::debug("Error parsing stats for container " + container.container_id + ": " + string(e.what()));
+				}
+			}));
+		}
+
+		for (auto& future : futures) {
+			future.wait();
+		}
+	}
+
+	auto collect(bool no_update) -> vector<container_info>& {
+		// Early return if Docker is not available
+		if (!has_containers) {
+			current_containers.clear();
+			numcontainers = 0;
+			return current_containers;
+		}
+
+		const auto& sorting = Config::getS("cont_sorting");
+		const auto reverse = Config::getB("cont_reversed");
+		const auto& filter = Config::getS("cont_filter");
+
+		bool sorted_change = (sorting != current_sort or reverse != current_rev);
+		if (sorted_change) {
+			current_sort = sorting;
+			current_rev = reverse;
+		}
+
+		if (no_update and not current_containers.empty()) {
+			if (sorted_change) {
+				container_sorter(current_containers, sorting, reverse);
+			}
+			return current_containers;
+		}
+
+		// Get container stats using Docker API
+		current_containers.clear();
+		get_container_stats_api(current_containers);
+
+		// Apply filter to containers
+		if (not filter.empty()) {
+			filter_found = 0;
+			for (auto& container : current_containers) {
+				if (not s_contains_ic(container.name, filter) and
+					not s_contains_ic(container.container_id, filter) and
+					not s_contains_ic(container.image, filter) and
+					not s_contains_ic(container.state, filter)) {
+					container.filtered = true;
+					filter_found++;
+				} else {
+					container.filtered = false;
+				}
+			}
+		}
+
+		// Sort containers
+		if (sorted_change or not no_update) {
+			container_sorter(current_containers, sorting, reverse);
+		}
+
+		numcontainers = (int)current_containers.size() - filter_found;
+		return current_containers;
+	}
+}
+
 namespace Tools {
 	double system_uptime() {
 		return (double)GetTickCount64() / 1000;
 	}
 }
+

@@ -48,6 +48,7 @@ tab-size = 4
 #include "cosmotop_draw.hpp"
 #include "cosmotop_menu.hpp"
 #include "cosmotop_plugin.hpp"
+#include "cosmotop_mcp.hpp"
 #include "config.h"
 
 using std::atomic;
@@ -74,7 +75,7 @@ namespace Global {
 		{"#062c43", "██████╗ ██████║ ██████║ ██║     ██║ ██████║ ", "#666666", "  ██║   ██████║ ██║"},
 		{"#000000", "╚═════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ", "#000000", "  ╚═╝   ╚═════╝ ╚═╝"},
 	};
-	const string Version = "0.11.0";
+	const string Version = "0.13.0b3";
 
 	int coreCount;
 	string overlay;
@@ -107,6 +108,7 @@ namespace Global {
 
 	bool arg_tty{};
 	bool arg_low_color{};
+	bool arg_mcp{};
 	int arg_preset = -1;
 	int arg_update = 0;
 }
@@ -177,7 +179,8 @@ static void print_help() {
 			"  {0}     --show-themes   {2}list all available themes\n"
 			"  {0}     --licenses      {2}display licenses of open-source software used in cosmotop\n"
 			"  {0}     --debug         {2}start in DEBUG mode: shows microsecond timer for information collect\n"
-			"  {0}                     {2}and screen draw functions and sets loglevel to DEBUG",
+			"  {0}                     {2}and screen draw functions and sets loglevel to DEBUG\n"
+			"  {0}     --mcp           {2}start MCP server mode: exposes system information tools via MCP protocol",
 			"\033[1m", "\033[4m", "\033[0m"
 	);
 }
@@ -448,6 +451,9 @@ void argumentParser(const int argc, char **argv, string& configOverrides) {
 		}
 		else if (argument == "--debug")
 			Global::debug = true;
+		else if (argument == "--mcp") {
+			Global::arg_mcp = true;
+		}
 		else {
 			fmt::println("{0}error:{2} unexpected argument '{1}{3}{2}' found\n", "\033[1;31m", "\033[33m", "\033[0m", argument);
 			print_usage();
@@ -823,7 +829,7 @@ namespace Runner {
 			//! DEBUG stats
 			if (Global::debug) {
 				if (debug_bg.empty() or redraw)
-					Runner::debug_bg = Draw::createBox(2, 2, 33, 9, "", true, "μs");
+					Runner::debug_bg = Draw::createBox(2, 2, 33, 10, "", true, "μs");
 
 				debug_times.clear();
 				debug_times["total"] = {0, 0};
@@ -993,6 +999,26 @@ namespace Runner {
 					}
 				}
 
+				//? CONT
+				if (v_contains(conf.boxes, "cont")) {
+					try {
+						if (Global::debug) debug_timer("cont", collect_begin);
+
+						//? Start collect
+						const auto& cont = Container::collect(conf.no_update);
+
+						if (Global::debug) debug_timer("cont", draw_begin);
+
+						//? Draw box
+						if (not pause_output) output += Container::draw(cont, conf.force_redraw, conf.no_update);
+
+						if (Global::debug) debug_timer("cont", draw_done);
+					}
+					catch (const std::exception& e) {
+						throw std::runtime_error("Container:: -> " + string{e.what()});
+					}
+				}
+
 			}
 			catch (const std::exception& e) {
 				Global::exit_error_msg = "Exception in runner thread -> " + string{e.what()};
@@ -1023,9 +1049,11 @@ namespace Runner {
 						"{mv3}{hiFg}2 {mainFg}| Show MEM box"
 						"{mv4}{hiFg}3 {mainFg}| Show NET box"
 						"{mv5}{hiFg}4 {mainFg}| Show PROC box"
-						"{mv6}{hiFg}5-0 {mainFg}| Show GPU boxes"
-						"{mv7}{hiFg}esc {mainFg}| Show menu"
-						"{mv8}{hiFg}q {mainFg}| Quit",
+						"{mv6}{hiFg}5 {mainFg}| Show CONT box"
+						"{mv7}{hiFg}6-8 {mainFg}| Show GPU boxes"
+						"{mv8}{hiFg}9-0 {mainFg}| Show NPU boxes"
+						"{mv9}{hiFg}esc {mainFg}| Show menu"
+						"{mv10}{hiFg}q {mainFg}| Quit",
 						"banner"_a = Draw::banner_gen(y, 0, true),
 						"titleFg"_a = Theme::c("title"), "b"_a = Fx::b, "hiFg"_a = Theme::c("hi_fg"), "mainFg"_a = Theme::c("main_fg"),
 						"mv1"_a = Mv::to(y+6, x),
@@ -1033,9 +1061,11 @@ namespace Runner {
 						"mv3"_a = Mv::to(y+9, x),
 						"mv4"_a = Mv::to(y+10, x),
 						"mv5"_a = Mv::to(y+11, x),
-						"mv6"_a = Mv::to(y+12, x-2),
+						"mv6"_a = Mv::to(y+12, x),
 						"mv7"_a = Mv::to(y+13, x-2),
-						"mv8"_a = Mv::to(y+14, x)
+						"mv8"_a = Mv::to(y+14, x-2),
+						"mv9"_a = Mv::to(y+15, x-2),
+						"mv10"_a = Mv::to(y+16, x-2)
 					);
 				}
 				output += empty_bg;
@@ -1049,7 +1079,7 @@ namespace Runner {
 					"post"_a = Theme::c("main_fg") + Fx::ub
 				);
 				static auto loc = std::locale(std::locale::classic(), new MyNumPunct);
-				for (const string name : {"cpu", "mem", "net", "proc", "gpu", "total"}) {
+				for (const string name : {"cpu", "mem", "net", "proc", "gpu", "cont", "total"}) {
 					if (not debug_times.contains(name)) debug_times[name] = {0,0};
 					const auto& [time_collect, time_draw] = debug_times.at(name);
 					if (name == "total") output += Fx::b;
@@ -1174,6 +1204,34 @@ int main(int argc, char **argv) {
 	//? Plugin init
 	create_plugin_host();
 
+	//? MCP server mode
+	if (Global::arg_mcp) {
+		Logger::debug("Starting in MCP server mode");
+
+		//? Platform dependent init and error check
+		try {
+			Shared::init();
+		}
+		catch (const std::exception& e) {
+			Global::exit_error_msg = "Exception in Shared::init() -> " + string{e.what()};
+			clean_quit(1);
+		}
+
+		if (Mcp::init_mcp_server()) {
+			Logger::debug("MCP server started successfully");
+			// Keep the server running until shutdown
+			while (not Global::quitting) {
+				sleep_ms(1000);
+			}
+			Mcp::shutdown_mcp_server();
+			Logger::debug("MCP server shutdown");
+		} else {
+			Logger::error("Failed to start MCP server!");
+			clean_quit(1);
+		}
+		clean_quit(0);
+	}
+
 	//? Initialize terminal and set options
 	if (not Term::init()) {
 		Global::exit_error_msg = "No tty detected!\ncosmotop needs an interactive shell to run.";
@@ -1213,8 +1271,8 @@ int main(int argc, char **argv) {
 	}
 
 	if (not Config::set_boxes(Config::getS("shown_boxes"))) {
-		Config::set_boxes("cpu mem net proc");
-		Config::set("shown_boxes", "cpu mem net proc"s);
+		Config::set_boxes("cpu mem net proc cont");
+		Config::set("shown_boxes", "cpu mem net proc cont"s);
 	}
 
 	//? Update list of available themes and generate the selected theme
