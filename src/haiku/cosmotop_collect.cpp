@@ -332,25 +332,27 @@ namespace Cpu {
 			Logger::error("Failed to get CPU info");
 		}
 
-		// Global percentages
-		const uint64_t total_active = std::accumulate(current_cpu.core_percent.begin(), current_cpu.core_percent.end(), 0ll,
-			[](long long sum, const deque<long long>& core) { return sum + (core.empty() ? 0 : core.back()); });
-		const uint64_t last_total_active = std::accumulate(last_active_times.begin(), last_active_times.end(), 0ll);
-		current_cpu.cpu_percent.at("total").push_back(
-			clamp((long long)round((double)(total_active - last_total_active) * 100 / (time_since_boot_ms - last_update)), 0ll, 100ll));
-		while (cmp_greater(current_cpu.cpu_percent.at("total").size(), width * 2))
-			current_cpu.cpu_percent.at("total").pop_front();
+		if (last_update != 0) {
+			// Global percentages
+			const uint64_t total_active = std::accumulate(current_cpu.core_percent.begin(), current_cpu.core_percent.end(), 0ll,
+				[](long long sum, const deque<long long>& core) { return sum + (core.empty() ? 0 : core.back()); });
+			const uint64_t last_total_active = std::accumulate(last_active_times.begin(), last_active_times.end(), 0ll);
+			current_cpu.cpu_percent.at("total").push_back(
+				clamp((long long)round((double)((total_active - last_total_active) * 100 / (time_since_boot_ms - last_update)) / Shared::coreCount), 0ll, 100ll));
+			while (cmp_greater(current_cpu.cpu_percent.at("total").size(), width * 2))
+				current_cpu.cpu_percent.at("total").pop_front();
+
+			if (Config::getB("show_cpu_freq")) {
+				auto hz = get_cpuHz();
+				if (hz != "") {
+					cpuHz = hz;
+				}
+			}
+		}
 
 		last_update = time_since_boot_ms;
 		for (int i = 0; i < Shared::coreCount; i++) {
 			last_active_times[i] = infos[i].active_time;
-		}
-
-		if (Config::getB("show_cpu_freq")) {
-			auto hz = get_cpuHz();
-			if (hz != "") {
-				cpuHz = hz;
-			}
 		}
 
 		return current_cpu;
