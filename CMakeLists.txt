@@ -268,7 +268,7 @@ elseif(${TARGET} STREQUAL "plugin")
   find_package(Threads REQUIRED)
 
   target_link_libraries(${BINARY_NAME} PRIVATE Threads::Threads)
-  if((NOT CMAKE_SYSTEM MATCHES "Darwin") AND (NOT CMAKE_SYSTEM MATCHES "Windows") AND (NOT CMAKE_SYSTEM MATCHES "SunOS"))
+  if((NOT CMAKE_SYSTEM MATCHES "Darwin") AND (NOT CMAKE_SYSTEM MATCHES "Windows") AND (NOT CMAKE_SYSTEM MATCHES "SunOS") AND (NOT CMAKE_SYSTEM MATCHES "Haiku"))
     target_link_libraries(${BINARY_NAME} PRIVATE -static-libgcc -static-libstdc++)
   endif()
 
