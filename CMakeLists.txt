@@ -274,7 +274,7 @@ elseif(${TARGET} STREQUAL "plugin")
   elseif(CMAKE_SYSTEM MATCHES "SunOS")
     target_link_libraries(${BINARY_NAME} PRIVATE kstat::kstat)
   elseif(CMAKE_SYSTEM MATCHES "Haiku")
-    target_link_libraries(${BINARY_NAME} PRIVATE be root bnetapi)
+    target_link_libraries(${BINARY_NAME} PRIVATE be root bnetapi network)
   endif()
 
 endif() # TARGET
