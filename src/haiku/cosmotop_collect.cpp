@@ -310,9 +310,11 @@ namespace Cpu {
 		auto infos = std::unique_ptr<::cpu_info[]>(new ::cpu_info[Shared::coreCount]);
 		uint64_t total = 0;
 		static bigtime_t last_update = 0;
+		static uint64_t last_total = 0;
 		static vector<uint64_t> last_active_times(Shared::coreCount, 0);
 		if (get_cpu_info(0, Shared::coreCount, infos.get()) == B_OK) {
 			for (int i = 0; i < Shared::coreCount; i++) {
+				total += infos[i].active_time;
 				if (last_update == 0) {
 					// First collection, just store old values
 					last_active_times[i] = infos[i].active_time;
@@ -334,11 +336,8 @@ namespace Cpu {
 
 		if (last_update != 0) {
 			// Global percentages
-			const uint64_t total_active = std::accumulate(current_cpu.core_percent.begin(), current_cpu.core_percent.end(), 0ll,
-				[](long long sum, const deque<long long>& core) { return sum + (core.empty() ? 0 : core.back()); });
-			const uint64_t last_total_active = std::accumulate(last_active_times.begin(), last_active_times.end(), 0ll);
 			current_cpu.cpu_percent.at("total").push_back(
-				clamp((long long)round((double)((total_active - last_total_active) * 100 / (time_since_boot_ms - last_update)) / Shared::coreCount), 0ll, 100ll));
+				clamp((long long)round((double)((total - last_total) * 100 / (time_since_boot_ms - last_update)) / Shared::coreCount), 0ll, 100ll));
 			while (cmp_greater(current_cpu.cpu_percent.at("total").size(), width * 2))
 				current_cpu.cpu_percent.at("total").pop_front();
 
@@ -351,6 +350,7 @@ namespace Cpu {
 		}
 
 		last_update = time_since_boot_ms;
+		last_total = total;
 		for (int i = 0; i < Shared::coreCount; i++) {
 			last_active_times[i] = infos[i].active_time;
 		}
