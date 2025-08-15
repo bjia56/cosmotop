@@ -105,7 +105,7 @@ namespace Cpu {
 	}
 
 	string get_cpuName() {
-		string cpuName = "Unknown";
+		string name = "Unknown";
 		string vendorName = "";
 		cpu_platform platform = B_CPU_UNKNOWN;
 
@@ -146,43 +146,43 @@ namespace Cpu {
 		// Build CPU name based on platform and vendor
 		switch (platform) {
 			case B_CPU_x86:
-				cpuName = vendorName.empty() ? "x86" : vendorName + " x86";
+				name = vendorName.empty() ? "x86" : vendorName + " x86";
 				break;
 			case B_CPU_x86_64:
-				cpuName = vendorName.empty() ? "x86_64" : vendorName + " x86_64";
+				name = vendorName.empty() ? "x86_64" : vendorName + " x86_64";
 				break;
 			case B_CPU_PPC:
-				cpuName = "PowerPC";
+				name = "PowerPC";
 				break;
 			case B_CPU_PPC_64:
-				cpuName = "PowerPC 64";
+				name = "PowerPC 64";
 				break;
 			case B_CPU_M68K:
-				cpuName = "M68K";
+				name = "M68K";
 				break;
 			case B_CPU_ARM:
-				cpuName = "ARM";
+				name = "ARM";
 				break;
 			case B_CPU_ARM_64:
-				cpuName = "ARM64";
+				name = "ARM64";
 				break;
 			case B_CPU_ALPHA:
-				cpuName = "Alpha";
+				name = "Alpha";
 				break;
 			case B_CPU_MIPS:
-				cpuName = "MIPS";
+				name = "MIPS";
 				break;
 			case B_CPU_SH:
-				cpuName = "SuperH";
+				name = "SuperH";
 				break;
 			case B_CPU_SPARC:
-				cpuName = "SPARC";
+				name = "SPARC";
 				break;
 			case B_CPU_RISC_V:
-				cpuName = "RISC-V";
+				name = "RISC-V";
 				break;
 			default:
-				cpuName = vendorName.empty() ? "Unknown" : vendorName;
+				name = vendorName.empty() ? "Unknown" : vendorName;
 				break;
 		}
 
@@ -219,7 +219,7 @@ namespace Cpu {
 							fullBrand.erase(fullBrand.find_last_not_of(" \t") + 1);
 
 							if (!fullBrand.empty()) {
-								cpuName = fullBrand;
+								name = fullBrand;
 							}
 						}
 					}
@@ -227,7 +227,44 @@ namespace Cpu {
 			}
 		}
 
-		return cpuName;
+		auto name_vec = ssplit(name, ' ');
+
+		if ((s_contains(name, "Xeon"s) or v_contains(name_vec, "Duo"s)) and v_contains(name_vec, "CPU"s)) {
+			auto cpu_pos = v_index(name_vec, "CPU"s);
+			if (cpu_pos < name_vec.size() - 1 and not name_vec.at(cpu_pos + 1).ends_with(')'))
+				name = name_vec.at(cpu_pos + 1);
+			else
+				name.clear();
+		}
+		else if (v_contains(name_vec, "Ryzen"s)) {
+			auto ryz_pos = v_index(name_vec, "Ryzen"s);
+			name = "Ryzen"	+ (ryz_pos < name_vec.size() - 1 ? ' ' + name_vec.at(ryz_pos + 1) : "")
+							+ (ryz_pos < name_vec.size() - 2 ? ' ' + name_vec.at(ryz_pos + 2) : "");
+		}
+		else if (s_contains(name, "Intel"s) and v_contains(name_vec, "CPU"s)) {
+			auto cpu_pos = v_index(name_vec, "CPU"s);
+			if (cpu_pos < name_vec.size() - 1 and not name_vec.at(cpu_pos + 1).ends_with(')') and name_vec.at(cpu_pos + 1).size() != 1)
+				name = name_vec.at(cpu_pos + 1);
+			else
+				name.clear();
+		}
+		else
+			name.clear();
+
+		if (name.empty() and not name_vec.empty()) {
+			for (const auto& n : name_vec) {
+				if (n == "@") break;
+				name += n + ' ';
+			}
+			name.pop_back();
+			for (const auto& replace : {"Processor", "CPU", "(R)", "(TM)", "Intel", "AMD", "Core"}) {
+				name = s_replace(name, replace, "");
+				name = s_replace(name, "  ", " ");
+			}
+			name = trim(name);
+		}
+
+		return name;
 	}
 
 	string get_cpuHz() {
