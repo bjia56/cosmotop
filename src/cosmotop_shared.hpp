@@ -300,6 +300,9 @@ namespace Cpu {
 	//* Get battery info from /sys
 	auto get_battery() -> tuple<int, float, long, string>;
 
+	//* Simplify CPU name
+	string simplify_cpu_name(string name);
+
 #ifdef _WIN32
 	struct GpuRaw {
 		uint64_t usage = 0;

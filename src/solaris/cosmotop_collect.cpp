@@ -194,7 +194,7 @@ namespace Cpu {
 			string name = buf;
 			sysinfo(SI_HW_SERIAL, buf, sizeof(buf));
 			name += " " + string(buf);
-			return name;
+			return simplify_cpu_name(name);
 		}
 		return "Unknown";
 	}
