@@ -243,6 +243,8 @@ elseif(${TARGET} STREQUAL "plugin")
   if(CMAKE_SYSTEM MATCHES "Windows")
     target_compile_options(${BINARY_NAME} PRIVATE /utf-8)
     target_compile_definitions(${BINARY_NAME} PRIVATE UNICODE _UNICODE)
+  elseif(CMAKE_SYSTEM MATCHES "Haiku")
+    target_compile_definitions(${BINARY_NAME} PRIVATE _DEFAULT_SOURCE)
   endif()
 
   set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -272,7 +274,7 @@ elseif(${TARGET} STREQUAL "plugin")
   elseif(CMAKE_SYSTEM MATCHES "SunOS")
     target_link_libraries(${BINARY_NAME} PRIVATE kstat::kstat)
   elseif(CMAKE_SYSTEM MATCHES "Haiku")
-    target_link_libraries(${BINARY_NAME} PRIVATE be root)
+    target_link_libraries(${BINARY_NAME} PRIVATE be root bnetapi)
   endif()
 
 endif() # TARGET

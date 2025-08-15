@@ -35,7 +35,6 @@ tab-size = 4
 #include <be/kernel/fs_info.h>
 #include <image.h>
 #include <be/kernel/OS.h>
-#include <be/drivers/CAM.h>
 #include <be/drivers/Drivers.h>
 #include <sys/sockio.h>
 #include <sys/socket.h>
@@ -64,8 +63,14 @@ tab-size = 4
 
 using std::clamp, std::string_literals::operator""s, std::cmp_equal, std::cmp_less, std::cmp_greater;
 using std::ifstream, std::numeric_limits, std::streamsize, std::round, std::max, std::min;
+namespace fs = std::filesystem;
 namespace rng = ranges;
 using namespace Tools;
+
+namespace Shared {
+	uint64_t totalMem = 0;
+	uint64_t pageSize = 0;
+}
 
 namespace Cpu {
 	vector<long long> core_old_totals;
@@ -100,31 +105,148 @@ namespace Cpu {
 	}
 
 	string get_cpuName() {
-		system_info sysInfo;
-		if (get_system_info(&sysInfo) == B_OK) {
-			// CPU brand is not easily available in Haiku, use CPU type instead
-			switch (sysInfo.cpu_type) {
-				case B_CPU_x86: return "x86";
-				case B_CPU_X86_64: return "x86_64";
-				case B_CPU_PPC: return "PowerPC";
-				case B_CPU_M68K: return "M68K";
-				case B_CPU_ARM: return "ARM";
-				case B_CPU_ARM64: return "ARM64";
-				case B_CPU_ALPHA: return "Alpha";
-				case B_CPU_MIPS: return "MIPS";
-				case B_CPU_SH: return "SH";
-				default: return "Unknown";
+		string cpuName = "Unknown";
+		string vendorName = "";
+		cpu_platform platform = B_CPU_UNKNOWN;
+
+		// Get CPU topology information for platform and vendor details
+		uint32 count = 0;
+
+		if (get_cpu_topology_info(nullptr, &count) == B_OK && count > 0) {
+			auto topologyInfo = std::unique_ptr<cpu_topology_node_info[]>(new cpu_topology_node_info[count]);
+			if (get_cpu_topology_info(topologyInfo.get(), &count) == B_OK) {
+				// Look for package level topology info which contains platform and vendor details
+				for (uint32 i = 0; i < count; i++) {
+					if (topologyInfo[i].type == B_TOPOLOGY_PACKAGE) {
+						switch (topologyInfo[i].data.package.vendor) {
+							case B_CPU_VENDOR_INTEL: vendorName = "Intel"; break;
+							case B_CPU_VENDOR_AMD: vendorName = "AMD"; break;
+							case B_CPU_VENDOR_VIA: vendorName = "VIA"; break;
+							case B_CPU_VENDOR_CYRIX: vendorName = "Cyrix"; break;
+							case B_CPU_VENDOR_RISE: vendorName = "Rise"; break;
+							case B_CPU_VENDOR_TRANSMETA: vendorName = "Transmeta"; break;
+							case B_CPU_VENDOR_IDT: vendorName = "IDT"; break;
+							case B_CPU_VENDOR_NATIONAL_SEMICONDUCTOR: vendorName = "National Semiconductor"; break;
+							case B_CPU_VENDOR_IBM: vendorName = "IBM"; break;
+							case B_CPU_VENDOR_MOTOROLA: vendorName = "Motorola"; break;
+							case B_CPU_VENDOR_NEC: vendorName = "NEC"; break;
+							case B_CPU_VENDOR_HYGON: vendorName = "Hygon"; break;
+							case B_CPU_VENDOR_SUN: vendorName = "Sun"; break;
+							case B_CPU_VENDOR_FUJITSU: vendorName = "Fujitsu"; break;
+							case B_CPU_VENDOR_UNKNOWN:
+							default: break;
+						}
+					} else if (topologyInfo[i].type == B_TOPOLOGY_ROOT) {
+						platform = topologyInfo[i].data.root.platform;
+					}
+				}
 			}
 		}
-		return "Unknown";
+
+		// Build CPU name based on platform and vendor
+		switch (platform) {
+			case B_CPU_x86:
+				cpuName = vendorName.empty() ? "x86" : vendorName + " x86";
+				break;
+			case B_CPU_x86_64:
+				cpuName = vendorName.empty() ? "x86_64" : vendorName + " x86_64";
+				break;
+			case B_CPU_PPC:
+				cpuName = "PowerPC";
+				break;
+			case B_CPU_PPC_64:
+				cpuName = "PowerPC 64";
+				break;
+			case B_CPU_M68K:
+				cpuName = "M68K";
+				break;
+			case B_CPU_ARM:
+				cpuName = "ARM";
+				break;
+			case B_CPU_ARM_64:
+				cpuName = "ARM64";
+				break;
+			case B_CPU_ALPHA:
+				cpuName = "Alpha";
+				break;
+			case B_CPU_MIPS:
+				cpuName = "MIPS";
+				break;
+			case B_CPU_SH:
+				cpuName = "SuperH";
+				break;
+			case B_CPU_SPARC:
+				cpuName = "SPARC";
+				break;
+			case B_CPU_RISC_V:
+				cpuName = "RISC-V";
+				break;
+			default:
+				cpuName = vendorName.empty() ? "Unknown" : vendorName;
+				break;
+		}
+
+		// For x86/x86_64 platforms, try to get more detailed CPU info via CPUID
+		if ((platform == B_CPU_x86 || platform == B_CPU_x86_64) && !vendorName.empty()) {
+			cpuid_info cpuidInfo;
+			if (get_cpuid(&cpuidInfo, 0, 0) == B_OK) {
+				// Extract brand string from CPUID if available
+				char brandString[49] = {0};
+				uint32* brand = reinterpret_cast<uint32*>(brandString);
+
+				// Try to get extended brand string (CPUID functions 0x80000002-0x80000004)
+				if (get_cpuid(&cpuidInfo, 0x80000002, 0) == B_OK) {
+					brand[0] = cpuidInfo.regs.eax;
+					brand[1] = cpuidInfo.regs.ebx;
+					brand[2] = cpuidInfo.regs.ecx;
+					brand[3] = cpuidInfo.regs.edx;
+
+					if (get_cpuid(&cpuidInfo, 0x80000003, 0) == B_OK) {
+						brand[4] = cpuidInfo.regs.eax;
+						brand[5] = cpuidInfo.regs.ebx;
+						brand[6] = cpuidInfo.regs.ecx;
+						brand[7] = cpuidInfo.regs.edx;
+
+						if (get_cpuid(&cpuidInfo, 0x80000004, 0) == B_OK) {
+							brand[8] = cpuidInfo.regs.eax;
+							brand[9] = cpuidInfo.regs.ebx;
+							brand[10] = cpuidInfo.regs.ecx;
+							brand[11] = cpuidInfo.regs.edx;
+
+							// Clean up the brand string and use it if non-empty
+							string fullBrand(brandString);
+							fullBrand.erase(0, fullBrand.find_first_not_of(" \t"));
+							fullBrand.erase(fullBrand.find_last_not_of(" \t") + 1);
+
+							if (!fullBrand.empty()) {
+								cpuName = fullBrand;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return cpuName;
 	}
 
 	string get_cpuHz() {
-		system_info sysInfo;
-		if (get_system_info(&sysInfo) == B_OK) {
-			// Convert clock rate from int32 to MHz string
-			float clockMhz = sysInfo.cpu_clock_speed / 1000000.0;
-			return std::to_string(clockMhz) + " MHz";
+		uint32 count = 0;
+
+		if (get_cpu_topology_info(nullptr, &count) == B_OK && count > 0) {
+			auto topologyInfo = std::unique_ptr<cpu_topology_node_info[]>(new cpu_topology_node_info[count]);
+			if (get_cpu_topology_info(topologyInfo.get(), &count) == B_OK) {
+				for (uint32 i = 0; i < count; i++) {
+					if (topologyInfo[i].type == B_TOPOLOGY_CORE) {
+						auto hz = topologyInfo[i].data.core.default_frequency;
+						if (hz > 0) {
+							return std::to_string(hz / 1000000) + " MHz";
+						} else {
+							return "";
+						}
+					}
+				}
+			}
 		}
 		return "";
 	}
@@ -145,56 +267,46 @@ namespace Cpu {
 			return current_cpu;
 
 		const auto width = get_width();
+		const auto time_since_boot_ms = system_time();
 
-		// Get load average
-		// Haiku stores load averages differently than Unix
-		system_info info;
-		if (get_system_info(&info) == B_OK) {
-			current_cpu.load_avg[0] = info.cpu_load_average / 65536.0;
-			current_cpu.load_avg[1] = current_cpu.load_avg[0]; // Haiku doesn't track separate 5 and 15 min averages
-			current_cpu.load_avg[2] = current_cpu.load_avg[0];
+		// Per cpu percentages
+		auto infos = std::unique_ptr<::cpu_info[]>(new ::cpu_info[Shared::coreCount]);
+		uint64_t total = 0;
+		static bigtime_t last_update = 0;
+		static vector<uint64_t> last_active_times(Shared::coreCount, 0);
+		if (get_cpu_info(0, Shared::coreCount, infos.get()) == B_OK) {
+			for (int i = 0; i < Shared::coreCount; i++) {
+				if (last_update == 0) {
+					// First collection, just store old values
+					last_active_times[i] = infos[i].active_time;
+					continue;
+				}
+
+				auto active = infos[i].active_time;
+				auto previous = last_active_times[i];
+				auto percent = clamp((long long)round((double)(active - previous) * 100 / (time_since_boot_ms - last_update)), 0ll, 100ll);
+
+				current_cpu.core_percent.push_back({});
+				current_cpu.core_percent[i].push_back(percent);
+				while (cmp_greater(current_cpu.core_percent[i].size(), width * 2))
+					current_cpu.core_percent[i].pop_front();
+			}
+		} else {
+			Logger::error("Failed to get CPU info");
 		}
 
-		// Get CPU usage stats
-		cpu_info_t cpuInfo[Shared::coreCount];
-		if (get_cpu_info(0, Shared::coreCount, cpuInfo) == B_OK) {
-			long long global_totals = 0;
-			long long global_idles = 0;
+		// Global percentages
+		const uint64_t total_active = std::accumulate(current_cpu.core_percent.begin(), current_cpu.core_percent.end(), 0ll,
+			[](long long sum, const deque<long long>& core) { return sum + (core.empty() ? 0 : core.back()); });
+		const uint64_t last_total_active = std::accumulate(last_active_times.begin(), last_active_times.end(), 0ll);
+		current_cpu.cpu_percent.at("total").push_back(
+			clamp((long long)round((double)(total_active - last_total_active) * 100 / (time_since_boot_ms - last_update)), 0ll, 100ll));
+		while (cmp_greater(current_cpu.cpu_percent.at("total").size(), width * 2))
+			current_cpu.cpu_percent.at("total").pop_front();
 
-			for (int i = 0; i < Shared::coreCount; i++) {
-				long long user = cpuInfo[i].active_time;
-				long long idle = cpuInfo[i].idle_time;
-				long long totals = user + idle;
-
-				global_totals += totals;
-				global_idles += idle;
-
-				if (i < Shared::coreCount) {
-					const long long calc_totals = max(1ll, totals - core_old_totals[i]);
-					const long long calc_idles = max(0ll, idle - core_old_idles[i]);
-					core_old_totals[i] = totals;
-					core_old_idles[i] = idle;
-
-					current_cpu.core_percent[i].push_back(
-						clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
-
-					while (cmp_greater(current_cpu.core_percent[i].size(), width * 2))
-						current_cpu.core_percent[i].pop_front();
-				}
-			}
-
-			// Process global CPU stats
-			const long long calc_totals = max(1ll, global_totals - cpu_old.at("totals"));
-			const long long calc_idles = max(0ll, global_idles - cpu_old.at("idles"));
-
-			cpu_old.at("totals") = global_totals;
-			cpu_old.at("idles") = global_idles;
-
-			current_cpu.cpu_percent.at("total").push_back(
-				clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
-
-			while (cmp_greater(current_cpu.cpu_percent.at("total").size(), width * 2))
-				current_cpu.cpu_percent.at("total").pop_front();
+		last_update = time_since_boot_ms;
+		for (int i = 0; i < Shared::coreCount; i++) {
+			last_active_times[i] = infos[i].active_time;
 		}
 
 		if (Config::getB("show_cpu_freq")) {
@@ -332,9 +444,9 @@ namespace Mem {
 		// Get memory stats
 		system_info sysInfo;
 		if (get_system_info(&sysInfo) == B_OK) {
-			uint64_t pageSize = B_PAGE_SIZE;
+			uint64_t pageSize = Shared::pageSize;
 			uint64_t totalPages = sysInfo.max_pages;
-			uint64_t freePages = sysInfo.free_pages;
+			uint64_t freePages = sysInfo.max_pages - sysInfo.used_pages;
 			uint64_t cachedPages = sysInfo.cached_pages;
 
 			uint64_t totalMem = totalPages * pageSize;
@@ -346,41 +458,30 @@ namespace Mem {
 			current_mem.stats["cached"] = cachedMem;
 			current_mem.stats["available"] = freeMem + cachedMem;
 			current_mem.stats["used"] = usedMem;
-		}
 
-		// Get swap info if available
-		if (show_swap) {
-			area_info swapInfo;
-			ssize_t cookie = 0;
-			uint64_t swapTotal = 0;
-			uint64_t swapUsed = 0;
+			// Get swap info if available
+			if (show_swap) {
+				uint64_t maxSwap = sysInfo.max_swap_pages * pageSize;
+				uint64_t freeSwap = sysInfo.free_swap_pages * pageSize;
+				uint64_t usedSwap = maxSwap - freeSwap;
 
-			// Haiku uses virtual memory areas for swap
-			// We can count areas marked B_SWAPPABLE
-			while (get_next_area_info(B_CURRENT_TEAM, &cookie, &swapInfo) == B_OK) {
-				if ((swapInfo.protection & B_SWAPPABLE) != 0) {
-					swapTotal += swapInfo.size;
-					swapUsed += swapInfo.ram_size;
+				has_swap = (maxSwap > 0);
+				if (has_swap) {
+					current_mem.stats["swap_total"] = maxSwap;
+					current_mem.stats["swap_used"] = usedSwap;
+					current_mem.stats["swap_free"] = freeSwap;
+				} else {
+					current_mem.stats["swap_total"] = 0;
+					current_mem.stats["swap_used"] = 0;
+					current_mem.stats["swap_free"] = 0;
 				}
-			}
-
-			has_swap = (swapTotal > 0);
-			if (has_swap) {
-				current_mem.stats["swap_total"] = swapTotal;
-				current_mem.stats["swap_used"] = swapUsed;
-				current_mem.stats["swap_free"] = swapTotal - swapUsed;
-			} else {
-				current_mem.stats["swap_total"] = 0;
-				current_mem.stats["swap_used"] = 0;
-				current_mem.stats["swap_free"] = 0;
 			}
 		}
 
 		// Update percentage values
-		const uint64_t totalMem = get_totalMem();
 		for (const auto& name : mem_names) {
 			current_mem.percent.at(name).push_back(
-				clamp((long long)round((double)current_mem.stats.at(name) * 100 / totalMem), 0ll, 100ll));
+				clamp((long long)round((double)current_mem.stats.at(name) * 100 / Shared::totalMem), 0ll, 100ll));
 			while (cmp_greater(current_mem.percent.at(name).size(), width * 2))
 				current_mem.percent.at(name).pop_front();
 		}
@@ -409,13 +510,20 @@ namespace Mem {
 
 namespace Net {
 	std::unordered_map<string, net_info> current_net;
-	net_info empty_net;
+	net_info empty_net = {};
+	vector<string> interfaces;
+	string selected_iface;
+	int errors = 0;
+	std::unordered_map<string, uint64_t> graph_max = {{"download", {}}, {"upload", {}}};
+	std::unordered_map<string, array<int, 2>> max_count = {{"download", {}}, {"upload", {}}};
+	bool rescale = true;
+	uint64_t timestamp = 0;
 
-	void init_net() {
+	void init() {
 		// Find all network interfaces
 		BNetworkRoster& roster = BNetworkRoster::Default();
 		BNetworkInterface interface;
-		int32_t cookie = 0;
+		uint32_t cookie = 0;
 
 		while (roster.GetNextInterface(&cookie, interface) == B_OK) {
 			const char* name = interface.Name();
@@ -432,282 +540,35 @@ namespace Net {
 	}
 
 	auto collect(bool no_update) -> net_info & {
-		static bool initialized = false;
-
-		if (!initialized) {
-			init_net();
-			initialized = true;
-		}
-
-		if (current_net.empty())
-			return empty_net;
-
-		if (no_update && !get_selected_iface().empty() &&
-			!current_net.at(get_selected_iface()).bandwidth.at("download").empty())
-			return current_net.at(get_selected_iface());
-
-		const auto width = get_width();
-		const string& selected_iface = get_selected_iface();
-
-		// If no interface selected or doesn't exist, select first available
-		if (selected_iface.empty() || !current_net.contains(selected_iface)) {
-			if (!current_net.empty())
-				set_selected_iface(current_net.begin()->first);
-		}
-
-		// Update interface info
-		BNetworkRoster& roster = BNetworkRoster::Default();
-		BNetworkInterface interface;
-		int32_t cookie = 0;
-
-		while (roster.GetNextInterface(&cookie, interface) == B_OK) {
-			const char* name = interface.Name();
-			if (!name || strlen(name) == 0)
-				continue;
-
-			string ifname(name);
-			if (!current_net.contains(ifname))
-				continue;
-
-			auto& net = current_net.at(ifname);
-
-			// Get stats
-			ifreq ifr;
-			strncpy(ifr.ifr_name, name, IFNAMSIZ);
-
-			// Get interface status
-			net.connected = (interface.IsRunning() == true);
-
-			// Get IP addresses
-			BNetworkInterfaceAddress address;
-			int32_t addrCookie = 0;
-
-			net.ipv4 = "";
-			net.ipv6 = "";
-
-			while (interface.GetNextAddress(&addrCookie, address) == B_OK) {
-				BNetworkAddress addr = address.Address();
-				if (addr.Family() == AF_INET) {
-					char buffer[INET_ADDRSTRLEN];
-					if (inet_ntop(AF_INET, &addr.data[0], buffer, sizeof(buffer))) {
-						net.ipv4 = buffer;
-					}
-				} else if (addr.Family() == AF_INET6) {
-					char buffer[INET6_ADDRSTRLEN];
-					if (inet_ntop(AF_INET6, &addr.data[0], buffer, sizeof(buffer))) {
-						net.ipv6 = buffer;
-					}
-				}
-			}
-
-			// Get sent/received bytes
-			uint64_t bytesReceived = 0, bytesSent = 0;
-
-			// Haiku doesn't have a direct API for getting bytes sent/received
-			// Normally we would use ioctl to read interface stats, but for this
-			// implementation we'll use placeholder values that change over time
-
-			static uint64_t fakeReceived = 0, fakeSent = 0;
-			fakeReceived += rand() % 50000;
-			fakeSent += rand() % 40000;
-
-			bytesReceived = fakeReceived;
-			bytesSent = fakeSent;
-
-			// Update download stats
-			auto& dl = net.stat.at("download");
-			if (dl.last > bytesReceived)
-				dl.rollover++;
-
-			dl.last = bytesReceived;
-			dl.total = (dl.rollover == 0 ? dl.last : UINT64_MAX * dl.rollover + dl.last);
-
-			if (dl.offset == 0)
-				dl.offset = dl.total;
-
-			dl.speed = max((uint64_t)0, dl.total - dl.offset);
-			dl.offset = dl.total;
-			dl.top = max(dl.top, dl.speed);
-
-			// Update upload stats
-			auto& ul = net.stat.at("upload");
-			if (ul.last > bytesSent)
-				ul.rollover++;
-
-			ul.last = bytesSent;
-			ul.total = (ul.rollover == 0 ? ul.last : UINT64_MAX * ul.rollover + ul.last);
-
-			if (ul.offset == 0)
-				ul.offset = ul.total;
-
-			ul.speed = max((uint64_t)0, ul.total - ul.offset);
-			ul.offset = ul.total;
-			ul.top = max(ul.top, ul.speed);
-
-			// Update bandwidth deques
-			net.bandwidth.at("download").push_back(dl.speed);
-			while (cmp_greater(net.bandwidth.at("download").size(), width * 2))
-				net.bandwidth.at("download").pop_front();
-
-			net.bandwidth.at("upload").push_back(ul.speed);
-			while (cmp_greater(net.bandwidth.at("upload").size(), width * 2))
-				net.bandwidth.at("upload").pop_front();
-		}
-
-		// Return selected interface or empty_net if no selected interface
-		return (selected_iface.empty() || !current_net.contains(selected_iface))
-			? empty_net : current_net.at(selected_iface);
+		return empty_net;
 	}
 }
 
 namespace Proc {
-	atomic<int> numpids = 0;
-	int currentPids = 0;
+
 	vector<proc_info> current_procs;
+	std::unordered_map<string, string> uid_user;
+	string current_sort;
+	string current_filter;
+	bool current_rev = false;
+
+	fs::file_time_type passwd_time;
+
+	uint64_t cputimes;
+	int collapse = -1, expand = -1;
+	uint64_t old_cputimes = 0;
+	atomic<int> numpids = 0;
+	int filter_found = 0;
+
 	detail_container detailed;
 
 	auto collect(bool no_update) -> vector<proc_info>& {
-		if (no_update)
-			return current_procs;
-
-		current_procs.clear();
-
-		// Get system teams/processes
-		team_info teamInfo;
-		int32 teamCookie = 0;
-
-		while (get_next_team_info(&teamCookie, &teamInfo) == B_OK) {
-			// Skip the kernel team
-			if (teamInfo.team == B_SYSTEM_TEAM)
-				continue;
-
-			proc_info proc;
-
-			proc.pid = teamInfo.team;
-			proc.name = teamInfo.args;
-			proc.cmd = teamInfo.args;
-
-			// Simplify command name for display
-			size_t spacePos = proc.cmd.find(' ');
-			if (spacePos != string::npos) {
-				proc.short_cmd = proc.cmd.substr(0, spacePos);
-			} else {
-				proc.short_cmd = proc.cmd;
-			}
-
-			// Extract basename from path if command includes path
-			size_t slashPos = proc.short_cmd.find_last_of('/');
-			if (slashPos != string::npos) {
-				proc.short_cmd = proc.short_cmd.substr(slashPos + 1);
-			}
-
-			// Get thread count
-			proc.threads = teamInfo.thread_count;
-
-			// Memory usage
-			proc.mem = teamInfo.area_count * B_PAGE_SIZE; // Approximate
-
-			// Get CPU usage (approximate based on CPU time)
-			thread_info threadInfo;
-			int32 threadCookie = 0;
-			uint64_t totalTime = 0;
-
-			while (get_next_thread_info(teamInfo.team, &threadCookie, &threadInfo) == B_OK) {
-				totalTime += threadInfo.user_time + threadInfo.kernel_time;
-			}
-
-			// Convert CPU time to percentage (very approximate)
-			static std::unordered_map<size_t, uint64_t> lastCpuTime;
-			static std::unordered_map<size_t, double> lastCpuPercentage;
-
-			if (lastCpuTime.contains(proc.pid)) {
-				uint64_t timeDiff = totalTime - lastCpuTime[proc.pid];
-				// Simple CPU calculation - this is not accurate but works for demonstration
-				proc.cpu_p = timeDiff / 10000.0;
-				proc.cpu_p = std::min(proc.cpu_p, 100.0); // Cap at 100%
-			} else {
-				proc.cpu_p = 0.0;
-			}
-
-			// Smooth CPU values a bit
-			if (lastCpuPercentage.contains(proc.pid)) {
-				proc.cpu_p = lastCpuPercentage[proc.pid] * 0.7 + proc.cpu_p * 0.3;
-			}
-
-			lastCpuTime[proc.pid] = totalTime;
-			lastCpuPercentage[proc.pid] = proc.cpu_p;
-
-			// CPU cumulative is the same as direct in this implementation
-			proc.cpu_c = proc.cpu_p;
-
-			// Process state
-			proc.state = (threadInfo.state == B_THREAD_RUNNING) ? 'R' : 'S';
-
-			// User info - get from the uid
-			proc.user = "user"; // Default
-			struct passwd* pw = getpwuid(teamInfo.uid);
-			if (pw != nullptr) {
-				proc.user = pw->pw_name;
-			}
-
-			// Nice value
-			proc.p_nice = 0; // Haiku doesn't expose this easily
-
-			// Parent PID is not easily accessible in Haiku API
-			proc.ppid = 0;
-
-			// Add to process list
-			current_procs.push_back(proc);
-		}
-
-		// Update pid count
-		currentPids = current_procs.size();
-		numpids = currentPids;
-
-		// Update details for selected process if needed
-		int selected_pid = get_selected_pid();
-		if (selected_pid > 0 && detailed.last_pid != static_cast<size_t>(selected_pid)) {
-			detailed.last_pid = selected_pid;
-
-			// Find the selected process
-			auto it = std::find_if(current_procs.begin(), current_procs.end(),
-				[selected_pid](const proc_info& p) { return p.pid == static_cast<size_t>(selected_pid); });
-
-			if (it != current_procs.end()) {
-				detailed.entry = *it;
-
-				// Get more detailed information
-				team_info info;
-				if (get_team_info(selected_pid, &info) == B_OK) {
-					detailed.memory = std::to_string(info.area_count * B_PAGE_SIZE / 1024) + " KB";
-
-					// Format elapsed time
-					bigtime_t uptime = system_time() - info.start_time;
-					int64_t seconds = uptime / 1000000;
-					int64_t minutes = seconds / 60;
-					seconds %= 60;
-					int64_t hours = minutes / 60;
-					minutes %= 60;
-
-					detailed.elapsed = std::to_string(hours) + ":" +
-						(minutes < 10 ? "0" : "") + std::to_string(minutes) + ":" +
-						(seconds < 10 ? "0" : "") + std::to_string(seconds);
-
-					detailed.status = (info.thread_count > 0) ? "Running" : "Unknown";
-					detailed.parent = "Unknown"; // Parent info not easily available
-					detailed.io_read = "N/A";     // IO stats not available
-					detailed.io_write = "N/A";
-				}
-			}
-		}
-
 		return current_procs;
 	}
 }
 
 namespace Shared {
-	long pageSize, clkTck, coreCount, bootTime;
-	uint64_t totalMem;
+	long clkTck, coreCount, bootTime;
 
 	void init() {
 		// Get system info
@@ -745,16 +606,15 @@ namespace Shared {
 		// Initialize Mem
 		Mem::old_uptime = system_uptime();
 		Mem::collect();
+
+		// Initialize Net
+		Net::init();
 	}
 }
 
 namespace Tools {
 	double system_uptime() {
-		system_info sysInfo;
-		if (get_system_info(&sysInfo) == B_OK) {
-			// Convert from microseconds to seconds
-			return sysInfo.boot_time / 1000000.0;
-		}
-		return 0.0;
+		auto time_since_boot_ms = system_time();
+		return time_since_boot_ms / 1000000.0; // Convert to seconds
 	}
 }
