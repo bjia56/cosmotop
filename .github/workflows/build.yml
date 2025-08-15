@@ -504,6 +504,64 @@ jobs:
           name: plugin-solaris-${{ matrix.arch }}
           path: ./cosmotop-solaris-${{ matrix.arch }}.exe
 
+  build_haiku_plugin:
+    name: Build plugin Haiku ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Start VM
+        uses: cross-platform-actions/action@v0.28.0
+        with:
+          operating_system: haiku
+          version: r1beta5
+          shutdown_vm: false
+          run: |
+            pkgman install -y cmake
+
+      - name: Install custom shell
+        run: |
+          mkdir -p ~/.local/bin
+          cat > ~/.local/bin/haiku << EOL
+          #!/usr/bin/env sh
+          ssh user@cross_platform_actions_host sh -l<\$1
+          EOL
+          chmod +x ~/.local/bin/haiku
+
+      - name: Checkout
+        shell: haiku {0}
+        run: |
+          git init .
+          git remote add origin https://github.com/${{ github.repository }}.git
+          if ( "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ) then
+            git fetch origin "refs/pull/${{ github.event.pull_request.number }}/merge"
+            git checkout FETCH_HEAD
+          else
+            git fetch --depth=1 origin ${{ github.sha }}
+            git checkout ${{ github.sha }}
+          endif
+          git submodule update --init --depth 1 --recursive
+
+      - name: Build plugin
+        shell: haiku {0}
+        run: |
+          cmake -B build -DTARGET=plugin ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop-plugin.exe ./cosmotop-haiku-${{ matrix.arch }}.exe
+
+      - name: Copy out of VM
+        run: |
+          scp cross_platform_actions_host:/boot/home/cosmotop-haiku-${{ matrix.arch }}.exe .
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-haiku-${{ matrix.arch }}
+          path: ./cosmotop-haiku-${{ matrix.arch }}.exe
+
   bundle:
     name: Bundle plugins into cosmotop.exe
     runs-on: ubuntu-latest
@@ -519,6 +577,7 @@ jobs:
       - build_dragonflybsd_plugin
       - build_midnightbsd_plugin
       - build_solaris_plugin
+      - build_haiku_plugin
 
     steps:
       - name: Checkout
@@ -561,6 +620,7 @@ jobs:
             "blink-tiny-dragonflybsd6.4.0-x86_64-stripped blink-dragonflybsd-x86_64" \
             "blink-tiny-midnightbsd3.2.3-x86_64-stripped blink-midnightbsd-x86_64" \
             "blink-tiny-solaris11.4-x86_64-stripped blink-solaris-x86_64" \
+            "blink-tiny-haikur1beta5-x86_64-stripped blink-haiku-x86_64" \
             "blink-tiny-linux-powerpc64le-stripped blink-linux-powerpc64le" \
             "blink-tiny-linux-i386-stripped blink-linux-i386" \
             "blink-tiny-linux-riscv64-stripped blink-linux-riscv64" \
@@ -674,6 +734,7 @@ jobs:
             --os DragonFly /tmp/blink/blink-dragonflybsd-* \
             --os Solaris /tmp/blink/blink-solaris-* \
             --os MidnightBSD /tmp/blink/blink-midnightbsd-* \
+            --os Haiku /tmp/blink/blink-haiku-* \
             --os Darwin /tmp/blink/blink-macos-*
 
           cosmo_bin=$(dirname $(which cosmocc))
@@ -685,6 +746,8 @@ jobs:
             --os OpenBSD /tmp/blink/blink-openbsd-* \
             --os DragonFly /tmp/blink/blink-dragonflybsd-* \
             --os Solaris /tmp/blink/blink-solaris-* \
+            --os MidnightBSD /tmp/blink/blink-midnightbsd-* \
+            --os Haiku /tmp/blink/blink-haiku-* \
             --os Darwin /tmp/blink/blink-macos-*
 
       - name: Upload artifacts
