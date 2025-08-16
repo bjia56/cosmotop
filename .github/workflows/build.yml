@@ -554,7 +554,7 @@ jobs:
 
       - name: Copy out of VM
         run: |
-          scp cross_platform_actions_host:/boot/home/cosmotop-haiku-${{ matrix.arch }}.exe .
+          scp user@cross_platform_actions_host:/boot/home/cosmotop-haiku-${{ matrix.arch }}.exe .
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
