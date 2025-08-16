@@ -512,22 +512,200 @@ namespace Net {
 	bool rescale = true;
 	uint64_t timestamp = 0;
 
-	void init() {
-		// Find all network interfaces
-		BNetworkRoster& roster = BNetworkRoster::Default();
-		BNetworkInterface interface;
-		uint32_t cookie = 0;
+	auto collect(bool no_update) -> net_info & {
+		auto& net = current_net;
+		const auto config_iface = Config::getS("net_iface");
+		const auto net_sync = Config::getB("net_sync");
+		const auto net_auto = Config::getB("net_auto");
+		auto new_timestamp = time_ms();
+		const auto width = get_width();
 
-		while (roster.GetNextInterface(&cookie, interface) == B_OK) {
-			const char* name = interface.Name();
-			if (name && strlen(name) > 0) {
-				interfaces.push_back(name);
+		if (not no_update and errors < 3) {
+			//? Get interface list using getifaddrs() wrapper
+			IfAddrsPtr if_addrs {};
+			if (if_addrs.get_status() != 0) {
+				errors++;
+				Logger::error("Net::collect() -> getifaddrs() failed with id " + to_string(if_addrs.get_status()));
+				set_redraw(true);
+				return empty_net;
+			}
+			int family = 0;
+			static_assert(INET6_ADDRSTRLEN >= INET_ADDRSTRLEN); // 46 >= 16, compile-time assurance.
+			enum { IPBUFFER_MAXSIZE = INET6_ADDRSTRLEN }; // manually using the known biggest value, guarded by the above static_assert
+			char ip[IPBUFFER_MAXSIZE];
+			interfaces.clear();
+			string ipv4, ipv6;
+
+			//? Iteration over all items in getifaddrs() list
+			for (auto* ifa = if_addrs.get(); ifa != nullptr; ifa = ifa->ifa_next) {
+				if (ifa->ifa_addr == nullptr) continue;
+				family = ifa->ifa_addr->sa_family;
+				const auto& iface = ifa->ifa_name;
+
+				//? Update available interfaces vector and get status of interface
+				if (not v_contains(interfaces, iface)) {
+					interfaces.push_back(iface);
+					net[iface].connected = (ifa->ifa_flags & IFF_UP);
+
+					// An interface can have more than one IP of the same family associated with it,
+					// but we pick only the first one to show in the NET box.
+					// Note: Interfaces without any IPv4 and IPv6 set are still valid and monitorable!
+					net[iface].ipv4.clear();
+					net[iface].ipv6.clear();
+				}
+
+
+				//? Get IPv4 address
+				if (family == AF_INET) {
+					if (net[iface].ipv4.empty()) {
+						if (nullptr != inet_ntop(family, &(reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr)->sin_addr), ip, IPBUFFER_MAXSIZE)) {
+							net[iface].ipv4 = ip;
+						} else {
+							int errsv = errno;
+							Logger::error("Net::collect() -> Failed to convert IPv4 to string for iface " + string(iface) + ", errno: " + strerror(errsv));
+						}
+					}
+				}
+				//? Get IPv6 address
+				else if (family == AF_INET6) {
+					if (net[iface].ipv6.empty()) {
+						if (nullptr != inet_ntop(family, &(reinterpret_cast<struct sockaddr_in6*>(ifa->ifa_addr)->sin6_addr), ip, IPBUFFER_MAXSIZE)) {
+							net[iface].ipv6 = ip;
+						} else {
+							int errsv = errno;
+							Logger::error("Net::collect() -> Failed to convert IPv6 to string for iface " + string(iface) + ", errno: " + strerror(errsv));
+						}
+					}
+				} //else, ignoring family==AF_PACKET (see man 3 getifaddrs) which is the first one in the `for` loop.
+			}
+
+			//? Get total received and transmitted bytes
+			for (const auto& iface : interfaces) {
+				for (const string dir : {"download", "upload"}) {
+					auto& saved_stat = net.at(iface).stat.at(dir);
+					auto& bandwidth = net.at(iface).bandwidth.at(dir);
+					uint64_t val{};
+
+					//? Search for metrics in BNetworkRoster
+					BNetworkRoster &net_roster = BNetworkRoster::Default();
+					BNetworkInterface iface_info;
+					uint32 cookie = 0;
+					while (net_roster.GetNextInterface(&cookie, iface_info) == B_OK) {
+						if (iface == iface_info.Name()) {
+							ifreq_stats stats;
+							if (iface_info.GetStats(stats) == B_OK) {
+								val = (dir == "download") ? stats.receive.bytes : stats.send.bytes;
+								break;
+							}
+						}
+					}
+
+					//? Update speed, total and top values
+					if (val < saved_stat.last) {
+						saved_stat.rollover += saved_stat.last;
+						saved_stat.last = 0;
+					}
+					if (cmp_greater((unsigned long long)saved_stat.rollover + (unsigned long long)val, numeric_limits<uint64_t>::max())) {
+						saved_stat.rollover = 0;
+						saved_stat.last = 0;
+					}
+					saved_stat.speed = round((double)(val - saved_stat.last) / ((double)(new_timestamp - timestamp) / 1000));
+					if (saved_stat.speed > saved_stat.top) saved_stat.top = saved_stat.speed;
+					if (saved_stat.offset > val + saved_stat.rollover) saved_stat.offset = 0;
+					saved_stat.total = (val + saved_stat.rollover) - saved_stat.offset;
+					saved_stat.last = val;
+
+					//? Add values to graph
+					bandwidth.push_back(saved_stat.speed);
+					while (cmp_greater(bandwidth.size(), width * 2)) bandwidth.pop_front();
+
+					//? Set counters for auto scaling
+					if (net_auto and selected_iface == iface) {
+						if (net_sync and saved_stat.speed < net.at(iface).stat.at(dir == "download" ? "upload" : "download").speed) continue;
+						if (saved_stat.speed > graph_max[dir]) {
+							++max_count[dir][0];
+							if (max_count[dir][1] > 0) --max_count[dir][1];
+						}
+						else if (graph_max[dir] > 10 << 10 and saved_stat.speed < graph_max[dir] / 10) {
+							++max_count[dir][1];
+							if (max_count[dir][0] > 0) --max_count[dir][0];
+						}
+
+					}
+				}
+			}
+
+			//? Clean up net map if needed
+			if (net.size() > interfaces.size()) {
+				for (auto it = net.begin(); it != net.end();) {
+					if (not v_contains(interfaces, it->first))
+						it = net.erase(it);
+					else
+						it++;
+				}
+			}
+
+			timestamp = new_timestamp;
+		}
+
+		//? Return empty net_info struct if no interfaces was found
+		if (net.empty())
+			return empty_net;
+
+		//? Find an interface to display if selected isn't set or valid
+		if (selected_iface.empty() or not v_contains(interfaces, selected_iface)) {
+			max_count["download"][0] = max_count["download"][1] = max_count["upload"][0] = max_count["upload"][1] = 0;
+			set_redraw(true);
+			if (net_auto) rescale = true;
+			if (not config_iface.empty() and v_contains(interfaces, config_iface)) selected_iface = config_iface;
+			else {
+				//? Sort interfaces by total upload + download bytes
+				auto sorted_interfaces = interfaces;
+				rng::sort(sorted_interfaces, [&](const auto& a, const auto& b){
+					return 	cmp_greater(net.at(a).stat["download"].total + net.at(a).stat["upload"].total,
+										net.at(b).stat["download"].total + net.at(b).stat["upload"].total);
+				});
+				selected_iface.clear();
+				//? Try to set to a connected interface
+				for (const auto& iface : sorted_interfaces) {
+					if (net.at(iface).connected) selected_iface = iface;
+					break;
+				}
+				//? If no interface is connected set to first available
+				if (selected_iface.empty() and not sorted_interfaces.empty()) selected_iface = sorted_interfaces.at(0);
+				else if (sorted_interfaces.empty()) return empty_net;
+
 			}
 		}
-	}
 
-	auto collect(bool no_update) -> net_info & {
-		return empty_net;
+		//? Calculate max scale for graphs if needed
+		if (net_auto) {
+			bool sync = false;
+			for (const auto& dir: {"download", "upload"}) {
+				for (const auto& sel : {0, 1}) {
+					if (rescale or max_count[dir][sel] >= 5) {
+						const long long avg_speed = (net[selected_iface].bandwidth[dir].size() > 5
+							? std::accumulate(net.at(selected_iface).bandwidth.at(dir).rbegin(), net.at(selected_iface).bandwidth.at(dir).rbegin() + 5, 0ll) / 5
+							: net[selected_iface].stat[dir].speed);
+						graph_max[dir] = max(uint64_t(avg_speed * (sel == 0 ? 1.3 : 3.0)), (uint64_t)10 << 10);
+						max_count[dir][0] = max_count[dir][1] = 0;
+						set_redraw(true);
+						if (net_sync) sync = true;
+						break;
+					}
+				}
+				//? Sync download/upload graphs if enabled
+				if (sync) {
+					const auto other = (string(dir) == "upload" ? "download" : "upload");
+					graph_max[other] = graph_max[dir];
+					max_count[other][0] = max_count[other][1] = 0;
+					break;
+				}
+			}
+		}
+
+		rescale = false;
+		return net.at(selected_iface);
 	}
 }
 
@@ -595,7 +773,7 @@ namespace Shared {
 		Mem::collect();
 
 		// Initialize Net
-		Net::init();
+		Net::collect();
 	}
 }
 
