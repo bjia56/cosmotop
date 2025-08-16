@@ -325,7 +325,6 @@ namespace Cpu {
 namespace Mem {
 	double old_uptime;
 	int disk_ios = 0;
-	vector<string> last_found;
 	bool has_swap = false;
 	mem_info current_mem;
 
@@ -360,19 +359,17 @@ namespace Mem {
 		while (cmp_greater(disk.io_activity.size(), width * 2)) disk.io_activity.pop_front();
 	}
 
-	void collect_disk(std::unordered_map<string, disk_info> &disks,
-	                  std::unordered_map<string, string> &mapping) {
+	vector<string> collect_disk(std::unordered_map<string, disk_info> &disks) {
 		// Get volume information
 		BVolumeRoster volumeRoster;
 		BVolume volume;
 
 		// Create a map of devices to populate
 		std::unordered_map<string, disk_info> temp_disks;
-		vector<string> temp_order;
+		vector<string> order;
 
 		while (volumeRoster.GetNextVolume(&volume) == B_OK) {
 			char name[B_FILE_NAME_LENGTH];
-			char device[B_PATH_NAME_LENGTH];
 
 			// Skip volumes we can't get info from
 			if (volume.GetName(name) != B_OK || strlen(name) == 0)
@@ -382,31 +379,29 @@ namespace Mem {
 			if (fs_stat_dev(volume.Device(), &info) != B_OK)
 				continue;
 
-			string fsname = name;
 			string fstype = info.fsh_name;
+			if (is_in(fstype, "ramfs", "devfs", "packagefs", "rootfs"))
+				continue;
 
 			// Create a disk_info entry
 			disk_info di;
-			di.name = fsname;
+			di.name = string(name);
 			di.fstype = fstype;
 			di.dev = string(info.device_name);
 			di.total = volume.Capacity();
 			di.free = volume.FreeBytes();
 			di.used = di.total - di.free;
-			di.used_percent = (di.total > 0) ? static_cast<int>((static_cast<double>(di.used) / di.total) * 100) : 0;
+			di.used_percent = clamp((long long)round((double)di.used * 100 / di.total), 0ll, 100ll);
 			di.free_percent = 100 - di.used_percent;
 
 			// Add to our temporary collections
 			string device_path = string(info.device_name);
 			temp_disks[device_path] = di;
-			temp_order.push_back(device_path);
-
-			// Add to mapping
-			mapping[device_path] = fsname;
+			order.push_back(device_path);
 		}
 
 		// Update disks with I/O statistics
-		for (const auto& device : temp_order) {
+		for (const auto& device : order) {
 			// See if this is a disk we already track
 			if (disks.contains(device)) {
 				// Update existing entry but keep I/O stats
@@ -430,8 +425,7 @@ namespace Mem {
 			}
 		}
 
-		// Update the disk order
-		last_found = temp_order;
+		return order;
 	}
 
 	auto collect(bool no_update) -> mem_info & {
@@ -448,13 +442,13 @@ namespace Mem {
 		if (get_system_info(&sysInfo) == B_OK) {
 			uint64_t pageSize = Shared::pageSize;
 			uint64_t totalPages = sysInfo.max_pages;
-			uint64_t freePages = sysInfo.max_pages - sysInfo.used_pages;
+			uint64_t usedPages = sysInfo.used_pages;
 			uint64_t cachedPages = sysInfo.cached_pages;
 
 			uint64_t totalMem = totalPages * pageSize;
-			uint64_t freeMem = freePages * pageSize;
+			uint64_t usedMem = usedPages * pageSize;
 			uint64_t cachedMem = cachedPages * pageSize;
-			uint64_t usedMem = totalMem - freeMem - cachedMem;
+			uint64_t freeMem = totalMem - usedMem - cachedMem;
 
 			current_mem.stats["free"] = freeMem;
 			current_mem.stats["cached"] = cachedMem;
@@ -490,10 +484,9 @@ namespace Mem {
 
 		// Update swap percentages if swap is available
 		if (has_swap && show_swap && current_mem.stats.at("swap_total") > 0) {
-			const uint64_t totalSwap = current_mem.stats.at("swap_total");
 			for (const auto& name : swap_names) {
 				current_mem.percent.at(name).push_back(
-					clamp((long long)round((double)current_mem.stats.at(name) * 100 / totalSwap), 0ll, 100ll));
+					clamp((long long)round((double)current_mem.stats.at(name) * 100 / Shared::totalMem), 0ll, 100ll));
 				while (cmp_greater(current_mem.percent.at(name).size(), width * 2))
 					current_mem.percent.at(name).pop_front();
 			}
@@ -501,9 +494,7 @@ namespace Mem {
 
 		// Collect disk information if enabled
 		if (show_disks) {
-			std::unordered_map<string, string> mapping;
-			collect_disk(current_mem.disks, mapping);
-			current_mem.disks_order = last_found;
+			current_mem.disks_order = collect_disk(current_mem.disks);
 		}
 
 		return current_mem;
@@ -530,13 +521,7 @@ namespace Net {
 		while (roster.GetNextInterface(&cookie, interface) == B_OK) {
 			const char* name = interface.Name();
 			if (name && strlen(name) > 0) {
-				// Add interface to current_net if it doesn't exist
-				if (!current_net.contains(name)) {
-					net_info net;
-					net.stat["download"] = {};
-					net.stat["upload"] = {};
-					current_net[name] = net;
-				}
+				interfaces.push_back(name);
 			}
 		}
 	}
