@@ -727,7 +727,336 @@ namespace Proc {
 
 	detail_container detailed;
 
+	// Static data for CPU percentage calculation
+	std::unordered_map<team_id, team_usage_info> old_usage;
+	bigtime_t last_update_time = 0;
+
+	// Helper function to get memory usage for a team
+	uint64_t get_team_memory(team_id team) {
+		area_info areaInfo;
+		ssize_t cookie = 0;
+		uint64_t totalMemory = 0;
+
+		while (get_next_area_info(team, &cookie, &areaInfo) == B_OK) {
+			// Only count areas that are part of this team's address space
+			if (areaInfo.team == team) {
+				totalMemory += areaInfo.size;
+			}
+		}
+
+		return totalMemory;
+	}
+
+	// Helper function to calculate CPU percentage
+	double calculate_cpu_percent(team_id team, const team_usage_info& current_usage, bigtime_t time_diff) {
+		if (time_diff <= 0 || !old_usage.contains(team)) {
+			return 0.0;
+		}
+
+		auto& old_info = old_usage[team];
+		bigtime_t cpu_diff = (current_usage.user_time + current_usage.kernel_time) -
+							 (old_info.user_time + old_info.kernel_time);
+
+		if (cpu_diff <= 0) {
+			return 0.0;
+		}
+
+		// Convert to percentage: (cpu_time_used / total_time_elapsed) * 100
+		double percent = (double)cpu_diff * 100.0 / time_diff;
+		return min(percent, 100.0 * Shared::coreCount);
+	}
+
+	// Helper function to resolve username from UID
+	string resolve_username(uid_t uid) {
+		string uid_str = to_string(uid);
+		if (uid_user.contains(uid_str)) {
+			return uid_user[uid_str];
+		}
+
+		// Try to get username from system
+		struct passwd* pw = getpwuid(uid);
+		if (pw && pw->pw_name) {
+			uid_user[uid_str] = string(pw->pw_name);
+			return uid_user[uid_str];
+		}
+
+		// Fallback to UID as string
+		uid_user[uid_str] = uid_str;
+		return uid_str;
+	}
+
+	// Helper function to map team state to process state character
+	char get_team_state(team_id team) {
+		// Haiku doesn't have direct team state info, so we check thread states
+		thread_info threadInfo;
+		int32 cookie = 0;
+		
+		// Get the first thread of the team to determine state
+		if (get_next_thread_info(team, &cookie, &threadInfo) == B_OK) {
+			switch (threadInfo.state) {
+				case B_THREAD_RUNNING:
+					return 'R';
+				case B_THREAD_READY:
+					return 'R';
+				case B_THREAD_RECEIVING:
+				case B_THREAD_ASLEEP:
+					return 'S';
+				case B_THREAD_SUSPENDED:
+					return 'T';
+				default:
+					return 'S';
+			}
+		}
+		return 'S'; // Default to sleeping
+	}
+
+	// Collect detailed information for a specific process
+	void _collect_details(const team_id pid, vector<proc_info> &procs) {
+		if (pid != detailed.last_pid) {
+			detailed = {};
+			detailed.last_pid = pid;
+			detailed.skip_smaps = not Config::getB("proc_info_smaps");
+		}
+		const auto width = get_width();
+
+		// Find the process in current_procs
+		auto p_info = rng::find(procs, pid, &proc_info::pid);
+		if (p_info == procs.end()) return;
+		
+		detailed.entry = *p_info;
+
+		// Update cpu percent deque for process cpu graph
+		if (not Config::getB("proc_per_core")) detailed.entry.cpu_p *= Shared::coreCount;
+		detailed.cpu_percent.push_back(clamp((long long)round(detailed.entry.cpu_p), 0ll, 100ll));
+		while (cmp_greater(detailed.cpu_percent.size(), width)) detailed.cpu_percent.pop_front();
+
+		// Process runtime: current time - start time
+		bigtime_t current_time = system_time();
+		detailed.elapsed = sec_to_dhms((current_time - detailed.entry.cpu_s) / 1000000);
+		if (detailed.elapsed.size() > 8) detailed.elapsed.resize(detailed.elapsed.size() - 3);
+
+		// Get parent process name
+		if (detailed.parent.empty() && detailed.entry.ppid > 0) {
+			auto parent_info = rng::find(procs, detailed.entry.ppid, &proc_info::pid);
+			if (parent_info != procs.end()) {
+				detailed.parent = parent_info->name;
+			}
+		}
+
+		// Set status
+		detailed.status = "Running";
+		set_redraw(true);
+	}
+
 	auto collect(bool no_update) -> vector<proc_info>& {
+		const auto sorting = Config::getS("proc_sorting");
+		const auto reverse = Config::getB("proc_reversed");
+		const auto filter = Config::getS("proc_filter");
+		const auto per_core = Config::getB("proc_per_core");
+		const auto tree = Config::getB("proc_tree");
+		const auto show_detailed = Config::getB("show_detailed");
+		const auto detailed_pid = Config::getI("detailed_pid");
+		bool should_filter = current_filter != filter;
+		if (should_filter) current_filter = filter;
+		bool sorted_change = (sorting != current_sort or reverse != current_rev or should_filter);
+		if (sorted_change) {
+			current_sort = sorting;
+			current_rev = reverse;
+		}
+
+		const int cmult = (per_core) ? Shared::coreCount : 1;
+		bool got_detailed = false;
+
+		static vector<team_id> found;
+
+		// Get current time for CPU calculations
+		bigtime_t current_time = system_time();
+		bigtime_t time_diff = last_update_time > 0 ? current_time - last_update_time : 0;
+
+		// Use cached data if only changing filter, sorting or tree options
+		if (no_update and not current_procs.empty()) {
+			if (show_detailed and detailed_pid != detailed.last_pid) {
+				_collect_details(detailed_pid, current_procs);
+			}
+		}
+		// Collection start
+		else {
+			should_filter = true;
+			found.clear();
+
+			// Get total system memory for calculations
+			auto totalMem = Mem::get_totalMem();
+
+			team_info teamInfo;
+			int32 cookie = 0;
+
+			// Iterate through all teams in the system
+			while (get_next_team_info(&cookie, &teamInfo) == B_OK) {
+				const team_id tid = teamInfo.team;
+				found.push_back(tid);
+
+				// Check if team already exists in current_procs
+				auto find_old = rng::find(current_procs, tid, &proc_info::pid);
+				bool no_cache = false;
+				if (find_old == current_procs.end()) {
+					current_procs.push_back({tid});
+					find_old = current_procs.end() - 1;
+					no_cache = true;
+				}
+
+				auto& new_proc = *find_old;
+
+				// Cache values that shouldn't change frequently
+				if (no_cache || new_proc.name.empty()) {
+					new_proc.name = string(teamInfo.name);
+					new_proc.cmd = string(teamInfo.args);
+					if (new_proc.cmd.size() > 1000) {
+						new_proc.cmd.resize(1000);
+						new_proc.cmd.shrink_to_fit();
+					}
+					new_proc.ppid = teamInfo.parent;
+					new_proc.user = resolve_username(teamInfo.uid);
+					new_proc.cpu_s = teamInfo.start_time;
+				}
+
+				// Update dynamic values
+				new_proc.threads = teamInfo.thread_count;
+				new_proc.state = get_team_state(tid);
+
+				// Get memory usage
+				new_proc.mem = get_team_memory(tid);
+
+				// Get CPU usage
+				team_usage_info usage;
+				if (get_team_usage_info(tid, B_TEAM_USAGE_SELF, &usage) == B_OK) {
+					new_proc.cpu_p = calculate_cpu_percent(tid, usage, time_diff);
+					new_proc.cpu_c = new_proc.cpu_p / cmult;
+					new_proc.cpu_t = usage.user_time + usage.kernel_time;
+					
+					// Store usage for next calculation
+					old_usage[tid] = usage;
+				} else {
+					new_proc.cpu_p = new_proc.cpu_c = 0.0;
+					new_proc.cpu_t = 0;
+				}
+
+				// Check if this is the detailed process
+				if (show_detailed and tid == detailed_pid) {
+					got_detailed = true;
+				}
+			}
+
+			// Clean up old processes that no longer exist
+			current_procs |= rng::actions::remove_if([&](const auto &element) { 
+				return not v_contains(found, element.pid); 
+			});
+
+			// Clean up old usage data
+			for (auto it = old_usage.begin(); it != old_usage.end();) {
+				if (not v_contains(found, it->first)) {
+					it = old_usage.erase(it);
+				} else {
+					++it;
+				}
+			}
+
+			// Update the details info box for process if active
+			if (show_detailed and got_detailed) {
+				_collect_details(detailed_pid, current_procs);
+			} else if (show_detailed and not got_detailed and detailed.status != "Dead") {
+				detailed.status = "Dead";
+				set_redraw(true);
+			}
+
+			last_update_time = current_time;
+		}
+
+		// Update process count
+		numpids = current_procs.size();
+
+		// Match filter if defined
+		if (should_filter) {
+			filter_found = 0;
+			for (auto& p : current_procs) {
+				if (not tree and not filter.empty()) {
+					if (!matches_filter(p, filter)) {
+						p.filtered = true;
+						filter_found++;
+					} else {
+						p.filtered = false;
+					}
+				} else {
+					p.filtered = false;
+				}
+			}
+		}
+
+		// Sort processes
+		if (sorted_change or not no_update) {
+			proc_sorter(current_procs, sorting, reverse, tree);
+		}
+
+		// Generate tree view if enabled
+		if (tree and (not no_update or should_filter or sorted_change)) {
+			const auto &config_ints = Config::get_ints();
+			bool locate_selection = false;
+			if (auto find_pid = (collapse != -1 ? collapse : expand); find_pid != -1) {
+				auto collapser = rng::find(current_procs, find_pid, &proc_info::pid);
+				if (collapser != current_procs.end()) {
+					if (collapse == expand) {
+						collapser->collapsed = not collapser->collapsed;
+					}
+					else if (collapse > -1) {
+						collapser->collapsed = true;
+					}
+					else if (expand > -1) {
+						collapser->collapsed = false;
+					}
+					if (config_ints.at("proc_selected") > 0) locate_selection = true;
+				}
+				collapse = expand = -1;
+			}
+			if (should_filter or not filter.empty()) filter_found = 0;
+
+			vector<tree_proc> tree_procs;
+			tree_procs.reserve(current_procs.size());
+
+			for (auto& p : current_procs) {
+				if (not v_contains(found, p.ppid)) p.ppid = 0;
+			}
+
+			// Stable sort to retain selected sorting among processes with the same parent
+			rng::stable_sort(current_procs, rng::less{}, & proc_info::ppid);
+
+			// Start recursive iteration over processes with the lowest shared parent pids
+			for (auto& p : rng::equal_range(current_procs, current_procs.at(0).ppid, rng::less{}, &proc_info::ppid)) {
+				_tree_gen(p, current_procs, tree_procs, 0, false, filter, false, no_update, should_filter);
+			}
+
+			// Recursive sort over tree structure to account for collapsed processes in the tree
+			int index = 0;
+			tree_sort(tree_procs, sorting, reverse, index, current_procs.size());
+
+			// Add tree begin symbol to first item if childless
+			if (not tree_procs.empty() and tree_procs.front().children.empty())
+				tree_procs.front().entry.get().prefix.replace(tree_procs.front().entry.get().prefix.size() - 8, 8, " ┌─ ");
+
+			// Add tree terminator symbol to last item if childless
+			if (not tree_procs.empty() and tree_procs.back().children.empty())
+				tree_procs.back().entry.get().prefix.replace(tree_procs.back().entry.get().prefix.size() - 8, 8, " └─ ");
+
+			// Final sort based on tree index
+			rng::sort(current_procs, rng::less{}, & proc_info::tree_index);
+
+			// Move current selection/view to the selected process when collapsing/expanding in the tree
+			if (locate_selection) {
+				int loc = rng::find(current_procs, get_selected_pid(), &proc_info::pid)->tree_index;
+				if (config_ints.at("proc_start") >= loc or config_ints.at("proc_start") <= loc - get_select_max())
+					Config::ints_set_at("proc_start", max(0, loc - 1));
+				Config::ints_set_at("proc_selected", loc - config_ints.at("proc_start") + 1);
+			}
+		}
+
 		return current_procs;
 	}
 }
