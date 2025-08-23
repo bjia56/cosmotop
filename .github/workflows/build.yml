@@ -24,7 +24,7 @@ on:
 env:
   zig_version: 0.14.0
   blink_version: 4da95da865a1d3ccdc2e802cccfbddd8507d1c95
-  chimplink_version: v0.6.0
+  chimplink_version: v0.8.0
   cosmocc_version: 4.0.2
 
 jobs:

@@ -488,23 +488,6 @@ void downloadFile(const std::string& url, const std::string& outPath) {
     throw std::runtime_error("Failed to download file: " + url);
 }
 
-void zipEmbed(const std::string& zipPath, const std::string& fileToAdd) {
-    std::vector<const char*> zipArgv = {"zip", "-quj", zipPath.c_str(), fileToAdd.c_str(), nullptr};
-    int ret = spawnAndWait(zipArgv);
-    if (ret == 0) return;
-
-    std::string pythonCmd =
-        "import zipfile, sys; "
-        "zip = sys.argv[1]; "
-        "infile = sys.argv[2]; "
-        "zf = zipfile.ZipFile(zip, 'a'); "
-        "zf.write(infile, arcname=infile.split('/')[-1]); "
-        "zf.close()";
-    ret = tryPythonInterpreters({ "-c", pythonCmd, zipPath, fileToAdd });
-	if (ret == 0) return;
-
-    throw std::runtime_error("Failed to embed file into zip: " + zipPath);
-}
 
 void create_plugin_host() {
 	std::stringstream pluginName;
@@ -564,44 +547,26 @@ choose_extension:
 		if (!std::filesystem::exists(ziposPath)) {
 			try {
 				Logger::info("Plugin not found in zipos, downloading from GitHub...");
+				std::fprintf(stderr, "Downloading plugin...");
 				std::string url = "https://github.com/bjia56/cosmotop/releases/download/v" + Global::Version + "/" + pluginName.str();
 				downloadFile(url, pluginPath);
+				std::fprintf(stderr, " complete.\n");
 
 				if (!IsWindows()) {
 					chmod(pluginPath.c_str(), 0500);
 				}
 
-				// Make temporary copy of the current executable
-				std::filesystem::path tempPath = std::filesystem::path(GetProgramExecutableName()) += ".tmp";
-				bool doSelfUpdate = true;
-
-				std::vector<const char*> cpArgv = {"cp", "-f", currPath.c_str(), tempPath.c_str(), nullptr};
-				int cpStatus = spawnAndWait(cpArgv);
-				if (cpStatus != 0) {
-					Logger::error("Failed to copy current executable: " + std::string(strerror(cpStatus)));
-					doSelfUpdate = false;
-				}
-
-				if (doSelfUpdate) {
-					try {
-						zipEmbed(tempPath, pluginPath);
-						std::filesystem::rename(tempPath, currPath);
-					} catch (const std::exception& e) {
-						Logger::error(e.what());
-						std::filesystem::remove(tempPath);
-					}
-				} else {
-					std::filesystem::remove(tempPath);
-				}
 			} catch (const std::exception& e) {
 				Logger::error(e.what());
 				throw;
 			}
 		} else {
+			std::fprintf(stderr, "Extracting plugin...");
 			std::filesystem::copy_file(ziposPath, pluginPath, std::filesystem::copy_options::overwrite_existing);
 			if (!IsWindows()) {
 				chmod(pluginPath.c_str(), 0500);
 			}
+			std::fprintf(stderr, " complete.\n");
 		}
 	}
 
@@ -611,11 +576,19 @@ choose_extension:
 		if (!std::filesystem::exists(ziposDir)) {
 			throw std::runtime_error("Windows dll directory not found in zipos: " + ziposDir.string());
 		}
+		bool extracting = false;
 		for (const auto& entry : std::filesystem::directory_iterator(ziposDir)) {
 			auto entryPath = outdir / entry.path().filename();
 			if (!std::filesystem::exists(entryPath) || isFileNewer(currPath, entryPath)) {
+				if (!extracting) {
+					std::fprintf(stderr, "Extracting Windows binaries...");
+					extracting = true;
+				}
 				std::filesystem::copy_file(entry.path(), entryPath, std::filesystem::copy_options::overwrite_existing);
 			}
+		}
+		if (extracting) {
+			std::fprintf(stderr, " complete.\n");
 		}
 	}
 
