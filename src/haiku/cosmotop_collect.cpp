@@ -729,6 +729,7 @@ namespace Proc {
 
 	// Static data for CPU percentage calculation
 	std::unordered_map<team_id, team_usage_info> old_usage;
+	std::unordered_map<thread_id, thread_info> old_thread_usage;
 	bigtime_t last_update_time = 0;
 
 	// Helper function to get memory usage for a team
@@ -757,6 +758,90 @@ namespace Proc {
 		bigtime_t cpu_diff = (current_usage.user_time + current_usage.kernel_time) -
 							 (old_info.user_time + old_info.kernel_time);
 
+		if (cpu_diff <= 0) {
+			return 0.0;
+		}
+
+		// Convert to percentage: (cpu_time_used / total_time_elapsed) * 100
+		double percent = (double)cpu_diff * 100.0 / time_diff;
+		return min(percent, 100.0 * Shared::coreCount);
+	}
+
+	// Helper function to get non-idle thread count for kernel team
+	int get_kernel_team_non_idle_thread_count(team_id team) {
+		thread_info threadInfo;
+		int32 cookie = 0;
+		int non_idle_count = 0;
+
+		while (get_next_thread_info(team, &cookie, &threadInfo) == B_OK) {
+			// Skip idle threads (priority 0 = B_IDLE_PRIORITY)
+			if (threadInfo.priority != 0) {
+				non_idle_count++;
+			}
+		}
+
+		return non_idle_count;
+	}
+
+	// Helper function to calculate kernel team CPU usage excluding idle threads
+	double calculate_kernel_team_cpu_percent(team_id team, bigtime_t time_diff) {
+		if (time_diff <= 0) {
+			return 0.0;
+		}
+
+		thread_info threadInfo;
+		int32 cookie = 0;
+		bigtime_t total_current_time = 0;
+		bigtime_t total_old_time = 0;
+		int non_idle_threads = 0;
+
+		// Enumerate all threads in the kernel team
+		while (get_next_thread_info(team, &cookie, &threadInfo) == B_OK) {
+			// Skip idle threads (priority 0 = B_IDLE_PRIORITY)
+			if (threadInfo.priority == 0) {
+				continue;
+			}
+
+			non_idle_threads++;
+			bigtime_t current_thread_time = threadInfo.user_time + threadInfo.kernel_time;
+			total_current_time += current_thread_time;
+
+			// Get old thread time if available
+			if (old_thread_usage.contains(threadInfo.thread)) {
+				auto& old_thread_info = old_thread_usage[threadInfo.thread];
+				total_old_time += old_thread_info.user_time + old_thread_info.kernel_time;
+			}
+
+			// Store current thread info for next calculation
+			old_thread_usage[threadInfo.thread] = threadInfo;
+		}
+
+		// Clean up old thread data for threads that no longer exist
+		for (auto it = old_thread_usage.begin(); it != old_thread_usage.end();) {
+			bool thread_found = false;
+			int32 check_cookie = 0;
+			thread_info check_info;
+			
+			while (get_next_thread_info(team, &check_cookie, &check_info) == B_OK) {
+				if (check_info.thread == it->first) {
+					thread_found = true;
+					break;
+				}
+			}
+			
+			if (!thread_found) {
+				it = old_thread_usage.erase(it);
+			} else {
+				++it;
+			}
+		}
+
+		// Calculate CPU percentage for non-idle kernel threads
+		if (total_old_time == 0 || non_idle_threads == 0) {
+			return 0.0;
+		}
+
+		bigtime_t cpu_diff = total_current_time - total_old_time;
 		if (cpu_diff <= 0) {
 			return 0.0;
 		}
@@ -853,6 +938,7 @@ namespace Proc {
 		const auto reverse = Config::getB("proc_reversed");
 		const auto filter = Config::getS("proc_filter");
 		const auto per_core = Config::getB("proc_per_core");
+		const auto should_filter_kernel = Config::getB("proc_filter_kernel");
 		const auto tree = Config::getB("proc_tree");
 		const auto show_detailed = Config::getB("show_detailed");
 		const auto detailed_pid = Config::getI("detailed_pid");
@@ -893,6 +979,12 @@ namespace Proc {
 			// Iterate through all teams in the system
 			while (get_next_team_info(&cookie, &teamInfo) == B_OK) {
 				const team_id tid = teamInfo.team;
+				
+				// Skip kernel_team (team ID 1) if kernel filtering is enabled
+				if (should_filter_kernel && tid == 1) {
+					continue;
+				}
+				
 				found.push_back(tid);
 
 				// Check if team already exists in current_procs
@@ -920,24 +1012,45 @@ namespace Proc {
 				}
 
 				// Update dynamic values
-				new_proc.threads = teamInfo.thread_count;
+				// For kernel_team, count only non-idle threads
+				if (tid == 1) { // kernel_team
+					new_proc.threads = get_kernel_team_non_idle_thread_count(tid);
+				} else {
+					new_proc.threads = teamInfo.thread_count;
+				}
 				new_proc.state = get_team_state(tid);
 
 				// Get memory usage
 				new_proc.mem = get_team_memory(tid);
 
-				// Get CPU usage
-				team_usage_info usage;
-				if (get_team_usage_info(tid, B_TEAM_USAGE_SELF, &usage) == B_OK) {
-					new_proc.cpu_p = calculate_cpu_percent(tid, usage, time_diff);
+				// Get CPU usage - special handling for kernel_team to exclude idle threads
+				if (tid == 1) { // kernel_team
+					new_proc.cpu_p = calculate_kernel_team_cpu_percent(tid, time_diff);
 					new_proc.cpu_c = new_proc.cpu_p / cmult;
-					new_proc.cpu_t = usage.user_time + usage.kernel_time;
-					
-					// Store usage for next calculation
-					old_usage[tid] = usage;
+					// Calculate total CPU time for non-idle kernel threads
+					thread_info threadInfo;
+					int32 cookie = 0;
+					bigtime_t total_kernel_time = 0;
+					while (get_next_thread_info(tid, &cookie, &threadInfo) == B_OK) {
+						if (threadInfo.priority != 0) { // Skip idle threads
+							total_kernel_time += threadInfo.user_time + threadInfo.kernel_time;
+						}
+					}
+					new_proc.cpu_t = total_kernel_time;
 				} else {
-					new_proc.cpu_p = new_proc.cpu_c = 0.0;
-					new_proc.cpu_t = 0;
+					// Standard team CPU usage calculation
+					team_usage_info usage;
+					if (get_team_usage_info(tid, B_TEAM_USAGE_SELF, &usage) == B_OK) {
+						new_proc.cpu_p = calculate_cpu_percent(tid, usage, time_diff);
+						new_proc.cpu_c = new_proc.cpu_p / cmult;
+						new_proc.cpu_t = usage.user_time + usage.kernel_time;
+						
+						// Store usage for next calculation
+						old_usage[tid] = usage;
+					} else {
+						new_proc.cpu_p = new_proc.cpu_c = 0.0;
+						new_proc.cpu_t = 0;
+					}
 				}
 
 				// Check if this is the detailed process
@@ -958,6 +1071,11 @@ namespace Proc {
 				} else {
 					++it;
 				}
+			}
+
+			// Clean up thread usage data if kernel filtering is enabled or kernel_team not found
+			if (should_filter_kernel || not v_contains(found, team_id(1))) {
+				old_thread_usage.clear();
 			}
 
 			// Update the details info box for process if active
