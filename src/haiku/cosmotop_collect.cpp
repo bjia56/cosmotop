@@ -741,7 +741,7 @@ namespace Proc {
 		while (get_next_area_info(team, &cookie, &areaInfo) == B_OK) {
 			// Only count areas that are part of this team's address space
 			if (areaInfo.team == team) {
-				totalMemory += areaInfo.size;
+				totalMemory += areaInfo.ram_size;
 			}
 		}
 
