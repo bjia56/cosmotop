@@ -145,7 +145,7 @@ to run the x86_64 version of `cosmotop`. Data collection is still done by host-n
 
 Download the `cosmocc` toolchain (`cosmocc-X.Y.Z.zip`) from the Cosmopolitan [GitHub releases](https://github.com/jart/cosmopolitan/releases/latest) and extract it somewhere on your filesystem. Add the `bin` directory to `PATH` to ensure the compilers can be found. For best results, compile this part on Linux.
 
-On Linux, it may be needed to [modify `binfmt_misc`](#linux-troubleshooting) to run the `cosmocc` toolchain.
+On Linux, it may be needed to [modify `binfmt_misc`](https://github.com/jart/cosmopolitan?tab=readme-ov-file#linux) to run the `cosmocc` toolchain.
 
 ```bash
 export CC=cosmocc
