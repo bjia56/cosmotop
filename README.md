@@ -134,7 +134,7 @@ runs natively. On UNIX, a small loader binary is additionally extracted to run t
 
 Collecting real data from the underlying system is done by helper [plugins](https://github.com/bjia56/libcosmo_plugin), which are built for each target platform using host-native compilers and libraries. On core platforms (see [above](#supported-platforms)), plugins are bundled into `cosmotop` and extracted out onto the host under the path `~/.cosmotop`. On other platforms, plugins are downloaded from GitHub releases from the same release tag as `cosmotop` and placed under `~/.cosmotop`, and are optionally re-bundled into the executable. Plugins are used at runtime to gather system metrics that are then displayed by the primary multiplatform executable process in the terminal.
 
-For platforms not supported natively by Cosmpolitan Libc, `cosmotop` uses the [Blink](https://github.com/jart/blink) lightweight virtual machine
+For platforms not supported natively by Cosmopolitan Libc, `cosmotop` uses the [Blink](https://github.com/jart/blink) lightweight virtual machine
 to run the x86_64 version of `cosmotop`. Data collection is still done by host-native plugin executables.
 
 ## Building from source
