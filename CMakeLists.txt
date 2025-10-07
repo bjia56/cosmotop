@@ -147,6 +147,14 @@ elseif(${TARGET} STREQUAL "plugin")
 
       set(CMAKE_MODULE_PATH _CMAKE_MODULE_PATH)
     endif()
+  elseif(CMAKE_SYSTEM MATCHES "GNU")
+    set(PLUGIN_SOURCES
+      src/cosmotop_plugin.cpp
+      src/cosmotop_shared.cpp
+      src/cosmotop_tools_shared.cpp
+      src/linux/cosmotop_collect.cpp
+      ${LIBCOSMO_PLUGIN_SOURCES}
+    )
   elseif(CMAKE_SYSTEM MATCHES "Darwin")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
