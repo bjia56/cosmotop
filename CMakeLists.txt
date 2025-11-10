@@ -158,7 +158,11 @@ elseif(${TARGET} STREQUAL "plugin")
       src/osx/ioreport.cpp
       ${LIBCOSMO_PLUGIN_SOURCES}
     )
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+      set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum OS X deployment version")
+    else()
+      set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
+    endif()
   elseif(CMAKE_SYSTEM MATCHES "Windows")
     set(PLUGIN_SOURCES
       src/cosmotop_plugin.cpp
