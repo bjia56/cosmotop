@@ -271,6 +271,7 @@ namespace Cpu {
 		got_sensors = false;
 		if (show_coretemp and check_temp) {
 #if __MAC_OS_X_VERSION_MIN_REQUIRED > 101504
+			Logger::debug("checking apple silicon");
 			ThermalSensors sensors;
 			if (sensors.getSensors() > 0) {
 				Logger::debug("M1 sensors found");
@@ -278,12 +279,13 @@ namespace Cpu {
 				cpu_temp_only = true;
 				macM1 = true;
 			} else {
+				Logger::debug("no M1 sensors found");
 #endif
 #ifndef __POWERPC__
 				// try SMC (intel)
 				Logger::debug("checking intel");
-				SMCConnection smcCon;
 				try {
+					SMCConnection smcCon;
 					long long t = smcCon.getTemp(-1);  // check if we have package T
 					if (t > -1) {
 						Logger::debug("intel sensors found");
@@ -302,6 +304,7 @@ namespace Cpu {
 					}
 				} catch (std::runtime_error &e) {
 					// ignore, we don't have temp
+					Logger::debug("failed getting intel sensors");
 					got_sensors = false;
 				}
 #else
