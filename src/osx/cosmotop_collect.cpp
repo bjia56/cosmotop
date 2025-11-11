@@ -582,6 +582,11 @@ namespace Npu {
 
 	void init() {
 #ifdef __aarch64__
+		if (not Cpu::got_sensors) {
+			Logger::info("NPU not initialized since CPU sensors are not available");
+			return;
+		}
+
 		subscription = new IOReportSubscription();
 		if (subscription->hasANE()) {
 			count = 1;
