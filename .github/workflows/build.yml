@@ -366,7 +366,7 @@ jobs:
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
-          release: "7.6"
+          release: "7.7"
           prepare: |
             pkg_add cmake
 
