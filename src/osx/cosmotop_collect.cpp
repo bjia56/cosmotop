@@ -67,6 +67,7 @@ tab-size = 4
 #include "../cosmotop_config.hpp"
 #include "../cosmotop_shared.hpp"
 #include "../cosmotop_tools.hpp"
+#include "../cosmotop_prometheus.hpp"
 
 #if __MAC_OS_X_VERSION_MIN_REQUIRED > 101504
 #include "sensors.hpp"
@@ -116,6 +117,22 @@ namespace Cpu {
 	vector<string> core_sensors;
 	std::unordered_map<int, int> core_mapping;
 }  // namespace Cpu
+
+namespace Gpu {
+	vector<gpu_info> gpus;
+	vector<string> gpu_names;
+	vector<int> gpu_b_height_offsets;
+	std::unordered_map<string, deque<long long>> shared_gpu_percent = {
+		{"gpu-average", {}},
+		{"gpu-vram-total", {}},
+		{"gpu-pwr-total", {}},
+	};
+	long long gpu_pwr_total_max = 0;
+
+	int count = 0;
+
+	void init();
+}  // namespace Gpu
 
 namespace Npu {
 	vector<npu_info> npus;
@@ -207,8 +224,32 @@ namespace Shared {
 		Cpu::core_mapping = Cpu::get_core_mapping();
 		Cpu::current_bat = Cpu::get_battery();
 
+		//? Init for namespace Gpu (Prometheus only on macOS)
+		Gpu::init();
+
 		//? Init for namespace Npu
 		Npu::init();
+
+		//? Init for namespace Prometheus
+		Prometheus::init(Gpu::gpus, Gpu::gpu_names, Npu::npus, Npu::npu_names);
+
+		// ? Populate available fields for Cpu, Gpu, Npu
+		if (not Gpu::gpu_names.empty()) {
+			for (auto const& [key, _] : Gpu::gpus[0].gpu_percent)
+				Cpu::available_fields.push_back(key);
+			for (auto const& [key, _] : Gpu::shared_gpu_percent)
+				Cpu::available_fields.push_back(key);
+
+			using namespace Gpu;
+			count = gpus.size();
+			gpu_b_height_offsets.resize(gpus.size());
+			for (size_t i = 0; i < gpu_b_height_offsets.size(); ++i)
+				gpu_b_height_offsets[i] = gpus[i].supported_functions.gpu_utilization
+					   + gpus[i].supported_functions.pwr_usage
+					   + (gpus[i].supported_functions.mem_total or gpus[i].supported_functions.mem_used)
+						* (1 + 2*(gpus[i].supported_functions.mem_total and gpus[i].supported_functions.mem_used) + 2*gpus[i].supported_functions.mem_utilization);
+		}
+
 		Npu::collect();
 		if (not Npu::npu_names.empty()) {
 			for (auto const& [key, _] : Npu::npus[0].npu_percent)
@@ -402,11 +443,11 @@ namespace Cpu {
 		const auto custom_map = Config::getS("cpu_core_map");
 		if (not custom_map.empty()) {
 			try {
-				for (const auto &split : ssplit(custom_map)) {
-					const auto vals = ssplit(split, ':');
+				for (const auto &split : ssplit<string_view>(custom_map)) {
+					const auto vals = ssplit<string_view>(split, ':');
 					if (vals.size() != 2) continue;
-					int change_id = std::stoi(vals.at(0));
-					int new_id = std::stoi(vals.at(1));
+					int change_id = std::stoi(string(vals.at(0)));
+					int new_id = std::stoi(string(vals.at(1)));
 					if (not core_map.contains(change_id) or cmp_greater(new_id, core_sensors.size())) continue;
 					core_map.at(change_id) = new_id;
 				}
@@ -577,8 +618,30 @@ namespace Cpu {
 	}
 }  // namespace Cpu
 
+namespace Gpu {
+	void init() {
+		// macOS only supports Prometheus GPU collection
+		// No native GPU APIs are initialized here
+	}
+
+	auto collect(bool no_update) -> vector<gpu_info>& {
+		if (no_update and not gpus.empty()) return gpus;
+
+		//* Collect data from Prometheus (if configured)
+		Prometheus::collect_gpu<0>(gpus.data());
+
+		//* Process GPU data: calculate averages, trim vectors, and update shared percentages
+		const auto width = get_width();
+		process_gpu_data(gpus, shared_gpu_percent, gpu_pwr_total_max, width, count);
+
+		return gpus;
+	}
+}  // namespace Gpu
+
 namespace Npu {
 	IOReportSubscription *subscription;
+
+	int device_count = 0;
 
 	void init() {
 #ifdef __aarch64__
@@ -589,7 +652,7 @@ namespace Npu {
 
 		subscription = new IOReportSubscription();
 		if (subscription->hasANE()) {
-			count = 1;
+			device_count = 1;
 
 			npus.push_back(npu_info());
 			npus[0].supported_functions.npu_utilization = true;
@@ -604,20 +667,20 @@ namespace Npu {
 
 	auto collect(bool no_update) -> vector<npu_info>& {
 #ifdef __aarch64__
-		if (count == 0 or (no_update and not npus.empty())) return npus;
+		if (no_update and not npus.empty()) return npus;
 
-		const auto width = get_width();
-
-		//? Collect NPU stats
-		auto power = subscription->getANEPower();
-		auto powerPercent = clamp((long long)round((double)power * 100 / 8.0), 0ll, 100ll); // asitop defaults to max 8W
-		npus[0].npu_percent["npu-totals"].push_back(powerPercent);
-		shared_npu_percent["npu-average"].push_back(powerPercent);
-
-		if (width != 0) {
-			while (cmp_greater(npus[0].npu_percent["npu-totals"].size(), width * 2)) npus[0].npu_percent["npu-totals"].pop_front();
-			while (cmp_greater(shared_npu_percent["npu-average"].size(), width * 2)) shared_npu_percent["npu-average"].pop_front();
+		//? Collect NPU stats natively
+		if (device_count) {
+			auto power = subscription->getANEPower();
+			auto powerPercent = clamp((long long)round((double)power * 100 / 8.0), 0ll, 100ll); // asitop defaults to max 8W
+			npus[0].npu_percent["npu-totals"].push_back(powerPercent);
 		}
+
+		Prometheus::collect_npu<0>(npus.data() + device_count);
+
+		//* Process NPU data: calculate averages, trim vectors, and update shared percentages
+		const auto width = get_width();
+		process_npu_data(npus, shared_npu_percent, width, count);
 #endif // __aarch64__
 		return npus;
 	}
@@ -803,13 +866,13 @@ namespace Mem {
 		if (show_disks) {
 			std::unordered_map<string, string> mapping;  // keep mapping from device -> mountpoint, since IOKit doesn't give us the mountpoint
 			double uptime = system_uptime();
-			const auto disks_filter = Config::getS("disks_filter");
+			const auto& disks_filter = Config::getS("disks_filter");
 			bool filter_exclude = false;
 			// const auto only_physical = Config::getB("only_physical");
 			auto &disks = mem.disks;
-			vector<string> filter;
+			vector<string_view> filter;
 			if (not disks_filter.empty()) {
-				filter = ssplit(disks_filter);
+				filter = ssplit<string_view>(disks_filter);
 				if (filter.at(0).starts_with("exclude=")) {
 					filter_exclude = true;
 					filter.at(0) = filter.at(0).substr(8);

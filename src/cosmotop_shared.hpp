@@ -164,6 +164,9 @@ namespace Npu {
 	//* Collect npu stats
 	auto collect(bool no_update = false) -> vector<npu_info>&;
 
+	//* Post-process NPU data: calculate averages, trim vectors, and update shared percentages
+	void process_npu_data(vector<npu_info>& npus, std::unordered_map<string, deque<long long>>& shared_npu_percent, int width, int& count);
+
 	//* Draw contents of npu box using <npus> as source
 	string draw(const npu_info& npu, unsigned long index, bool force_redraw, bool data_same);
 }
@@ -239,6 +242,9 @@ namespace Gpu {
 
 	//* Collect gpu stats and temperatures
 	auto collect(bool no_update = false) -> vector<gpu_info>&;
+
+	//* Post-process GPU data: calculate averages, trim vectors, and update shared percentages
+	void process_gpu_data(vector<gpu_info>& gpus, std::unordered_map<string, deque<long long>>& shared_gpu_percent, long long gpu_pwr_total_max, int width, int& count);
 
 	//* Draw contents of gpu box using <gpus> as source
   	string draw(const gpu_info& gpu, unsigned long index, bool force_redraw, bool data_same);

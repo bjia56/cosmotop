@@ -51,6 +51,7 @@ tab-size = 4
 #include "../cosmotop_shared.hpp"
 #include "../cosmotop_config.hpp"
 #include "../cosmotop_tools.hpp"
+#include "../cosmotop_prometheus.hpp"
 
 #define class class_
 extern "C" {
@@ -362,6 +363,16 @@ namespace Shared {
 		Gpu::Rsmi::init();
 		Gpu::Intel::init();
 		if constexpr(Gpu::Test::device_count > 0) Gpu::Test::init();
+
+		//? Init for namespace Npu
+		Npu::Rockchip::init();
+		Npu::Intel::init();
+		if constexpr(Npu::Test::device_count > 0) Npu::Test::init();
+
+		//? Init for namespace Prometheus
+		Prometheus::init(Gpu::gpus, Gpu::gpu_names, Npu::npus, Npu::npu_names);
+
+		// ? Populate available fields for Cpu, Gpu, Npu
 		if (not Gpu::gpu_names.empty()) {
 			for (auto const& [key, _] : Gpu::gpus[0].gpu_percent)
 				Cpu::available_fields.push_back(key);
@@ -377,11 +388,6 @@ namespace Shared {
 					   + (gpus[i].supported_functions.mem_total or gpus[i].supported_functions.mem_used)
 						* (1 + 2*(gpus[i].supported_functions.mem_total and gpus[i].supported_functions.mem_used) + 2*gpus[i].supported_functions.mem_utilization);
 		}
-
-		//? Init for namespace Npu
-		Npu::Rockchip::init();
-		Npu::Intel::init();
-		if constexpr(Npu::Test::device_count > 0) Npu::Test::init();
 		if (not Npu::npu_names.empty()) {
 			for (auto const& [key, _] : Npu::npus[0].npu_percent)
 				Cpu::available_fields.push_back(key);
@@ -460,8 +466,8 @@ namespace Cpu {
 					name = trim(name);
 
 					// split on commas and take the last part
-					auto name_vec = ssplit(name, ',');
-					if (name_vec.size() > 1) name = name_vec.back();
+					auto name_vec = ssplit<string_view>(name, ',');
+					if (name_vec.size() > 1) name = string(name_vec.back());
 					name = capitalize(name);
 				}
 			}
@@ -474,9 +480,9 @@ namespace Cpu {
 					}
 				}
 				if (not name.empty()) {
-					auto name_vec = ssplit(name, '_');
-					if (name_vec.size() < 2) return capitalize(name);
-					else return capitalize(name_vec.at(1)) + (name_vec.size() > 2 ? ' ' + capitalize(name_vec.at(2)) : "");
+					auto name_vec = ssplit<string_view>(name, '_');
+					if (name_vec.size() < 2) return capitalize(string(name));
+					else return capitalize(string(name_vec.at(1))) + (name_vec.size() > 2 ? ' ' + capitalize(string(name_vec.at(2))) : "");
 				}
 
 			}
@@ -749,11 +755,11 @@ namespace Cpu {
 		}
 
 		//? Apply user set custom mapping if any
-		const auto custom_map = Config::getS("cpu_core_map");
+		const auto& custom_map = Config::getS("cpu_core_map");
 		if (not custom_map.empty()) {
 			try {
-				for (const auto& split : ssplit(custom_map)) {
-					const auto vals = ssplit(split, ':');
+				for (const auto& split : ssplit<string_view>(custom_map)) {
+					const auto vals = ssplit<string>(split, ':');
 					if (vals.size() != 2) continue;
 					int change_id = std::stoi(vals.at(0));
 					int new_id = std::stoi(vals.at(1));
@@ -2014,51 +2020,11 @@ namespace Gpu {
 		Rsmi::collect<0>(gpus.data() + Nvml::device_count); // size = Rsmi::device_count
 		Intel::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count); // size = Intel::device_count
 		if constexpr(Test::device_count > 0) Test::collect<0>(gpus.data() + Nvml::device_count + Rsmi::device_count + Intel::device_count); // size = Test::device_count
+		Prometheus::collect_gpu<0>(gpus.data() + Nvml::device_count + Rsmi::device_count + Intel::device_count + Test::device_count); // size = Prometheus::gpu_count
 
+		//* Process GPU data: calculate averages, trim vectors, and update shared percentages
 		const auto width = get_width();
-
-		//* Calculate average usage
-		long long avg = 0;
-		long long mem_usage_total = 0;
-		long long mem_total = 0;
-		long long pwr_total = 0;
-		for (auto& gpu : gpus) {
-			if (gpu.supported_functions.gpu_utilization)
-				avg += gpu.gpu_percent.at("gpu-totals").back();
-			if (gpu.supported_functions.mem_used)
-				mem_usage_total += gpu.mem_used;
-			if (gpu.supported_functions.mem_total)
-				mem_total += gpu.mem_total;
-			if (gpu.supported_functions.pwr_usage)
-				mem_total += gpu.pwr_usage;
-
-			//* Trim vectors if there are more values than needed for graphs
-			if (width != 0) {
-				//? GPU & memory utilization
-				while (cmp_greater(gpu.gpu_percent.at("gpu-totals").size(), width * 2)) gpu.gpu_percent.at("gpu-totals").pop_front();
-				while (cmp_greater(gpu.mem_utilization_percent.size(), width)) gpu.mem_utilization_percent.pop_front();
-				//? Power usage
-				while (cmp_greater(gpu.gpu_percent.at("gpu-pwr-totals").size(), width)) gpu.gpu_percent.at("gpu-pwr-totals").pop_front();
-				//? Temperature
-				while (cmp_greater(gpu.temp.size(), 18)) gpu.temp.pop_front();
-				//? Memory usage
-				while (cmp_greater(gpu.gpu_percent.at("gpu-vram-totals").size(), width/2)) gpu.gpu_percent.at("gpu-vram-totals").pop_front();
-			}
-		}
-
-		shared_gpu_percent.at("gpu-average").push_back(avg / gpus.size());
-		if (mem_total != 0)
-			shared_gpu_percent.at("gpu-vram-total").push_back(mem_usage_total / mem_total);
-		if (gpu_pwr_total_max != 0)
-			shared_gpu_percent.at("gpu-pwr-total").push_back(pwr_total / gpu_pwr_total_max);
-
-		if (width != 0) {
-			while (cmp_greater(shared_gpu_percent.at("gpu-average").size(), width * 2)) shared_gpu_percent.at("gpu-average").pop_front();
-			while (cmp_greater(shared_gpu_percent.at("gpu-pwr-total").size(), width * 2)) shared_gpu_percent.at("gpu-pwr-total").pop_front();
-			while (cmp_greater(shared_gpu_percent.at("gpu-vram-total").size(), width * 2)) shared_gpu_percent.at("gpu-vram-total").pop_front();
-		}
-
-		count = gpus.size();
+		process_gpu_data(gpus, shared_gpu_percent, gpu_pwr_total_max, width, count);
 
 		return gpus;
 	}
@@ -2363,29 +2329,11 @@ namespace Npu {
 		Rockchip::collect<0>(npus.data());
 		Intel::collect<0>(npus.data() + Rockchip::device_count);
 		if constexpr(Test::device_count > 0) Test::collect<0>(npus.data() + Rockchip::device_count + Intel::device_count);
+		Prometheus::collect_npu<0>(npus.data() + Rockchip::device_count + Intel::device_count + Test::device_count); // size = Prometheus::npu_count
 
+		//* Process NPU data: calculate averages, trim vectors, and update shared percentages
 		const auto width = get_width();
-
-		//* Calculate average usage
-		long long avg = 0;
-		for (auto& npu : npus) {
-			if (npu.supported_functions.npu_utilization)
-				avg += npu.npu_percent.at("npu-totals").back();
-
-			//* Trim vectors if there are more values than needed for graphs
-			if (width != 0) {
-				//? NPU utilization
-				while (cmp_greater(npu.npu_percent.at("npu-totals").size(), width * 2)) npu.npu_percent.at("npu-totals").pop_front();
-			}
-		}
-
-		shared_npu_percent.at("npu-average").push_back(avg / npus.size());
-
-		if (width != 0) {
-			while (cmp_greater(shared_npu_percent.at("npu-average").size(), width * 2)) shared_npu_percent.at("npu-average").pop_front();
-		}
-
-		count = npus.size();
+		process_npu_data(npus, shared_npu_percent, width, count);
 
 		return npus;
 	}
@@ -2518,7 +2466,7 @@ namespace Mem {
 			double uptime = system_uptime();
 			const auto free_priv = Config::getB("disk_free_priv");
 			try {
-				const auto disks_filter = Config::getS("disks_filter");
+				const auto &disks_filter = Config::getS("disks_filter");
 				bool filter_exclude = false;
 				const auto use_fstab = Config::getB("use_fstab");
 				const auto only_physical = Config::getB("only_physical");
@@ -2527,9 +2475,9 @@ namespace Mem {
 				static std::unordered_map<string, future<pair<disk_info, int>>> disks_stats_promises;
 				ifstream diskread;
 
-				vector<string> filter;
+				vector<string_view> filter;
 				if (not disks_filter.empty()) {
-					filter = ssplit(disks_filter);
+					filter = ssplit<string_view>(disks_filter);
 					if (filter.at(0).starts_with("exclude=")) {
 						filter_exclude = true;
 						filter.at(0) = filter.at(0).substr(8);

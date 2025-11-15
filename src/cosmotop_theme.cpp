@@ -326,7 +326,7 @@ namespace Theme {
 						rgbs[name] = hex_to_dec(source.at(name));
 					}
 					else if (not source.at(name).empty()) {
-						t_rgb = ssplit(source.at(name));
+						t_rgb = ssplit<string>(source.at(name));
 						if (t_rgb.size() != 3) {
 							Logger::error("Invalid RGB decimal value: \"" + source.at(name) + "\"");
 						} else {

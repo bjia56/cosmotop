@@ -194,18 +194,6 @@ namespace Tools {
 		return string{str_v};
 	}
 
-	auto ssplit(const string& str, const char& delim, bool discard_empty) -> vector<string> {
-		vector<string> out;
-		for (const auto& s : str 	| rng::views::split(delim)
-									| rng::views::transform([](auto &&rng) {
-										if (rng.begin() == rng.end()) return std::string_view();
-										return std::string_view(&*rng.begin(), rng::distance(rng));
-		})) {
-			if (not s.empty() or not discard_empty) out.emplace_back(s);
-		}
-		return out;
-	}
-
 	string ljust(string str, const size_t x, bool utf, bool wide, bool limit) {
 		if (utf) {
 			if (limit and ulen(str, wide) > x)
@@ -519,6 +507,78 @@ namespace Tools {
 		return running;
 	}
 
+}
+
+namespace Npu {
+	void process_npu_data(vector<npu_info>& npus, std::unordered_map<string, deque<long long>>& shared_npu_percent, int width, int& count) {
+		//* Calculate average usage
+		long long avg = 0;
+		for (auto& npu : npus) {
+			if (npu.supported_functions.npu_utilization)
+				avg += npu.npu_percent.at("npu-totals").back();
+
+			//* Trim vectors if there are more values than needed for graphs
+			if (width != 0) {
+				//? NPU utilization
+				while (std::cmp_greater(npu.npu_percent.at("npu-totals").size(), width * 2)) npu.npu_percent.at("npu-totals").pop_front();
+			}
+		}
+
+		shared_npu_percent.at("npu-average").push_back(avg / npus.size());
+
+		if (width != 0) {
+			while (std::cmp_greater(shared_npu_percent.at("npu-average").size(), width * 2)) shared_npu_percent.at("npu-average").pop_front();
+		}
+
+		count = npus.size();
+	}
+}
+
+namespace Gpu {
+	void process_gpu_data(vector<gpu_info>& gpus, std::unordered_map<string, deque<long long>>& shared_gpu_percent, long long gpu_pwr_total_max, int width, int& count) {
+		//* Calculate average usage
+		long long avg = 0;
+		long long mem_usage_total = 0;
+		long long mem_total = 0;
+		long long pwr_total = 0;
+		for (auto& gpu : gpus) {
+			if (gpu.supported_functions.gpu_utilization)
+				avg += gpu.gpu_percent.at("gpu-totals").back();
+			if (gpu.supported_functions.mem_used)
+				mem_usage_total += gpu.mem_used;
+			if (gpu.supported_functions.mem_total)
+				mem_total += gpu.mem_total;
+			if (gpu.supported_functions.pwr_usage)
+				pwr_total += gpu.pwr_usage;
+
+			//* Trim vectors if there are more values than needed for graphs
+			if (width != 0) {
+				//? GPU & memory utilization
+				while (std::cmp_greater(gpu.gpu_percent.at("gpu-totals").size(), width * 2)) gpu.gpu_percent.at("gpu-totals").pop_front();
+				while (std::cmp_greater(gpu.mem_utilization_percent.size(), width)) gpu.mem_utilization_percent.pop_front();
+				//? Power usage
+				while (std::cmp_greater(gpu.gpu_percent.at("gpu-pwr-totals").size(), width)) gpu.gpu_percent.at("gpu-pwr-totals").pop_front();
+				//? Temperature
+				while (std::cmp_greater(gpu.temp.size(), 18)) gpu.temp.pop_front();
+				//? Memory usage
+				while (std::cmp_greater(gpu.gpu_percent.at("gpu-vram-totals").size(), width/2)) gpu.gpu_percent.at("gpu-vram-totals").pop_front();
+			}
+		}
+
+		shared_gpu_percent.at("gpu-average").push_back(avg / gpus.size());
+		if (mem_total != 0)
+			shared_gpu_percent.at("gpu-vram-total").push_back(mem_usage_total / mem_total);
+		if (gpu_pwr_total_max != 0)
+			shared_gpu_percent.at("gpu-pwr-total").push_back(pwr_total / gpu_pwr_total_max);
+
+		if (width != 0) {
+			while (std::cmp_greater(shared_gpu_percent.at("gpu-average").size(), width * 2)) shared_gpu_percent.at("gpu-average").pop_front();
+			while (std::cmp_greater(shared_gpu_percent.at("gpu-pwr-total").size(), width * 2)) shared_gpu_percent.at("gpu-pwr-total").pop_front();
+			while (std::cmp_greater(shared_gpu_percent.at("gpu-vram-total").size(), width * 2)) shared_gpu_percent.at("gpu-vram-total").pop_front();
+		}
+
+		count = gpus.size();
+	}
 }
 
 #ifdef _WIN32

@@ -407,14 +407,14 @@ namespace Cpu {
 		}
 
 		//? Apply user set custom mapping if any
-		const auto custom_map = Config::getS("cpu_core_map");
+		const auto& custom_map = Config::getS("cpu_core_map");
 		if (not custom_map.empty()) {
 			try {
-				for (const auto &split : ssplit(custom_map)) {
-					const auto vals = ssplit(split, ':');
+				for (const auto &split : ssplit<string_view>(custom_map)) {
+					const auto vals = ssplit<string_view>(split, ':');
 					if (vals.size() != 2) continue;
-					int change_id = std::stoi(vals.at(0));
-					int new_id = std::stoi(vals.at(1));
+					int change_id = std::stoi(string(vals.at(0)));
+					int new_id = std::stoi(string(vals.at(1)));
 					if (not core_map.contains(change_id) or cmp_greater(new_id, core_sensors.size())) continue;
 					core_map.at(change_id) = new_id;
 				}
@@ -763,13 +763,13 @@ namespace Mem {
 		if (show_disks) {
 			std::unordered_map<string, string> mapping;  // keep mapping from device -> mountpoint, since IOKit doesn't give us the mountpoint
 			double uptime = system_uptime();
-			const auto disks_filter = Config::getS("disks_filter");
+			const auto& disks_filter = Config::getS("disks_filter");
 			bool filter_exclude = false;
 			// auto only_physical = Config::getB("only_physical");
 			auto &disks = mem.disks;
-			vector<string> filter;
+			vector<string_view> filter;
 			if (not disks_filter.empty()) {
-				filter = ssplit(disks_filter);
+				filter = ssplit<string_view>(disks_filter);
 				if (filter.at(0).starts_with("exclude=")) {
 					filter_exclude = true;
 					filter.at(0) = filter.at(0).substr(8);

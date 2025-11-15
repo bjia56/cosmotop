@@ -389,7 +389,7 @@ namespace Cpu {
 			auto timeStart = time_micros();
 
 			//? Fetch sensors values
-			auto outvec = ssplit(FetchLHMValues(), '\n');
+			auto outvec = ssplit<string>(FetchLHMValues(), '\n');
 
 			if (outvec.empty()) {
 				Logger::error("Libre Hardware Monitor found no sensors. Disabling CPU clock/temp monitoring and GPU monitoring.");
@@ -407,7 +407,6 @@ namespace Cpu {
 			auto& cpu_temps = stats.CPU;
 			auto& cpu_clock = stats.CpuClock;
 
-			string cur_id = "";
 			string gpu_name = "";
 			gpu_order.clear();
 
@@ -415,13 +414,13 @@ namespace Cpu {
 			for (const auto& line : outvec) {
 
 				//? Split line by tab separator
-				auto linevec = ssplit(line, '\t');
+				auto linevec = ssplit<string_view>(line, '\t');
 				if (linevec.size() < 3) continue;
 
 				try {
 					//? New sensor section
 					if (linevec.front() == "Hardware") {
-						cur_id = linevec.at(2);
+						const auto& cur_id = linevec.at(2);
 						if (cur_id.find("Gpu") != string::npos) {
 							gpu_name = linevec.at(1);
 							if (gpu_name.empty()) gpu_name = cur_id;
@@ -436,52 +435,52 @@ namespace Cpu {
 						if (linevec.front().starts_with("GPU Core")) {
 							//? Gpu clock
 							if (linevec.at(1) == "Clock") {
-								gpus[gpu_name].clock_mhz = safe_stoi(linevec.at(2));
+								gpus[gpu_name].clock_mhz = safe_stoi(string(linevec.at(2)));
 							}
 							//? Gpu temp
 							else if (linevec.at(1) == "Temperature") {
-								gpus[gpu_name].temp = safe_stoi(linevec.at(2));
+								gpus[gpu_name].temp = safe_stoi(string(linevec.at(2)));
 							}
 							//? Gpu load
 							else if (linevec.at(1) == "Load") {
-								gpus[gpu_name].usage = safe_stoi(linevec.at(2));
+								gpus[gpu_name].usage = safe_stoi(string(linevec.at(2)));
 								hasGPUload = true;
 								gpus[gpu_name].cpu_gpu = false;
 							}
 						}
 						else if (not hasGPUload and linevec.front().starts_with("D3D 3D") and linevec.at(1) == "Load") {
-							gpus[gpu_name].usage = safe_stoi(linevec.at(2));
+							gpus[gpu_name].usage = safe_stoi(string(linevec.at(2)));
 							gpus[gpu_name].cpu_gpu = true;
 						}
 						//? Gpu mem used
 						else if (linevec.front().starts_with("GPU Memory Used") or linevec.front() == "D3D Shared Memory Used") {
-							gpus[gpu_name].mem_used = safe_stoll(linevec.at(2)) << 20ll;
+							gpus[gpu_name].mem_used = safe_stoll(string(linevec.at(2))) << 20ll;
 						}
 						//? Gpu mem total
 						else if (linevec.front().starts_with("GPU Memory Total") or linevec.front() == "D3D Shared Memory Total") {
-							gpus[gpu_name].mem_total = safe_stoll(linevec.at(2)) << 20ll;
+							gpus[gpu_name].mem_total = safe_stoll(string(linevec.at(2))) << 20ll;
 						}
 					}
 					else {
 						//? Cpu clock - using highest found value because an average of all cores doesn't do well on systems with efficiency cores
 						if ((linevec.front().starts_with("CPU Core") or linevec.front().starts_with("Core #")) and linevec.at(1) == "Clock") {
-							int clock = safe_stoi(linevec.at(2));
+							int clock = safe_stoi(string(linevec.at(2)));
 							if (clock > cpu_clock) cpu_clock = clock;
 						}
 						//? Cpu core and package temp
 						else if (linevec.at(1) == "Temperature") {
 							if (linevec.front().starts_with("CPU Core #") and linevec.front().find("TjMax") == string::npos) {
-								cpu_temps.push_back(safe_stoi(linevec.at(2)));
+								cpu_temps.push_back(safe_stoi(string(linevec.at(2))));
 							}
 							else if (not hasPackage and (linevec.front().starts_with("CPU Package") or linevec.front() == "Core (Tctl/Tdie)")) {
-								cpu_temps.insert(cpu_temps.begin(), safe_stoi(linevec.at(2)));
+								cpu_temps.insert(cpu_temps.begin(), safe_stoi(string(linevec.at(2))));
 								hasPackage = true;
 							}
 							else if (not hasPackage and linevec.front() == "CPU") {
-								mb_cpu = safe_stoi(linevec.at(2));
+								mb_cpu = safe_stoi(string(linevec.at(2)));
 							}
 							else if (not hasPackage and linevec.front() == "System") {
-								mb_system = safe_stoi(linevec.at(2));
+								mb_system = safe_stoi(string(linevec.at(2)));
 							}
 						}
 					}
