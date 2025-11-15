@@ -389,7 +389,8 @@ namespace Cpu {
 			auto timeStart = time_micros();
 
 			//? Fetch sensors values
-			auto outvec = ssplit<string>(FetchLHMValues(), '\n');
+			auto out = FetchLHMValues();
+			auto outvec = ssplit<string_view>(out, '\n');
 
 			if (outvec.empty()) {
 				Logger::error("Libre Hardware Monitor found no sensors. Disabling CPU clock/temp monitoring and GPU monitoring.");
@@ -545,17 +546,19 @@ namespace Cpu {
 		OHMR_trigger();
 		OHMR_collect();
 
+		string_view output_sv = output;
+
 		//? Get max shared memory if using CPU-GPU
 		bool bigmem = false;
-		auto dmem_pos = output.find("GpuSharedLimit");
+		auto dmem_pos = output_sv.find("GpuSharedLimit");
 		if (dmem_pos == string::npos) {
 			bigmem = true;
-			dmem_pos = output.find("SharedSystemMemory");
+			dmem_pos = output_sv.find("SharedSystemMemory");
 		}
 		if (dmem_pos != string::npos) {
 			try {
-				auto space_pos = output.find(' ', dmem_pos);
-				ohmr_shared_mem = std::stoll(output.substr(space_pos, output.find('\n', dmem_pos) - space_pos));
+				auto space_pos = output_sv.find(' ', dmem_pos);
+				ohmr_shared_mem = std::stoll(string(output_sv.substr(space_pos, output_sv.find('\n', dmem_pos) - space_pos)));
 				if (bigmem) ohmr_shared_mem *= 1024;
 			}
 			catch (...) {
@@ -565,14 +568,14 @@ namespace Cpu {
 
 		//? Get Cpu TjMax temperature value
 		try {
-			auto lines = ssplit(output.substr(output.find("Parameters")), '\n');
+			auto lines = ssplit<string_view>(output_sv.substr(output_sv.find("Parameters")), '\n');
 			bool hit = false;
 			for (auto& instr : lines) {
 				if (instr.find("CPU Core") != string::npos or instr.find("CPU Package") != string::npos) {
 					hit = true;
 				}
 				else if (instr.find("TjMax") != string::npos and hit) {
-					current_cpu.temp_max = std::stoi(instr.substr(instr.find_last_of(':') + 1));
+					current_cpu.temp_max = std::stoi(string(instr.substr(instr.find_last_of(':') + 1)));
 					break;
 				}
 				else if (instr.find("+") == string::npos)
@@ -591,14 +594,14 @@ namespace Cpu {
 		std::unordered_map<int, int> core_map;
 		try {
 			int cpuid = 0, coreid = 0, n = 0;
-			auto lines = ssplit(output.substr(output.find("CPUID")), '\n');
+			auto lines = ssplit<string_view>(output_sv.substr(output_sv.find("CPUID")), '\n');
 
 			for (auto& instr : lines) {
 				if (instr.starts_with(" CPU Thread:")) {
-					cpuid = std::stoi(instr.substr(instr.find(':') + 1));
+					cpuid = std::stoi(string(instr.substr(instr.find(':') + 1)));
 				}
 				else if (instr.starts_with(" Core ID:")) {
-					coreid = std::stoi(instr.substr(instr.find(':') + 1));;
+					coreid = std::stoi(string(instr.substr(instr.find(':') + 1)));
 					if (coreid >= found_sensors) {
 						if (n >= found_sensors) n = 0;
 						core_map[cpuid] = n++;
@@ -1451,15 +1454,15 @@ namespace Mem {
 		if (show_disks) {
 			uint64_t systime = GetTickCount64();
 			const auto free_priv = Config::getB("disk_free_priv");
-			const auto disks_filter = Config::getS("disks_filter");
+			const auto& disks_filter = Config::getS("disks_filter");
 			bool filter_exclude = false;
 			const auto only_physical = Config::getB("only_physical");
 			auto& disks = mem.disks;
 			disk_ios = 0;
 
-			vector<string> filter;
+			vector<string_view> filter;
 			if (not disks_filter.empty()) {
-				filter = ssplit(disks_filter);
+				filter = ssplit<string_view>(disks_filter);
 				if (filter.at(0).starts_with("exclude=")) {
 					filter_exclude = true;
 					filter.at(0) = filter.at(0).substr(8);
@@ -1488,7 +1491,7 @@ namespace Mem {
 
 				//? Match filter if not empty
 				if (not filter.empty()) {
-					bool match = v_contains(filter, letter) or (not name.empty() and v_contains(filter, name));
+					bool match = v_contains(filter, string_view(letter)) or (not name.empty() and v_contains(filter, string_view(name)));
 					if ((filter_exclude and match) or (not filter_exclude and not match))
 						continue;
 				}

@@ -669,13 +669,13 @@ namespace Mem {
 		if (show_disks) {
 			std::unordered_map<string, string> mapping;  // keep mapping from device -> mountpoint, since IOKit doesn't give us the mountpoint
 			double uptime = system_uptime();
-			const auto disks_filter = Config::getS("disks_filter");
+			const auto& disks_filter = Config::getS("disks_filter");
 			bool filter_exclude = false;
 			// auto only_physical = Config::getB("only_physical");
 			auto &disks = mem.disks;
-			vector<string> filter;
+			vector<string_view> filter;
 			if (not disks_filter.empty()) {
-				filter = ssplit(disks_filter);
+				filter = ssplit<string_view>(disks_filter);
 				if (filter.at(0).starts_with("exclude=")) {
 					filter_exclude = true;
 					filter.at(0) = filter.at(0).substr(8);
@@ -701,7 +701,7 @@ namespace Mem {
 
 				//? Match filter if not empty
 				if (not filter.empty()) {
-					bool match = v_contains(filter, mountpoint);
+					bool match = v_contains(filter, string_view(mountpoint));
 					if ((filter_exclude and match) or (not filter_exclude and not match))
 						continue;
 				}
