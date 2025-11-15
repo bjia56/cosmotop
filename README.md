@@ -115,7 +115,7 @@ and protocol version `2024-11-05`. Normal graphical metrics reporting is disable
 | MacOS 10.4+ | powerpc |
 | FreeBSD 13+ | x86_64, aarch64 |
 | NetBSD 10.0+ | x86_64, aarch64 |
-| OpenBSD 7.6+ | x86_64, aarch64 |
+| OpenBSD 7.7+ | x86_64, aarch64 |
 | DragonFlyBSD 6.4+ | x86_64 |
 | MidnightBSD 3.2.3+ | x86_64 |
 | Solaris 11.4+ | x86_64 |
