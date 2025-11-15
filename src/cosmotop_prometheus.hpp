@@ -296,6 +296,8 @@ namespace Prometheus {
 				}
 				if (prometheus_gpu_metric_names.find(kv[0]) != prometheus_gpu_metric_names.end()) {
 					prometheus_gpu_metric_names[kv[0]] = kv[1];
+				} else if (prometheus_npu_metric_names.find(kv[0]) != prometheus_npu_metric_names.end()) {
+					prometheus_npu_metric_names[kv[0]] = kv[1];
 				} else {
 					Logger::error("Unknown metric name in prometheus_mapping: " + string(kv[0]));
 				}
@@ -312,6 +314,8 @@ namespace Prometheus {
 				}
 				if (prometheus_gpu_settings.find(kv[0]) != prometheus_gpu_settings.end()) {
 					prometheus_gpu_settings[kv[0]] = kv[1];
+				} else if (prometheus_npu_settings.find(kv[0]) != prometheus_npu_settings.end()) {
+					prometheus_npu_settings[kv[0]] = kv[1];
 				} else {
 					Logger::error("Unknown setting name in prometheus_settings: " + string(kv[0]));
 				}
