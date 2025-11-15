@@ -202,7 +202,13 @@ namespace Prometheus {
 				gpus_slice[0].gpu_percent.at("gpu-totals").push_back(
 					static_cast<long long>(*val)
 				);
+			} else {
+				// Fallback to 0 if metric not found
+				gpus_slice[0].gpu_percent.at("gpu-totals").push_back(0);
 			}
+		} else {
+			// Fallback to 0 if function not supported
+			gpus_slice[0].gpu_percent.at("gpu-totals").push_back(0);
 		}
 
 		if (gpus_slice[0].supported_functions.gpu_clock) {
@@ -219,6 +225,11 @@ namespace Prometheus {
 				gpus_slice[0].pwr_usage =
 					(unit == "W") ? static_cast<long long>(*val * 1000) : static_cast<long long>(*val);
 			}
+		}
+		if (gpus_slice[0].pwr_usage > 0) {
+			gpus_slice[0].gpu_percent.at("gpu-pwr-totals").push_back(100);
+		} else {
+			gpus_slice[0].gpu_percent.at("gpu-pwr-totals").push_back(0);
 		}
 
 		if (gpus_slice[0].supported_functions.temp_info) {
