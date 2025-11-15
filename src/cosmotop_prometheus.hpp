@@ -280,7 +280,13 @@ namespace Prometheus {
 				npus_slice[0].npu_percent.at("npu-totals").push_back(
 					static_cast<long long>(*val)
 				);
+			} else {
+				// Fallback to 0 if metric not found
+				npus_slice[0].npu_percent.at("npu-totals").push_back(0);
 			}
+		} else {
+			// Fallback to 0 if function not supported
+			npus_slice[0].npu_percent.at("npu-totals").push_back(0);
 		}
 
 		return true;
