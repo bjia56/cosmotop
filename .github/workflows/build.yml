@@ -806,6 +806,13 @@ jobs:
           name: cosmotop
           path: .
 
+      - name: Download artifact
+        if: ${{ matrix.platform.os == 'Windows' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: cosmotop.exe
+          path: .
+
       - name: Mark executable
         if: ${{ matrix.platform.os != 'Windows' }}
         shell: bash
@@ -830,8 +837,10 @@ jobs:
         shell: cmd
         run: |
           copy cosmotop.cmd C:
+          copy cosmotop.exe C:
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.cmd
+          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.exe
 
       - name: Check cosmotop
         if: ${{ matrix.platform.os != 'Windows' }}
