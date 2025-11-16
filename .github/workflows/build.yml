@@ -666,7 +666,7 @@ jobs:
           cd ${{ github.workspace }}
           mkdir LHM
           cd LHM
-          wget https://github.com/bjia56/LHM-CppExport/releases/download/v0.1.0/LHM-CppExport.zip
+          wget https://github.com/bjia56/LHM-CppExport/releases/download/v0.2.0/LHM-CppExport.zip
           unzip LHM-CppExport.zip
           sudo mkdir -p /zip/windows/
           sudo cp *.dll /zip/windows/
@@ -676,8 +676,8 @@ jobs:
           mkdir licenses
           cd licenses
           cp ${{ github.workspace }}/LICENSE cosmotop
-          curl -L -o LibreHardwareMonitor https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE-LibreHardwareMonitor.txt
-          curl -L -o LHM-CppExport https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE.txt
+          curl -L -o LibreHardwareMonitor https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.2.0/LICENSE-LibreHardwareMonitor.txt
+          curl -L -o LHM-CppExport https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.2.0/LICENSE.txt
           curl -L -o HIDSharp https://raw.githubusercontent.com/IntergatedCircuits/HidSharp/refs/tags/2.1.0/License.txt
           cp ${{ github.workspace }}//third_party/catppuccin/LICENSE "Catppuccin themes"
           cp ${{ github.workspace }}/third_party/range-v3/LICENSE.txt range-v3
