@@ -593,7 +593,8 @@ choose_extension:
 	}
 
 	auto launchMethod = IsWindows() ? PluginHost::DLOPEN : PluginHost::FORK;
-	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
+	auto encoding = IsWindows() ? PluginHost::JSON : PluginHost::MSGPACK;
+	pluginHost = new PluginHost(pluginPath.string(), launchMethod, encoding);
 
 	pluginHost->registerHandler<std::unordered_map<string, int>>("Config::get_ints", std::function([]() {
 		std::unordered_map<string, int> result;
