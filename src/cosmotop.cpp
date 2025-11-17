@@ -75,7 +75,7 @@ namespace Global {
 		{"#062c43", "██████╗ ██████║ ██████║ ██║     ██║ ██████║ ", "#666666", "  ██║   ██████║ ██║"},
 		{"#000000", "╚═════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ", "#000000", "  ╚═╝   ╚═════╝ ╚═╝"},
 	};
-	const string Version = "0.13.0";
+	const string Version = "0.14.0b2";
 
 	int coreCount;
 	string overlay;
@@ -127,7 +127,7 @@ static void print_version_with_build_info() {
 
 	struct utsname un;
 	if (uname(&un) == 0) {
-		auto tokens = ssplit(un.version, ';');
+		auto tokens = ssplit<string>(string(un.version), ';');
 		if (tokens.size() >= 1) {
 			fmt::println("{}", trim(tokens[0]));
 		}
@@ -244,7 +244,7 @@ static void print_with_pager(const std::string& text) {
 static void print_licenses() {
 	auto trimBlankLines = [](const std::string& input) {
 		std::ostringstream result;
-		std::vector<std::string> lines = ssplit(input, '\n', false);
+		std::vector<std::string_view> lines = ssplit<string_view>(input, '\n', false);
 
 		// Remove blank lines from the front
 		size_t start = 0;

@@ -248,6 +248,20 @@ namespace Config {
 		{"custom_npu_name1",	"#* Custom npu1 model name, empty string to disable."},
 		{"custom_npu_name2",	"#* Custom npu2 model name, empty string to disable."},
 
+		{"prometheus_endpoint",	"#* Prometheus endpoint URL for fetching GPU/NPU metrics.\n"
+								"#* Format: \"scheme://host:port/path\" or \"scheme://host/path\"\n"
+								"#* Example: \"http://localhost:9090/metrics\""},
+
+		{"prometheus_mapping",	"#* Custom metric name mappings for Prometheus metrics.\n"
+								"#* Format: \"metric_key:prometheus_metric_name\" separated by commas\n"
+								"#* Available keys: gpu_utilization_percent, gpu_frequency, gpu_power_usage, gpu_temperature, npu_utilization_percent\n"
+								"#* Example: \"gpu_utilization_percent:custom_gpu_util,gpu_temperature:custom_gpu_temp\""},
+
+		{"prometheus_settings",	"#* Settings for interpreting Prometheus metric units.\n"
+								"#* Format: \"setting_key:value\" separated by commas\n"
+								"#* Available settings: gpu_frequency_unit (MHz/GHz), gpu_power_unit (mW/W), gpu_temperature_unit (C/F/K)\n"
+								"#* Example: \"gpu_frequency_unit:GHz,gpu_power_unit:W,gpu_temperature_unit:C\""},
+
 	};
 
 	std::unordered_map<std::string_view, string> strings = {
@@ -294,7 +308,10 @@ namespace Config {
 		{"custom_npu_name0", ""},
 		{"custom_npu_name1", ""},
 		{"custom_npu_name2", ""},
-		{"intel_gpu_exporter", ""}
+		{"intel_gpu_exporter", ""},
+		{"prometheus_endpoint", ""},
+		{"prometheus_mapping", ""},
+		{"prometheus_settings", ""}
 	};
 	std::unordered_map<std::string_view, string> stringsTmp;
 	std::unordered_map<std::string_view, string> stringsOverrides;
@@ -467,17 +484,17 @@ namespace Config {
 	bool presetsValid(const string& presets) {
 		vector<string> new_presets = {preset_list.at(0)};
 
-		for (int x = 0; const auto& preset : ssplit(presets)) {
+		for (int x = 0; const auto& preset : ssplit<string>(presets)) {
 			if (++x > 9) {
 				validError = "Too many presets entered!";
 				return false;
 			}
-			for (int y = 0; const auto& box : ssplit(preset, ',')) {
+			for (int y = 0; const auto& box : ssplit<string_view>(preset, ',')) {
 				if (++y > 4) {
 					validError = "Too many boxes entered for preset!";
 					return false;
 				}
-				const auto& vals = ssplit(box, ':');
+				const auto& vals = ssplit<string_view>(box, ':');
 				if (vals.size() != 3) {
 					validError = "Malformatted preset in config value presets!";
 					return false;
@@ -506,9 +523,10 @@ namespace Config {
 	bool apply_preset(const string& preset) {
 		string boxes;
 
-		for (const auto& box : ssplit(preset, ',')) {
-			const auto& vals = ssplit(box, ':');
-			boxes += vals.at(0) + ' ';
+		for (const auto& box : ssplit<string_view>(preset, ',')) {
+			const auto& vals = ssplit<string_view>(box, ':');
+			boxes.append(vals.at(0));
+			boxes.append(" ");
 		}
 		if (not boxes.empty()) boxes.pop_back();
 
@@ -517,12 +535,12 @@ namespace Config {
 			return false;
 		}
 
-		for (const auto& box : ssplit(preset, ',')) {
-			const auto& vals = ssplit(box, ':');
+		for (const auto& box : ssplit<string_view>(preset, ',')) {
+			const auto& vals = ssplit<string_view>(box, ':');
 			if (vals.at(0) == "cpu") set("cpu_bottom", (vals.at(1) == "0" ? false : true));
 			else if (vals.at(0) == "mem") set("mem_below_net", (vals.at(1) == "0" ? false : true));
 			else if (vals.at(0) == "proc" or vals.at(0) == "cont") set("proc_left", (vals.at(1) == "0" ? false : true));
-			set("graph_symbol_" + vals.at(0), vals.at(2));
+			set("graph_symbol_" + string(vals.at(0)), string(vals.at(2)));
 		}
 
 		if (set_boxes(boxes)) {
@@ -605,10 +623,10 @@ namespace Config {
 			return false;
 
 		else if (name == "cpu_core_map") {
-			const auto maps = ssplit(value);
+			const auto maps = ssplit<string_view>(value);
 			bool all_good = true;
 			for (const auto& map : maps) {
-				const auto map_split = ssplit(map, ':');
+				const auto map_split = ssplit<string_view>(map, ':');
 				if (map_split.size() != 2)
 					all_good = false;
 				else if (not isint(map_split.at(0)) or not isint(map_split.at(1)))
@@ -622,10 +640,10 @@ namespace Config {
 			return true;
 		}
 		else if (name == "io_graph_speeds") {
-			const auto maps = ssplit(value);
+			const auto maps = ssplit<string_view>(value);
 			bool all_good = true;
 			for (const auto& map : maps) {
-				const auto map_split = ssplit(map, ':');
+				const auto map_split = ssplit<string_view>(map, ':');
 				if (map_split.size() != 2)
 					all_good = false;
 				else if (map_split.at(0).empty() or not isint(map_split.at(1)))
@@ -712,7 +730,7 @@ namespace Config {
 	}
 
 	bool set_boxes(const string& boxes) {
-		auto new_boxes = ssplit(boxes);
+		auto new_boxes = ssplit<string>(boxes);
 		for (auto& box : new_boxes) {
 			if (not v_contains(valid_boxes, box)) return false;
 			if (box.starts_with("gpu")) {

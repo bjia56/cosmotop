@@ -28,24 +28,24 @@ using namespace Tools;
 
 namespace Cpu {
 	string simplify_cpu_name(string name) {
-		auto name_vec = ssplit(name, ' ');
+		auto name_vec = ssplit<string>(name, ' ');
 
 		if ((s_contains(name, "Xeon"s) or v_contains(name_vec, "Duo"s)) and v_contains(name_vec, "CPU"s)) {
 			auto cpu_pos = v_index(name_vec, "CPU"s);
 			if (cpu_pos < name_vec.size() - 1 and not name_vec.at(cpu_pos + 1).ends_with(')'))
-				name = name_vec.at(cpu_pos + 1);
+				name = string(name_vec.at(cpu_pos + 1));
 			else
 				name.clear();
 		}
 		else if (v_contains(name_vec, "Ryzen"s)) {
 			auto ryz_pos = v_index(name_vec, "Ryzen"s);
-			name = "Ryzen"	+ (ryz_pos < name_vec.size() - 1 ? ' ' + name_vec.at(ryz_pos + 1) : "")
-							+ (ryz_pos < name_vec.size() - 2 ? ' ' + name_vec.at(ryz_pos + 2) : "");
+			name = "Ryzen"	+ (ryz_pos < name_vec.size() - 1 ? ' ' + string(name_vec.at(ryz_pos + 1)) : "")
+							+ (ryz_pos < name_vec.size() - 2 ? ' ' + string(name_vec.at(ryz_pos + 2)) : "");
 		}
 		else if (s_contains(name, "Intel"s) and v_contains(name_vec, "CPU"s)) {
 			auto cpu_pos = v_index(name_vec, "CPU"s);
 			if (cpu_pos < name_vec.size() - 1 and not name_vec.at(cpu_pos + 1).ends_with(')') and name_vec.at(cpu_pos + 1).size() != 1)
-				name = name_vec.at(cpu_pos + 1);
+				name = string(name_vec.at(cpu_pos + 1));
 			else
 				name.clear();
 		}
@@ -55,7 +55,7 @@ namespace Cpu {
 		if (name.empty() and not name_vec.empty()) {
 			for (const auto& n : name_vec) {
 				if (n == "@") break;
-				name += n + ' ';
+				name += n + " ";
 			}
 			name.pop_back();
 			for (const auto& replace : {"Processor", "CPU", "(R)", "(TM)", "Intel", "AMD", "Core"}) {

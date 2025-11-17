@@ -106,35 +106,35 @@ void plugin_initializer(Plugin* plugin) {
 	}));
 
 	plugin->registerHandler<vector<Gpu::gpu_info>, bool>("Gpu::collect", std::function([](bool no_update) {
-#if defined(__linux__) || defined(_WIN32)
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
 		return Gpu::collect(no_update);
 #else
 		return vector<Gpu::gpu_info>();
 #endif
 	}));
 	plugin->registerHandler<int>("Gpu::get_count", std::function([]() {
-#if defined(__linux__) || defined(_WIN32)
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
 		return Gpu::count;
 #else
 		return 0;
 #endif
 	}));
 	plugin->registerHandler<vector<string>>("Gpu::get_gpu_names", std::function([]() {
-#if defined(__linux__) || defined(_WIN32)
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
 		return Gpu::gpu_names;
 #else
 		return vector<string>();
 #endif
 	}));
 	plugin->registerHandler<vector<int>>("Gpu::get_gpu_b_height_offsets", std::function([]() {
-#if defined(__linux__) || defined(_WIN32)
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
 		return Gpu::gpu_b_height_offsets;
 #else
 		return vector<int>();
 #endif
 	}));
 	plugin->registerHandler<unordered_map<string, deque<long long>>>("Gpu::get_shared_gpu_percent", std::function([]() {
-#if defined(__linux__) || defined(_WIN32)
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
 		return Gpu::shared_gpu_percent;
 #else
 		return unordered_map<string, deque<long long>>();
@@ -593,7 +593,8 @@ choose_extension:
 	}
 
 	auto launchMethod = IsWindows() ? PluginHost::DLOPEN : PluginHost::FORK;
-	pluginHost = new PluginHost(pluginPath.string(), launchMethod);
+	auto encoding = IsWindows() ? PluginHost::JSON : PluginHost::MSGPACK;
+	pluginHost = new PluginHost(pluginPath.string(), launchMethod, encoding);
 
 	pluginHost->registerHandler<std::unordered_map<string, int>>("Config::get_ints", std::function([]() {
 		std::unordered_map<string, int> result;

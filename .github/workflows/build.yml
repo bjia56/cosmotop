@@ -143,7 +143,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x86_64
           - runner: macos-14
             arch: aarch64
@@ -366,7 +366,7 @@ jobs:
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
-          release: "7.6"
+          release: "7.7"
           prepare: |
             pkg_add cmake
 
@@ -666,7 +666,7 @@ jobs:
           cd ${{ github.workspace }}
           mkdir LHM
           cd LHM
-          wget https://github.com/bjia56/LHM-CppExport/releases/download/v0.1.0/LHM-CppExport.zip
+          wget https://github.com/bjia56/LHM-CppExport/releases/download/v0.2.2/LHM-CppExport.zip
           unzip LHM-CppExport.zip
           sudo mkdir -p /zip/windows/
           sudo cp *.dll /zip/windows/
@@ -676,8 +676,8 @@ jobs:
           mkdir licenses
           cd licenses
           cp ${{ github.workspace }}/LICENSE cosmotop
-          curl -L -o LibreHardwareMonitor https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE-LibreHardwareMonitor.txt
-          curl -L -o LHM-CppExport https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.1.0/LICENSE.txt
+          curl -L -o LibreHardwareMonitor https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.2.0/LICENSE-LibreHardwareMonitor.txt
+          curl -L -o LHM-CppExport https://raw.githubusercontent.com/bjia56/LHM-CppExport/refs/tags/v0.2.0/LICENSE.txt
           curl -L -o HIDSharp https://raw.githubusercontent.com/IntergatedCircuits/HidSharp/refs/tags/2.1.0/License.txt
           cp ${{ github.workspace }}//third_party/catppuccin/LICENSE "Catppuccin themes"
           cp ${{ github.workspace }}/third_party/range-v3/LICENSE.txt range-v3
@@ -776,7 +776,7 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x86_64
             os: MacOS
           - runner: macos-14
@@ -806,6 +806,13 @@ jobs:
           name: cosmotop
           path: .
 
+      - name: Download artifact
+        if: ${{ matrix.platform.os == 'Windows' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: cosmotop.exe
+          path: .
+
       - name: Mark executable
         if: ${{ matrix.platform.os != 'Windows' }}
         shell: bash
@@ -830,8 +837,10 @@ jobs:
         shell: cmd
         run: |
           copy cosmotop.cmd C:
+          copy cosmotop.exe C:
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
           "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.cmd
+          "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File C:\cosmotop.exe
 
       - name: Check cosmotop
         if: ${{ matrix.platform.os != 'Windows' }}

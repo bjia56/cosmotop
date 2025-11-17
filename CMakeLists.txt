@@ -112,18 +112,21 @@ if(${TARGET} STREQUAL "host")
 elseif(${TARGET} STREQUAL "plugin")
 
   set(BUILD_EXE ON)
+  set(COMMON_SOURCES
+    src/cosmotop_plugin.cpp
+    src/cosmotop_shared.cpp
+    src/cosmotop_tools_shared.cpp
+    ${LIBCOSMO_PLUGIN_SOURCES}
+  )
 
   if(CMAKE_SYSTEM MATCHES "Linux")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/linux/cosmotop_collect.cpp
       src/linux/intel_gpu_top/intel_gpu_top.c
       src/linux/intel_gpu_top/igt_perf.c
       src/linux/intel_gpu_top/intel_device_info.c
       src/linux/intel_gpu_top/intel_name_lookup_shim.c
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
@@ -157,24 +160,22 @@ elseif(${TARGET} STREQUAL "plugin")
     )
   elseif(CMAKE_SYSTEM MATCHES "Darwin")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/osx/cosmotop_collect.cpp
       src/osx/sensors.cpp
       src/osx/smc.cpp
       src/osx/ioreport.cpp
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+      set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum OS X deployment version")
+    else()
+      set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
+    endif()
   elseif(CMAKE_SYSTEM MATCHES "Windows")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/windows/cosmotop_collect.cpp
       src/windows/docker_http_client.cpp
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
 
     # Windows doesn't exit properly
@@ -187,61 +188,43 @@ elseif(${TARGET} STREQUAL "plugin")
     endif()
   elseif(CMAKE_SYSTEM MATCHES "FreeBSD" OR CMAKE_SYSTEM MATCHES "MidnightBSD")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/freebsd/cosmotop_collect.cpp
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(devstat REQUIRED)
     find_package(kvm REQUIRED)
     find_package(elf REQUIRED)
   elseif(CMAKE_SYSTEM MATCHES "DragonFly")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/dragonfly/cosmotop_collect.cpp
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(devstat REQUIRED)
     find_package(kvm REQUIRED)
   elseif(CMAKE_SYSTEM MATCHES "NetBSD")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/netbsd/cosmotop_collect.cpp
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(kvm REQUIRED)
     find_package(proplib REQUIRED)
   elseif(CMAKE_SYSTEM MATCHES "OpenBSD")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/openbsd/cosmotop_collect.cpp
       src/openbsd/sysctlbyname.cpp
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(kvm REQUIRED)
   elseif(CMAKE_SYSTEM MATCHES "SunOS")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/solaris/cosmotop_collect.cpp
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
     find_package(kstat REQUIRED)
   elseif(CMAKE_SYSTEM MATCHES "Haiku")
     set(PLUGIN_SOURCES
-      src/cosmotop_plugin.cpp
-      src/cosmotop_shared.cpp
-      src/cosmotop_tools_shared.cpp
+      ${COMMON_SOURCES}
       src/haiku/cosmotop_collect.cpp
-      ${LIBCOSMO_PLUGIN_SOURCES}
     )
   else()
     message(FATAL_ERROR "Unsupported platform")

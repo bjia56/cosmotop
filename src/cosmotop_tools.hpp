@@ -28,9 +28,11 @@ tab-size = 4
 #include <atomic>
 #include <chrono>
 #include <cctype>
+#include <concepts>
 #include <filesystem>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -81,6 +83,7 @@ namespace rng = ranges;
 using std::array;
 using std::atomic;
 using std::string;
+using std::string_view;
 using std::to_string;
 using std::tuple;
 using std::vector;
@@ -237,7 +240,7 @@ namespace Tools {
 	//* Replace <from> in <str> with <to> and return new string
 	string s_replace(const string& str, const string& from, const string& to);
 
-	//* Capatilize <str>
+	//* Capitalize <str>
 	inline string capitalize(string str) {
 		str.at(0) = toupper(str.at(0));
 		return str;
@@ -314,9 +317,9 @@ namespace Tools {
 		return is_in(str, "true", "True");
 	}
 
-	//* Check if a string is a valid integer value (only positive)
-	inline bool isint(const string& str) {
-		return all_of(str.begin(), str.end(), ::isdigit);
+	//* Check if a string_view is a valid integer value (only positive)
+	inline bool isint(const string_view& str) {
+		return std::all_of(str.begin(), str.end(), ::isdigit);
 	}
 
 	//* Left-trim <t_str> from <str> and return new string
@@ -350,8 +353,29 @@ namespace Tools {
 		w_rtrim(s);
 	}
 
+	template<typename T>
+	concept StringOrView =	std::same_as<std::remove_cvref_t<T>, std::string> ||
+							std::same_as<std::remove_cvref_t<T>, std::string_view>;
+
+	//* Split <string_view> at all occurrences of <delim> and return as vector of strings
+	template<StringOrView T>
+	auto ssplit(std::string_view str, const char& delim = ' ', bool discard_empty = true) -> vector<T> {
+		vector<T> out;
+		for (const auto& s : str 	| rng::views::split(delim)
+									| rng::views::transform([](auto &&rng) {
+										if (rng.begin() == rng.end()) return std::string_view();
+										return std::string_view(&*rng.begin(), rng::distance(rng));
+		})) {
+			if (not s.empty() or not discard_empty) out.emplace_back(s);
+		}
+		return out;
+	}
+
 	//* Split <string> at all occurrences of <delim> and return as vector of strings
-	auto ssplit(const string& str, const char& delim = ' ', bool discard_empty = true) -> vector<string>;
+	template<StringOrView T>
+	auto ssplit(const string& str, const char& delim = ' ', bool discard_empty = true) -> vector<T> {
+		return ssplit<T>(std::string_view(str), delim, discard_empty);
+	}
 
 	//* Put current thread to sleep for <ms> milliseconds
 	inline void sleep_ms(const size_t& ms) {
@@ -388,6 +412,15 @@ namespace Tools {
 	std::string operator*(const string& str, int64_t n);
 
 	inline bool is_blank(const string &s) {
+		for (const auto &c : s) {
+			if (!std::isspace(c)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	inline bool is_blank(const string_view &s) {
 		for (const auto &c : s) {
 			if (!std::isspace(c)) {
 				return false;
