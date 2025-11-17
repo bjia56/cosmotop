@@ -66,34 +66,36 @@ extern "C" {
 }
 #endif // __POWERPC__
 
-namespace Npu {
-	// todo: neoasitop appears to use different max wattages
-	// based on the cpu generation/model
-	class PowerEstimate {
-	public:
-		PowerEstimate(std::string cpuModel);
-		~PowerEstimate();
+class IOReportSubscription {
+public:
+	IOReportSubscription(const std::vector<uint32_t>& gpu_freqs_init);
+	~IOReportSubscription();
 
-		double getANEMaxPower();
+	bool hasANE();
+	double getANEPower();
 
-	private:
-		std::string cpuModel;
-	};
+	bool hasGPU();
+	double getGPUPower();           // GPU compute power in watts
+	double getGPURAMPower();        // GPU SRAM power in watts
+	uint32_t getGPUFrequency();     // Average GPU frequency in MHz
+	float getGPUUtilization();      // GPU utilization 0.0-1.0
 
-	class IOReportSubscription {
-	public:
-		IOReportSubscription();
-		~IOReportSubscription();
+private:
+	// metrics gathering thread
+	std::atomic<bool> thread_stop;
+	std::thread *thread;
 
-		bool hasANE();
-		double getANEPower();
+	// ANE metrics
+	std::optional<bool> has_ane;
+	std::atomic<double> ane_power; // watts
 
-	private:
-		// metrics gathering thread
-		std::atomic<bool> thread_stop;
-		std::thread *thread;
+	// GPU metrics
+	std::optional<bool> has_gpu;
+	std::atomic<double> gpu_power;        // watts (GPU compute)
+	std::atomic<double> gpu_ram_power;    // watts (GPU SRAM)
+	std::atomic<uint32_t> gpu_freq_mhz;   // average frequency in MHz
+	std::atomic<float> gpu_utilization;   // 0.0 to 1.0
 
-		std::optional<bool> has_ane;
-		std::atomic<double> ane_power; // watts
-	};
-}
+	// GPU configuration (set externally after IOKit discovery)
+	std::vector<uint32_t> gpu_freqs;      // available frequency states in MHz
+};

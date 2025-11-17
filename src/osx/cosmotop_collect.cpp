@@ -87,6 +87,68 @@ using namespace Tools;
 
 //? --------------------------------------------------- FUNCTIONS -----------------------------------------------------
 
+#ifdef __aarch64__
+//* Discover GPU frequency states from IOKit power manager
+static std::vector<uint32_t> discoverGPUFrequencies() {
+	std::vector<uint32_t> frequencies;
+
+	// Search for AppleARMIODevice service named "pmgr"
+	CFMutableDictionaryRef matching = IOServiceMatching("AppleARMIODevice");
+	io_iterator_t iterator = 0;
+
+	if (IOServiceGetMatchingServices(kIOMasterPortDefault, matching, &iterator) != KERN_SUCCESS) {
+		Logger::debug("Failed to get IOService iterator for AppleARMIODevice");
+		return frequencies;
+	}
+
+	io_service_t device;
+	while ((device = IOIteratorNext(iterator)) != 0) {
+		char name[128];
+		if (IORegistryEntryGetName(device, name) == KERN_SUCCESS) {
+			if (strcmp(name, "pmgr") == 0) {
+				// Found the power manager device
+				CFMutableDictionaryRef properties = nullptr;
+				if (IORegistryEntryCreateCFProperties(device, &properties,
+													 kCFAllocatorDefault, 0) == KERN_SUCCESS) {
+					// Get voltage-states9 property (DVFS table)
+					CFDataRef voltageStates = (CFDataRef)CFDictionaryGetValue(properties,
+																			  CFSTR("voltage-states9"));
+					if (voltageStates) {
+						CFIndex length = CFDataGetLength(voltageStates);
+						const uint8_t* bytes = CFDataGetBytePtr(voltageStates);
+
+						// Parse frequency/voltage pairs (8 bytes each: 4 freq + 4 voltage)
+						for (CFIndex i = 0; i < length; i += 8) {
+							if (i + 7 < length) {
+								// Extract frequency as little-endian uint32
+								uint32_t freq = bytes[i] | (bytes[i+1] << 8) |
+											   (bytes[i+2] << 16) | (bytes[i+3] << 24);
+								// Convert Hz to MHz
+								frequencies.push_back(freq / 1000000);
+							}
+						}
+					}
+					CFRelease(properties);
+				}
+				IOObjectRelease(device);
+				break;
+			}
+		}
+		IOObjectRelease(device);
+	}
+
+	IOObjectRelease(iterator);
+
+	if (!frequencies.empty()) {
+		Logger::debug("Discovered " + std::to_string(frequencies.size()) + " GPU frequency states");
+	} else {
+		Logger::debug("No GPU frequency states found");
+	}
+
+	return frequencies;
+}
+#endif // __aarch64__
+
 namespace Cpu {
 	vector<long long> core_old_totals;
 	vector<long long> core_old_idles;
@@ -166,6 +228,8 @@ namespace Shared {
 	double machTck;
 	int totalMem_len;
 
+	IOReportSubscription *subscription;
+
 	void init() {
 		//? Shared global variables init
 
@@ -224,7 +288,14 @@ namespace Shared {
 		Cpu::core_mapping = Cpu::get_core_mapping();
 		Cpu::current_bat = Cpu::get_battery();
 
-		//? Init for namespace Gpu (Prometheus only on macOS)
+#ifdef __aarch64__
+		//? Discover GPU frequency states and configure subscription
+		auto gpu_freqs = discoverGPUFrequencies();
+		//? Initialize IOReport subscription for GPU and NPU monitoring
+		Shared::subscription = new IOReportSubscription(gpu_freqs);
+#endif
+
+		//? Init for namespace Gpu
 		Gpu::init();
 
 		//? Init for namespace Npu
@@ -619,16 +690,67 @@ namespace Cpu {
 }  // namespace Cpu
 
 namespace Gpu {
+	int device_count = 0;
+
 	void init() {
-		// macOS only supports Prometheus GPU collection
-		// No native GPU APIs are initialized here
+#ifdef __aarch64__
+		if (Shared::subscription->hasGPU()) {
+			device_count = 1;
+
+			gpus.push_back(gpu_info());
+			gpus[0].supported_functions.gpu_utilization = true;
+			gpus[0].supported_functions.gpu_clock = true;
+			gpus[0].supported_functions.pwr_usage = true;
+
+			// Get GPU name from CPU brand string
+			char buffer[256];
+			size_t size = sizeof(buffer);
+			if (sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nullptr, 0) == 0) {
+				string chip_name(buffer);
+				if (chip_name.find("M1") != string::npos) {
+					gpu_names.push_back("Apple M1 GPU");
+				} else if (chip_name.find("M2") != string::npos) {
+					gpu_names.push_back("Apple M2 GPU");
+				} else if (chip_name.find("M3") != string::npos) {
+					gpu_names.push_back("Apple M3 GPU");
+				} else if (chip_name.find("M4") != string::npos) {
+					gpu_names.push_back("Apple M4 GPU");
+				} else {
+					gpu_names.push_back("Apple Silicon GPU");
+				}
+			} else {
+				gpu_names.push_back("Apple Silicon GPU");
+			}
+		} else {
+			Logger::info("Apple Silicon GPU not detected");
+		}
+#endif
+		// macOS also supports Prometheus GPU collection
 	}
 
 	auto collect(bool no_update) -> vector<gpu_info>& {
 		if (no_update and not gpus.empty()) return gpus;
 
+#ifdef __aarch64__
+		//? Collect native GPU stats if available
+		if (device_count) {
+			auto& gpu = gpus[0];
+
+			// Get GPU metrics from IOReport
+			auto freq = Shared::subscription->getGPUFrequency();
+			auto util = Shared::subscription->getGPUUtilization();
+			auto power = Shared::subscription->getGPUPower();
+			auto ram_power = Shared::subscription->getGPURAMPower();
+
+			gpu.gpu_clock_speed = freq;
+			gpu.gpu_percent["gpu-totals"].push_back(util);
+			gpu.pwr_usage = power + ram_power;
+			gpu.gpu_percent["gpu-pwr-totals"].push_back(100);
+		}
+#endif
+
 		//* Collect data from Prometheus (if configured)
-		Prometheus::collect_gpu<0>(gpus.data());
+		Prometheus::collect_gpu<0>(gpus.data() + device_count);
 
 		//* Process GPU data: calculate averages, trim vectors, and update shared percentages
 		const auto width = get_width();
@@ -639,14 +761,11 @@ namespace Gpu {
 }  // namespace Gpu
 
 namespace Npu {
-	IOReportSubscription *subscription;
-
 	int device_count = 0;
 
 	void init() {
 #ifdef __aarch64__
-		subscription = new IOReportSubscription();
-		if (subscription->hasANE()) {
+		if (Shared::subscription->hasANE()) {
 			device_count = 1;
 
 			npus.push_back(npu_info());
@@ -666,7 +785,7 @@ namespace Npu {
 
 		//? Collect NPU stats natively
 		if (device_count) {
-			auto power = subscription->getANEPower();
+			auto power = Shared::subscription->getANEPower();
 			auto powerPercent = clamp((long long)round((double)power * 100 / 8.0), 0ll, 100ll); // asitop defaults to max 8W
 			npus[0].npu_percent["npu-totals"].push_back(powerPercent);
 		}
