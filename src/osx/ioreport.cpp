@@ -73,6 +73,13 @@ IOReportSubscription::IOReportSubscription(const std::vector<uint32_t>& gpu_freq
 				if (!has_ane.has_value()) {
 					has_ane = false;
 				}
+				gpu_power = 0;
+				gpu_ram_power = 0;
+				gpu_freq_mhz = 0;
+				gpu_utilization = 0.0f;
+				if (!has_gpu.has_value()) {
+					has_gpu = false;
+				}
 				if (sample_a) CFRelease(sample_a);
 				if (sample_b) CFRelease(sample_b);
 				break;
