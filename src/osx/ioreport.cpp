@@ -20,6 +20,8 @@ tab-size = 4
 
 #include <vector>
 
+#include "../cosmotop_tools.hpp"
+
 /* Only available on M series Macs */
 #ifdef __aarch64__
 
@@ -60,6 +62,16 @@ namespace Npu {
 				CFDictionaryRef sample_a = IOReportCreateSamples(power_subscription, power_subchannel, nullptr);
 				std::this_thread::sleep_for(std::chrono::milliseconds(sampling_interval));
 				CFDictionaryRef sample_b = IOReportCreateSamples(power_subscription, power_subchannel, nullptr);
+				if (!sample_a or !sample_b) {
+					Logger::error("Failed to create IOReport samples");
+					ane_power = 0;
+					if (!has_ane.has_value()) {
+						has_ane = false;
+					}
+					if (sample_a) CFRelease(sample_a);
+					if (sample_b) CFRelease(sample_b);
+					break;
+				}
 
 				CFDictionaryRef delta = IOReportCreateSamplesDelta(sample_a, sample_b, nullptr);
 				CFRelease(sample_a);
