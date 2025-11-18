@@ -742,8 +742,8 @@ namespace Gpu {
 			auto ram_power = Shared::subscription->getGPURAMPower();
 
 			gpus[0].gpu_clock_speed = freq;
-			gpus[0].gpu_percent["gpu-totals"].push_back(util);
-			gpus[0].pwr_usage = power + ram_power;
+			gpus[0].gpu_percent["gpu-totals"].push_back(util * 100);
+			gpus[0].pwr_usage = (power + ram_power) * 1000; // convert to mW
 			gpus[0].gpu_percent["gpu-pwr-totals"].push_back(100);
 		} else {
 			Logger::info("Apple Silicon GPU not detected");
