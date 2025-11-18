@@ -320,8 +320,6 @@ namespace Shared {
 					   + (gpus[i].supported_functions.mem_total or gpus[i].supported_functions.mem_used)
 						* (1 + 2*(gpus[i].supported_functions.mem_total and gpus[i].supported_functions.mem_used) + 2*gpus[i].supported_functions.mem_utilization);
 		}
-
-		Npu::collect();
 		if (not Npu::npu_names.empty()) {
 			for (auto const& [key, _] : Npu::npus[0].npu_percent)
 				Cpu::available_fields.push_back(key);
@@ -721,6 +719,17 @@ namespace Gpu {
 			} else {
 				gpu_names.push_back("Apple Silicon GPU");
 			}
+
+			// Get GPU metrics from IOReport
+			auto freq = Shared::subscription->getGPUFrequency();
+			auto util = Shared::subscription->getGPUUtilization();
+			auto power = Shared::subscription->getGPUPower();
+			auto ram_power = Shared::subscription->getGPURAMPower();
+
+			gpus[0].gpu_clock_speed = freq;
+			gpus[0].gpu_percent["gpu-totals"].push_back(util);
+			gpus[0].pwr_usage = power + ram_power;
+			gpus[0].gpu_percent["gpu-pwr-totals"].push_back(100);
 		} else {
 			Logger::info("Apple Silicon GPU not detected");
 		}
@@ -773,6 +782,10 @@ namespace Npu {
 
 			npu_names.push_back("Apple Neural Engine");
 			npu_b_height_offsets.push_back(npus[0].supported_functions.npu_utilization);
+
+			auto power = Shared::subscription->getANEPower();
+			auto powerPercent = clamp((long long)round((double)power * 100 / 8.0), 0ll, 100ll); // asitop defaults to max 8W
+			npus[0].npu_percent["npu-totals"].push_back(powerPercent);
 		} else {
 			Logger::info("Apple Neural Engine not detected");
 		}
