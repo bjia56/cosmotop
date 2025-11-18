@@ -325,6 +325,12 @@ namespace Shared {
 				Cpu::available_fields.push_back(key);
 			for (auto const& [key, _] : Npu::shared_npu_percent)
 				Cpu::available_fields.push_back(key);
+
+			using namespace Npu;
+			count = npus.size();
+			npu_b_height_offsets.resize(npus.size());
+			for (size_t i = 0; i < npu_b_height_offsets.size(); ++i)
+				npu_b_height_offsets[i] = npus[i].supported_functions.npu_utilization;
 		}
 
 		//? Init for namespace Mem
@@ -696,9 +702,18 @@ namespace Gpu {
 			device_count = 1;
 
 			gpus.push_back(gpu_info());
-			gpus[0].supported_functions.gpu_utilization = true;
-			gpus[0].supported_functions.gpu_clock = true;
-			gpus[0].supported_functions.pwr_usage = true;
+			gpus[0].supported_functions = {
+				true,	// gpu_utilization
+				false,	// mem_utilization
+				true,	// gpu_clock
+				false,	// mem_clock
+				true,	// pwr_usage
+				false,	// pwr_state
+				false,	// temp_info
+				false,	// mem_total
+				false,	// mem_used
+				false	// pcie_txrx
+			};
 
 			// Get GPU name from CPU brand string
 			char buffer[256];
