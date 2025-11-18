@@ -767,8 +767,8 @@ namespace Gpu {
 			auto ram_power = Shared::subscription->getGPURAMPower();
 
 			gpu.gpu_clock_speed = freq;
-			gpu.gpu_percent["gpu-totals"].push_back(util);
-			gpu.pwr_usage = power + ram_power;
+			gpu.gpu_percent["gpu-totals"].push_back(util * 100);
+			gpu.pwr_usage = (power + ram_power) * 1000; // convert to mW
 			gpu.gpu_percent["gpu-pwr-totals"].push_back(100);
 		}
 #endif
