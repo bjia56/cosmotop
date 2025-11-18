@@ -54,20 +54,39 @@ Options:
 
 ### GPU monitoring
 
-Monitoring of GPUs is supported on Linux and Windows.
+Monitoring of GPUs is supported on Linux, MacOS, Windows.
 - Windows: LibreHardwareMonitor is included with `cosmotop` and automatically used to fetch GPU information.
 - Linux: Intel, AMD, and NVIDIA GPUs are supported, provided the appropriate driver is installed, and the following:
-  - Intel: Root privileges are required to access metrics directly. Alternatively, run [intel-gpu-exporter](https://github.com/bjia56/intel-gpu-exporter) in a privileged Docker container, then set the `intel_gpu_exporter` configuration option in `cosmotop` to the exporter's HTTP endpoint.
+  - Intel: Root privileges are required to access metrics directly. Alternatively, run [intel-gpu-exporter](https://github.com/bjia56/intel-gpu-exporter) in a privileged Docker container, then use the Prometheus configuration options below.
   - AMD: `rocm_smi_lib` is statically linked and should work out of the box.
   - NVIDIA: `libnvidia-ml.so` must be available.
+- MacOS: Utilization monitoring of the GPU is supported on Apple Silicon. Sudo is not required.
 
 ### NPU monitoring
 
-Utilization monitoring of Intel and Rockchip NPUs is supported on Linux, provided the following:
-- Intel: The path `/sys/devices/pci0000:00/0000:00:0b.0` must be readable.
-- Rockchip: The path `/sys/kernel/debug/rknpu` must be readable.
+Monitoring of NPUs is supported on Linux and MacOS.
+- Linux: Utilization monitoring of Intel and Rockchip NPUs is supported on Linux, provided the following:
+  - Intel: The path `/sys/devices/pci0000:00/0000:00:0b.0` must be readable.
+  - Rockchip: The path `/sys/kernel/debug/rknpu` must be readable.
+- MacOS: Utilization monitoring of the Apple Neural Engine is supported on Apple Silicon. Sudo is not required.
 
-Utilization monitoring of the Apple Neural Engine is supported on Apple Silicon. Sudo is not required.
+### GPU and NPU monitoring via Prometheus
+
+`cosmotop` supports polling an HTTP Prometheus endpoint to read GPU and NPU metrics data. The `prometheus_endpoint` configuration key should be set to the HTTP endpoint which publishes the metrics.
+
+Some options for exporters and their recommended `cosmotop` configuration values:
+- Linux: [intel-gpu-exporter](https://github.com/bjia56/intel-gpu-exporter)
+  ```
+  prometheus_mapping = "gpu_utilization_percent:igpu_engines_busy_max,gpu_frequency:igpu_frequency_actual,gpu_power_usage:igpu_power_gpu"
+  prometheus_settings = "gpu_frequency_unit:mhz,gpu_power_unit:w"
+  ```
+- MacOS: [macmon-prometheus-exporter](https://github.com/DMontgomery40/macmon-prometheus-exporter)
+  ```
+  prometheus_mapping = "gpu_utilization_percent:mac_gpu_usage_percent,gpu_frequency:mac_gpu_frequency_mhz,gpu_power_usage:mac_gpu_power_watts,gpu_temperature:mac_gpu_temperature_celsius,npu_utilization_percent:mac_ane_usage_percent"
+  prometheus_settings = "gpu_frequency_unit:mhz,gpu_power_unit:w,gpu_temperature_unit:c"
+  ```
+
+Currently, Prometheus monitoring is only enabled on Linux and MacOS.
 
 ### Container monitoring
 
