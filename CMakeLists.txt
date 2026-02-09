@@ -173,6 +173,7 @@ elseif(${TARGET} STREQUAL "standalone")
     src/cosmotop.cpp
     src/cosmotop_config.cpp
     src/cosmotop_draw.cpp
+    src/cosmotop_embeds.cpp
     src/cosmotop_input.cpp
     src/cosmotop_menu.cpp
     src/cosmotop_mcp.cpp
