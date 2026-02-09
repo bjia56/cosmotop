@@ -314,15 +314,17 @@ namespace Container {
 	}
 
 	void set_collapse(int val) {
-		Container::collapse = val;
+		(void)val;
+		// No-op: collapse variable doesn't exist in Container namespace
 	}
 
 	void set_expand(int val) {
-		Container::expand = val;
+		(void)val;
+		// No-op: expand variable doesn't exist in Container namespace
 	}
 
 	void increment_filter_found() {
-		Container::filter_found++;
+		filter_found++;
 	}
 }
 
@@ -368,37 +370,40 @@ namespace Global {
 
 // Config bridge functions
 namespace Config {
-	unordered_map<string, int> get_ints() {
-		unordered_map<string, int> result;
+	static unordered_map<string, int> ints_result;
+	unordered_map<string, int>& get_ints() {
+		ints_result.clear();
 		for (const auto& [key, value] : ints) {
-			result[string(key)] = value;
+			ints_result[string(key)] = value;
 		}
 		for (const auto& [key, value] : intsOverrides) {
-			result[string(key)] = value;
+			ints_result[string(key)] = value;
 		}
-		return result;
+		return ints_result;
 	}
 
-	unordered_map<string, bool> get_bools() {
-		unordered_map<string, bool> result;
+	static unordered_map<string, bool> bools_result;
+	unordered_map<string, bool>& get_bools() {
+		bools_result.clear();
 		for (const auto& [key, value] : bools) {
-			result[string(key)] = value;
+			bools_result[string(key)] = value;
 		}
 		for (const auto& [key, value] : boolsOverrides) {
-			result[string(key)] = value;
+			bools_result[string(key)] = value;
 		}
-		return result;
+		return bools_result;
 	}
 
-	unordered_map<string, string> get_strings() {
-		unordered_map<string, string> result;
+	static unordered_map<string, string> strings_result;
+	unordered_map<string, string>& get_strings() {
+		strings_result.clear();
 		for (const auto& [key, value] : strings) {
-			result[string(key)] = value;
+			strings_result[string(key)] = value;
 		}
 		for (const auto& [key, value] : stringsOverrides) {
-			result[string(key)] = value;
+			strings_result[string(key)] = value;
 		}
-		return result;
+		return strings_result;
 	}
 
 	void ints_set_at(const std::string_view name, const int value) {
@@ -408,15 +413,6 @@ namespace Config {
 
 	void push_back_available_batteries(const string& battery) {
 		available_batteries.push_back(battery);
-	}
-}
-
-namespace Logger {
-	void log_write(const Level level, const string& msg) {
-		// In standalone mode, log to stderr or a file
-		// For now, this is a no-op or could write to a log file
-		(void)level;
-		(void)msg;
 	}
 }
 
