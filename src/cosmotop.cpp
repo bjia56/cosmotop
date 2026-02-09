@@ -53,6 +53,7 @@ tab-size = 4
 #include "cosmotop_menu.hpp"
 #include "cosmotop_plugin.hpp"
 #include "cosmotop_mcp.hpp"
+#include "cosmotop_embeds.hpp"
 #include "config.h"
 
 using std::atomic;
@@ -275,14 +276,9 @@ static void print_licenses() {
 		return result.str();
 	};
 
-	auto licensesPath = fs::path("/zip/licenses");
-	if (fs::exists(licensesPath)) {
-		vector<string> ossNames;
-		for (const auto& entry : fs::directory_iterator(licensesPath)) {
-			if (entry.is_regular_file()) {
-				ossNames.push_back(entry.path().filename().string());
-			}
-		}
+	// Check for embedded licenses first (standalone mode)
+	if (cosmotop::embeds::has_embedded_licenses()) {
+		vector<string> ossNames = cosmotop::embeds::get_license_names();
 		if (ossNames.empty()) {
 			fmt::print("No licenses found\n");
 			return;
@@ -295,9 +291,7 @@ static void print_licenses() {
 			ossNames.erase(cosmotopLicense);
 
 			licensesText << fmt::format("{0}{1}{2}{3}\n\n", "\033[1m", "\033[4m", "cosmotop", "\033[0m");
-			auto licensePath = licensesPath / "cosmotop";
-			std::ifstream licenseFile(licensePath);
-			string license((std::istreambuf_iterator<char>(licenseFile)), std::istreambuf_iterator<char>());
+			string license = cosmotop::embeds::get_license("cosmotop");
 			if (!license.empty()) {
 				licensesText << fmt::format("{0}\n\n", trimBlankLines(license));
 			}
@@ -313,17 +307,66 @@ static void print_licenses() {
 		for (const auto& name : ossNames) {
 			licensesText << fmt::format("{0}{1}{2}{3}\n\n", "\033[1m", "\033[4m", name, "\033[0m");
 
-			auto licensePath = licensesPath / name;
-			std::ifstream licenseFile(licensePath);
-			string license((std::istreambuf_iterator<char>(licenseFile)), std::istreambuf_iterator<char>());
+			string license = cosmotop::embeds::get_license(name);
 			if (!license.empty()) {
 				licensesText << fmt::format("{0}\n\n", trimBlankLines(license));
 			}
 		}
 
 		print_with_pager(licensesText.str());
-	} else {
-		fmt::print("No licenses found\n");
+	}
+	// Fall back to zip filesystem (cosmopolitan mode)
+	else {
+		auto licensesPath = fs::path("/zip/licenses");
+		if (fs::exists(licensesPath)) {
+			vector<string> ossNames;
+			for (const auto& entry : fs::directory_iterator(licensesPath)) {
+				if (entry.is_regular_file()) {
+					ossNames.push_back(entry.path().filename().string());
+				}
+			}
+			if (ossNames.empty()) {
+				fmt::print("No licenses found\n");
+				return;
+			}
+
+			std::stringstream licensesText;
+
+			auto cosmotopLicense = find(ossNames.begin(), ossNames.end(), "cosmotop");
+			if (cosmotopLicense != ossNames.end()) {
+				ossNames.erase(cosmotopLicense);
+
+				licensesText << fmt::format("{0}{1}{2}{3}\n\n", "\033[1m", "\033[4m", "cosmotop", "\033[0m");
+				auto licensePath = licensesPath / "cosmotop";
+				std::ifstream licenseFile(licensePath);
+				string license((std::istreambuf_iterator<char>(licenseFile)), std::istreambuf_iterator<char>());
+				if (!license.empty()) {
+					licensesText << fmt::format("{0}\n\n", trimBlankLines(license));
+				}
+			}
+
+			if (ossNames.empty()) {
+				print_with_pager(licensesText.str());
+				return;
+			}
+
+			sort(ossNames.begin(), ossNames.end());
+
+			for (const auto& name : ossNames) {
+				licensesText << fmt::format("{0}{1}{2}{3}\n\n", "\033[1m", "\033[4m", name, "\033[0m");
+
+				auto licensePath = licensesPath / name;
+				std::ifstream licenseFile(licensePath);
+				string license((std::istreambuf_iterator<char>(licenseFile)), std::istreambuf_iterator<char>());
+				if (!license.empty()) {
+					licensesText << fmt::format("{0}\n\n", trimBlankLines(license));
+				}
+			}
+
+			print_with_pager(licensesText.str());
+		} else {
+			fmt::print("No licenses found\n");
+		}
 	}
 }
 
