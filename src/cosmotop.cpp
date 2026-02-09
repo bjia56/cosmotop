@@ -33,9 +33,13 @@ tab-size = 4
 #include <utility>
 #include <condition_variable>
 
+#ifdef __COSMOPOLITAN__
 #include <cosmo.h>
 #include <libc/calls/struct/utsname.h>
 #include <libc/runtime/runtime.h>
+#else
+#include <sys/utsname.h>
+#endif
 
 #include <fmt/core.h>
 #include <fmt/ostream.h>
@@ -132,6 +136,7 @@ static void print_version_with_build_info() {
 			fmt::println("{}", trim(tokens[0]));
 		}
 		string platformHeading = "Host platform:";
+#ifdef __COSMOPOLITAN__
 #ifdef __x86_64__
 		if (IsLinux()) {
 			string hyp = Tools::cpuid(0x40000000);
@@ -139,6 +144,7 @@ static void print_version_with_build_info() {
 				platformHeading = "Blink platform:";
 			}
 		}
+#endif
 #endif
 		if (tokens.size() >= 2) {
 			fmt::println("{} {} {} {} {}", platformHeading, un.sysname, un.release, trim(tokens[1]), un.machine);
@@ -1174,7 +1180,9 @@ namespace Runner {
 
 //* --------------------------------------------- Main starts here! ---------------------------------------------------
 int main(int argc, char **argv) {
+#ifdef __COSMOPOLITAN__
 	ShowCrashReports();
+#endif
 
 	//? ------------------------------------------------ INIT ---------------------------------------------------------
 
