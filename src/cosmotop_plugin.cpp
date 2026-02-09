@@ -18,7 +18,9 @@ tab-size = 4
 
 #include <sstream>
 
+#ifndef COSMOTOP_STANDALONE
 #include <cosmo_plugin.hpp>
+#endif
 
 #include "cosmotop_shared.hpp"
 #include "cosmotop_tools.hpp"
@@ -26,7 +28,399 @@ tab-size = 4
 
 using std::unordered_map;
 
-#ifndef __COSMOPOLITAN__
+#if defined(COSMOTOP_STANDALONE)
+
+#include "config.h"
+
+namespace Gpu {
+	namespace Nvml {
+		bool shutdown();
+	}
+	namespace Rsmi {
+		bool shutdown();
+	}
+}
+
+namespace Shared {
+	namespace WMI {
+		bool shutdown();
+	}
+}
+
+// Plugin management stubs
+void create_plugin_host() {
+	// No-op in standalone mode
+}
+
+bool is_plugin_loaded() {
+	return true;
+}
+
+void trigger_plugin_refresh() {
+	// No-op in standalone mode
+}
+
+void shutdown_plugin() {
+	// No-op in standalone mode
+}
+
+string plugin_build_info() {
+	std::stringstream ss;
+	ss << "Standalone build compiled with: " << COMPILER << " (" << COMPILER_VERSION << ")";
+	return ss.str();
+}
+
+// Accessor/mutator functions
+namespace Npu {
+	int get_count() {
+#if defined(__linux__) || defined(__APPLE__)
+		return count;
+#else
+		return 0;
+#endif
+	}
+
+	vector<string>& get_npu_names() {
+#if defined(__linux__) || defined(__APPLE__)
+		return npu_names;
+#else
+		static vector<string> empty;
+		return empty;
+#endif
+	}
+
+	vector<int>& get_npu_b_height_offsets() {
+#if defined(__linux__) || defined(__APPLE__)
+		return npu_b_height_offsets;
+#else
+		static vector<int> empty;
+		return empty;
+#endif
+	}
+
+	unordered_map<string, deque<long long>>& get_shared_npu_percent() {
+#if defined(__linux__) || defined(__APPLE__)
+		return shared_npu_percent;
+#else
+		static unordered_map<string, deque<long long>> empty;
+		return empty;
+#endif
+	}
+
+	int get_width() {
+		return width;
+	}
+}
+
+namespace Gpu {
+	int get_count() {
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
+		return count;
+#else
+		return 0;
+#endif
+	}
+
+	vector<string>& get_gpu_names() {
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
+		return gpu_names;
+#else
+		static vector<string> empty;
+		return empty;
+#endif
+	}
+
+	vector<int>& get_gpu_b_height_offsets() {
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
+		return gpu_b_height_offsets;
+#else
+		static vector<int> empty;
+		return empty;
+#endif
+	}
+
+	unordered_map<string, deque<long long>>& get_shared_gpu_percent() {
+#if defined(__linux__) || defined(_WIN32) || defined(__APPLE__)
+		return shared_gpu_percent;
+#else
+		static unordered_map<string, deque<long long>> empty;
+		return empty;
+#endif
+	}
+
+	int get_width() {
+		return width;
+	}
+}
+
+namespace Cpu {
+	bool get_has_battery() {
+		return has_battery;
+	}
+
+	bool get_got_sensors() {
+		return got_sensors;
+	}
+
+	bool get_cpu_temp_only() {
+		return cpu_temp_only;
+	}
+
+	vector<string>& get_available_fields() {
+		return available_fields;
+	}
+
+	vector<string>& get_available_sensors() {
+		return available_sensors;
+	}
+
+	tuple<int, float, long, string>& get_current_bat() {
+		return current_bat;
+	}
+
+	bool update_core_mapping() {
+#ifndef _WIN32
+		core_mapping = get_core_mapping();
+#endif
+		return true;
+	}
+
+	int get_width() {
+		return width;
+	}
+}
+
+namespace Mem {
+	bool get_has_swap() {
+		return has_swap;
+	}
+
+	int get_disk_ios() {
+		return disk_ios;
+	}
+
+	int get_width() {
+		return width;
+	}
+
+	void set_redraw(bool val) {
+		redraw = val;
+	}
+}
+
+namespace Net {
+	string get_selected_iface() {
+		return selected_iface;
+	}
+
+	void set_selected_iface(const string& iface) {
+		selected_iface = iface;
+	}
+
+	vector<string>& get_interfaces() {
+		return interfaces;
+	}
+
+	unordered_map<string, uint64_t>& get_graph_max() {
+		return graph_max;
+	}
+
+	void set_rescale(bool rescale_val) {
+		rescale = rescale_val;
+	}
+
+	unordered_map<string, net_info>& get_current_net() {
+		return current_net;
+	}
+
+	int get_width() {
+		return width;
+	}
+
+	void set_redraw(bool val) {
+		redraw = val;
+	}
+}
+
+namespace Proc {
+	int get_numpids() {
+		return numpids.load();
+	}
+
+	void set_collapse(int val) {
+		collapse = val;
+	}
+
+	void set_expand(int val) {
+		expand = val;
+	}
+
+	void increment_filter_found() {
+		filter_found++;
+	}
+
+	detail_container get_detailed() {
+		return detailed;
+	}
+
+	int get_width() {
+		return width;
+	}
+
+	void set_redraw(bool val) {
+		redraw = val;
+	}
+
+	int get_selected_pid() {
+		return selected_pid;
+	}
+
+	int get_select_max() {
+		return select_max_rows;
+	}
+}
+
+namespace Container {
+	bool get_has_containers() {
+#if defined(__linux__) || defined(_WIN32) || (defined(__APPLE__) && (defined(__x86_64__) || defined(__aarch64__)))
+		return has_containers;
+#else
+		return false;
+#endif
+	}
+
+	int get_numcontainers() {
+#if defined(__linux__) || defined(_WIN32) || (defined(__APPLE__) && (defined(__x86_64__) || defined(__aarch64__)))
+		return numcontainers.load();
+#else
+		return 0;
+#endif
+	}
+
+	int get_width() {
+		return width;
+	}
+
+	void set_redraw(bool val) {
+		redraw = val;
+	}
+
+	string get_selected_container_id() {
+		return selected_container_id;
+	}
+
+	int get_select_max() {
+		return select_max_rows;
+	}
+
+	void set_collapse(int val) {
+		Container::collapse = val;
+	}
+
+	void set_expand(int val) {
+		Container::expand = val;
+	}
+
+	void increment_filter_found() {
+		Container::filter_found++;
+	}
+}
+
+namespace Shared {
+	long get_coreCount() {
+		return coreCount;
+	}
+
+	bool shutdown() {
+#if defined(_WIN32)
+		WMI::shutdown();
+#elif defined(__linux__)
+		Gpu::Nvml::shutdown();
+		Gpu::Rsmi::shutdown();
+#endif
+		return true;
+	}
+}
+
+namespace Runner {
+	bool get_stopping() {
+		return stopping.load();
+	}
+
+	bool get_coreNum_reset() {
+		return coreNum_reset.load();
+	}
+
+	void set_coreNum_reset(bool val) {
+		coreNum_reset = val;
+	}
+
+	void active_atomic_wait() {
+		Tools::atomic_wait(active);
+	}
+}
+
+namespace Global {
+	bool get_quitting() {
+		return quitting.load();
+	}
+}
+
+// Config bridge functions
+namespace Config {
+	unordered_map<string, int> get_ints() {
+		unordered_map<string, int> result;
+		for (const auto& [key, value] : ints) {
+			result[string(key)] = value;
+		}
+		for (const auto& [key, value] : intsOverrides) {
+			result[string(key)] = value;
+		}
+		return result;
+	}
+
+	unordered_map<string, bool> get_bools() {
+		unordered_map<string, bool> result;
+		for (const auto& [key, value] : bools) {
+			result[string(key)] = value;
+		}
+		for (const auto& [key, value] : boolsOverrides) {
+			result[string(key)] = value;
+		}
+		return result;
+	}
+
+	unordered_map<string, string> get_strings() {
+		unordered_map<string, string> result;
+		for (const auto& [key, value] : strings) {
+			result[string(key)] = value;
+		}
+		for (const auto& [key, value] : stringsOverrides) {
+			result[string(key)] = value;
+		}
+		return result;
+	}
+
+	void ints_set_at(const std::string_view name, const int value) {
+		ints.at(name) = value;
+		if (intsOverrides.contains(name)) intsOverrides.erase(name);
+	}
+
+	void push_back_available_batteries(const string& battery) {
+		available_batteries.push_back(battery);
+	}
+}
+
+namespace Logger {
+	void log_write(const Level level, const string& msg) {
+		// In standalone mode, log to stderr or a file
+		// For now, this is a no-op or could write to a log file
+		(void)level;
+		(void)msg;
+	}
+}
+
+#elif !defined(__COSMOPOLITAN__)
 
 #include "config.h"
 
