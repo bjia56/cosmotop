@@ -1,0 +1,630 @@
+name: Build cosmotop Standalone
+
+on:
+  workflow_dispatch:
+    inputs:
+      debug:
+        required: false
+        type: boolean
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      beta:
+        required: false
+        type: string
+      dry_run:
+        required: false
+        type: string
+
+env:
+  zig_version: 0.14.0
+
+jobs:
+  build_linux_standalone:
+    name: Build standalone Linux ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+          - arch: i386
+            gcc_arch: i686
+            zig_arch: x86
+          - arch: aarch64
+          - arch: ppc64le
+            gcc_arch: powerpc64le
+            zig_arch: powerpc64le
+          - arch: riscv64
+          - arch: s390x
+          - arch: loong64
+            gcc_arch: loongarch64
+            zig_arch: loongarch64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: ${{ env.zig_version }}
+
+      - name: Generate embeds
+        run: |
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file rocm_smi_lib=third_party/rocm_smi_lib/License.txt \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        shell: bash
+        run: |
+          export CC="${{ github.workspace }}/tools/zig cc -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
+          export CXX="${{ github.workspace }}/tools/zig c++ -target ${{ matrix.zig_arch || matrix.arch }}-linux-musl"
+          cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-linux-${{ matrix.arch }}
+
+      - name: Strip binary (x86_64 only)
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: |
+          ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}
+
+      - name: Strip binary (non-x86_64)
+        if: ${{ matrix.arch != 'x86_64' }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: debian:sid
+          options: -v ${{ github.workspace }}:${{ github.workspace }} --workdir ${{ github.workspace }}
+          shell: bash
+          run: |
+            set -e
+            apt update && apt -y install binutils-${{ matrix.gcc_arch || matrix.arch }}-linux-gnu
+            ${{ matrix.gcc_arch || matrix.arch }}-linux-gnu-strip ./cosmotop-linux-${{ matrix.arch }}
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-linux-${{ matrix.arch }}
+          path: ./cosmotop-linux-${{ matrix.arch }}
+
+  build_macos_standalone:
+    name: Build standalone macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x86_64
+          - runner: macos-14
+            arch: aarch64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Generate embeds
+        run: |
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        run: |
+          cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-macos-${{ matrix.arch }}
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-macos-${{ matrix.arch }}
+          path: ./cosmotop-macos-${{ matrix.arch }}
+
+  build_freebsd_standalone:
+    name: Build standalone FreeBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/freebsd-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+          release: "13.3"
+          prepare: |
+            pkg install -y cmake python3
+
+      - name: Generate embeds
+        shell: freebsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        shell: freebsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-freebsd-${{ matrix.arch }}
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-freebsd-${{ matrix.arch }}
+          path: ./cosmotop-freebsd-${{ matrix.arch }}
+
+  build_netbsd_standalone:
+    name: Build standalone NetBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/netbsd-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+          release: "10.0"
+          prepare: |
+            /usr/sbin/pkg_add cmake python3
+
+      - name: Generate embeds
+        shell: netbsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        shell: netbsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          CC=clang CXX=clang++ cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-netbsd-${{ matrix.arch }}
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-netbsd-${{ matrix.arch }}
+          path: ./cosmotop-netbsd-${{ matrix.arch }}
+
+  build_openbsd_standalone:
+    name: Build standalone OpenBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/openbsd-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+          release: "7.7"
+          prepare: |
+            pkg_add cmake python3
+
+      - name: Generate embeds
+        shell: openbsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        shell: openbsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-openbsd-${{ matrix.arch }}
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-openbsd-${{ matrix.arch }}
+          path: ./cosmotop-openbsd-${{ matrix.arch }}
+
+  build_dragonflybsd_standalone:
+    name: Build standalone DragonFlyBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/dragonflybsd-vm@v1
+        with:
+          sync: nfs
+          release: "6.4.0"
+          prepare: |
+            pkg install -y cmake gcc14 bash python3
+            pkg upgrade -y
+            chsh -s /usr/local/bin/bash root
+
+      - name: Generate embeds
+        shell: dragonflybsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        shell: dragonflybsd {0}
+        run: |
+          cd ${{ github.workspace }}
+          CC=gcc14 CXX=g++14 cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-dragonflybsd-${{ matrix.arch }}
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-dragonflybsd-${{ matrix.arch }}
+          path: ./cosmotop-dragonflybsd-${{ matrix.arch }}
+
+  build_midnightbsd_standalone:
+    name: Build standalone MidnightBSD ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Start VM
+        uses: bjia56/midnightbsd-vm@main
+
+      - name: Checkout
+        shell: midnightbsd {0}
+        run: |
+          git init .
+          git remote add origin https://github.com/${{ github.repository }}.git
+          if ( "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ) then
+            git fetch origin "refs/pull/${{ github.event.pull_request.number }}/merge"
+            git checkout FETCH_HEAD
+          else
+            git fetch --depth=1 origin ${{ github.sha }}
+            git checkout ${{ github.sha }}
+          endif
+          git submodule update --init --depth 1 --recursive
+
+      - name: Generate embeds
+        shell: midnightbsd {0}
+        run: |
+          setenv CC gcc14
+          setenv CXX g++14
+          cd /root
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        shell: midnightbsd {0}
+        run: |
+          setenv CC gcc14
+          setenv CXX g++14
+          cd /root
+          cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-midnightbsd-${{ matrix.arch }}
+
+      - name: Copy out of VM
+        run: |
+          scp midnightbsd:/root/cosmotop-midnightbsd-${{ matrix.arch }} .
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-midnightbsd-${{ matrix.arch }}
+          path: ./cosmotop-midnightbsd-${{ matrix.arch }}
+
+  build_solaris_standalone:
+    name: Build standalone Solaris ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start VM
+        uses: vmactions/solaris-vm@v1
+        with:
+          sync: nfs
+          arch: ${{ matrix.arch }}
+          release: "11.4"
+          prepare: |
+            pkg install --accept cmake gcc python3
+
+      - name: Generate embeds
+        shell: solaris {0}
+        run: |
+          cd ${{ github.workspace }}
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        shell: solaris {0}
+        run: |
+          cd ${{ github.workspace }}
+          cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-solaris-${{ matrix.arch }}
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-solaris-${{ matrix.arch }}
+          path: ./cosmotop-solaris-${{ matrix.arch }}
+
+  build_haiku_standalone:
+    name: Build standalone Haiku ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+
+    steps:
+      - name: Start VM
+        uses: cross-platform-actions/action@v0.28.0
+        with:
+          operating_system: haiku
+          version: r1beta5
+          shutdown_vm: false
+          run: |
+            pkgman install -y cmake python3
+
+      - name: Install custom shell
+        run: |
+          mkdir -p ~/.local/bin
+          cat > ~/.local/bin/haiku << EOL
+          #!/usr/bin/env sh
+          ssh user@cross_platform_actions_host sh -l<\$1
+          EOL
+          chmod +x ~/.local/bin/haiku
+
+      - name: Checkout
+        shell: haiku {0}
+        run: |
+          git init .
+          git remote add origin https://github.com/${{ github.repository }}.git
+          if [[ "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
+            git fetch origin "refs/pull/${{ github.event.pull_request.number }}/merge"
+            git checkout FETCH_HEAD
+          else
+            git fetch --depth=1 origin ${{ github.sha }}
+            git checkout ${{ github.sha }}
+          fi
+          git submodule update --init --depth 1 --recursive
+
+      - name: Generate embeds
+        shell: haiku {0}
+        run: |
+          python3 tools/generate_embeds.py \
+            --themes-dir themes \
+            --themes-dir third_party/catppuccin/themes \
+            --licenses-file cosmotop=LICENSE \
+            --licenses-file range-v3=third_party/range-v3/LICENSE.txt \
+            --licenses-file fmt=third_party/fmt/LICENSE \
+            --licenses-file libcosmo_plugin=third_party/libcosmo_plugin/LICENSE \
+            --licenses-file reflect-cpp=third_party/libcosmo_plugin/third_party/reflect-cpp/LICENSE \
+            --licenses-file msgpack-c=third_party/libcosmo_plugin/third_party/msgpack-c/LICENSE_1_0.txt \
+            --licenses-file cpp-httplib=third_party/cpp-httplib/LICENSE \
+            --licenses-file widecharwidth=third_party/widecharwidth/LICENSE \
+            --licenses-file TinyMCP=third_party/TinyMCP/LICENSE \
+            --licenses-file jsoncpp=third_party/TinyMCP/Source/External/jsoncpp/LICENSE.txt \
+            --licenses-file catppuccin=third_party/catppuccin/LICENSE \
+            --output src/cosmotop_embeds.cpp
+
+      - name: Build standalone
+        shell: haiku {0}
+        run: |
+          cmake -B build -DTARGET=standalone ${{ inputs.version && '-DRELEASE=1' || '' }}
+          cmake --build build --parallel 4
+          cp build/cosmotop ./cosmotop-haiku-${{ matrix.arch }}
+
+      - name: Copy out of VM
+        run: |
+          scp user@cross_platform_actions_host:/boot/home/cosmotop-haiku-${{ matrix.arch }} .
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotop-haiku-${{ matrix.arch }}
+          path: ./cosmotop-haiku-${{ matrix.arch }}
+
+  check:
+    name: Check cosmotop standalone ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
+    needs:
+      - build_linux_standalone
+      - build_macos_standalone
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: macos-15-intel
+            arch: x86_64
+            os: MacOS
+          - runner: macos-14
+            arch: arm64
+            os: MacOS
+          - runner: ubuntu-latest
+            arch: x86_64
+            os: Linux
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+            os: Linux
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cosmotop-${{ matrix.platform.os == 'MacOS' && 'macos' || 'linux' }}-${{ matrix.platform.arch == 'arm64' && 'aarch64' || matrix.platform.arch }}
+          path: .
+
+      - name: Mark executable
+        shell: bash
+        run: |
+          chmod +x cosmotop-*
+
+      - name: Check cosmotop
+        shell: bash
+        run: |
+          ./cosmotop-* --version
+          ./cosmotop-* --licenses || true
+          ./cosmotop-* --show-themes
