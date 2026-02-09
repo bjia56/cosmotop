@@ -19,11 +19,13 @@ tab-size = 4
 
 #include <cmath>
 #include <fstream>
+#include <sstream>
 #include <unistd.h>
 
 #include "cosmotop_tools.hpp"
 #include "cosmotop_config.hpp"
 #include "cosmotop_theme.hpp"
+#include "cosmotop_embeds.hpp"
 
 using std::round;
 using std::stoi;
@@ -427,43 +429,61 @@ namespace Theme {
 			}
 		}
 
-		//* Load a .theme file from disk
-		auto loadFile(const string& filename) {
+		//* Parse theme content from string (used for embedded themes)
+		auto parseThemeContent(const string& content) {
 			std::unordered_map<string, string> theme_out;
-			const fs::path filepath = filename;
-			if (not fs::exists(filepath))
-				return Default_theme;
-
-			std::ifstream themefile(filepath);
-			if (themefile.good()) {
-				Logger::debug("Loading theme file: " + filename);
-				while (not themefile.bad()) {
-					if (themefile.peek() == '#') {
-						themefile.ignore(SSmax, '\n');
-						continue;
-					}
-					themefile.ignore(SSmax, '[');
-					if (themefile.eof()) break;
-					string name, value;
-					getline(themefile, name, ']');
-					if (not Default_theme.contains(name)) {
-						themefile.ignore(SSmax, '\n');
-						continue;
-					}
-					themefile.ignore(SSmax, '=');
-					themefile >> std::ws;
-					if (themefile.eof()) break;
-					if (themefile.peek() == '"') {
-						themefile.ignore(1);
-						getline(themefile, value, '"');
-						themefile.ignore(SSmax, '\n');
-					}
-					else getline(themefile, value, '\n');
-
-					theme_out[name] = value;
+			std::istringstream themefile(content);
+			while (not themefile.bad()) {
+				if (themefile.peek() == '#') {
+					themefile.ignore(SSmax, '\n');
+					continue;
 				}
-				return theme_out;
+				themefile.ignore(SSmax, '[');
+				if (themefile.eof()) break;
+				string name, value;
+				getline(themefile, name, ']');
+				if (not Default_theme.contains(name)) {
+					themefile.ignore(SSmax, '\n');
+					continue;
+				}
+				themefile.ignore(SSmax, '=');
+				themefile >> std::ws;
+				if (themefile.eof()) break;
+				if (themefile.peek() == '"') {
+					themefile.ignore(1);
+					getline(themefile, value, '"');
+					themefile.ignore(SSmax, '\n');
+				}
+				else getline(themefile, value, '\n');
+
+				theme_out[name] = value;
 			}
+			return theme_out;
+		}
+
+		//* Load a .theme file from disk or embedded resources
+		auto loadFile(const string& filename) {
+			const fs::path filepath = filename;
+			
+			// Try to load from filesystem first
+			if (fs::exists(filepath)) {
+				std::ifstream themefile(filepath);
+				if (themefile.good()) {
+					Logger::debug("Loading theme file: " + filename);
+					string content((std::istreambuf_iterator<char>(themefile)), std::istreambuf_iterator<char>());
+					return parseThemeContent(content);
+				}
+			}
+			
+			// Fall back to embedded themes
+			if (cosmotop::embeds::has_embedded_themes()) {
+				string embedded = cosmotop::embeds::get_theme(filename);
+				if (not embedded.empty()) {
+					Logger::debug("Loading embedded theme: " + filename);
+					return parseThemeContent(embedded);
+				}
+			}
+			
 			return Default_theme;
 		}
 	}
@@ -487,6 +507,13 @@ namespace Theme {
 
 	vector<string> getBundledThemes() {
 		vector<string> themes;
+		// First check for embedded themes (standalone mode)
+		if (cosmotop::embeds::has_embedded_themes()) {
+			for (const auto& name : cosmotop::embeds::get_theme_names()) {
+				themes.push_back(name);
+			}
+		}
+		// Also check filesystem themes (cosmopolitan mode)
 		getThemesFrom(themes, theme_dir);
 		return themes;
 	}

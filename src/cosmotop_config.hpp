@@ -86,7 +86,7 @@ namespace Config {
 
 	bool _locked(const std::string_view name);
 
-#ifdef __COSMOPOLITAN__
+#if defined(__COSMOPOLITAN__) || defined(COSMOTOP_STANDALONE)
 	//* Return bool for config key <name>
 	const bool& getB(const std::string_view name);
 
@@ -100,7 +100,7 @@ namespace Config {
 	const bool& getB(const string& name);
 	const int& getI(const string& name);
 	const string& getS(const string& name);
-#endif // __COSMOPOLITAN__
+#endif
 
 	string getAsString(const std::string_view name);
 

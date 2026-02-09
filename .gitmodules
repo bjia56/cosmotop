@@ -22,3 +22,6 @@
 [submodule "third_party/TinyMCP"]
 	path = third_party/TinyMCP
 	url = https://github.com/bjia56/TinyMCP.git
+[submodule "third_party/reflect-cpp"]
+	path = third_party/reflect-cpp
+	url = https://github.com/getml/reflect-cpp.git
