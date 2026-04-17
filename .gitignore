@@ -63,9 +63,6 @@ lib/rocm_smi_lib
 # Don't ignore .github directory
 !.github/
 
-# Don't ignore .bodega directory
-!.bodega/
-
 # Ignore files created by Qt Creator
 *.config
 *.creator
