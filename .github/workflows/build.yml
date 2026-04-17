@@ -404,8 +404,8 @@ jobs:
           sync: nfs
           release: "6.4.0"
           prepare: |
-            pkg install -y cmake gcc14 bash
             pkg upgrade -y
+            pkg install -y cmake gcc14 bash
             chsh -s /usr/local/bin/bash root
 
       - name: Build plugin
