@@ -1,6 +1,0 @@
-defaults:
-  priority: 2
-  type: task
-git:
-  branch: bodega
-id_prefix: ct
