@@ -34,12 +34,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
       - name: Setup cosmocc
-        uses: bjia56/setup-cosmocc@v0.0.4
+        uses: bjia56/setup-cosmocc@c0097c34319baeca1b41cc857ec5c643f2f5baf6
         with:
           version: ${{ env.cosmocc_version }}
 
@@ -51,7 +51,7 @@ jobs:
           cmake --build build --parallel 4
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: cosmotop.parts
           path: |
@@ -85,12 +85,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
       - name: Set up zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29
         with:
           version: ${{ env.zig_version }}
 
@@ -109,7 +109,7 @@ jobs:
 
       - name: Create stripped copy (non-x86_64)
         if: ${{ matrix.arch != 'x86_64' }}
-        uses: addnab/docker-run-action@v3
+        uses: bjia56/docker-run-action@236d236350e679915a31b458521f2d885c1cde06
         with:
           image: debian:sid
           options: -v ${{ github.workspace }}:${{ github.workspace }} --workdir ${{ github.workspace }}
@@ -125,13 +125,13 @@ jobs:
           upx --best ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-linux-${{ matrix.arch }}
           path: ./cosmotop-linux-${{ matrix.arch }}.exe
 
       - name: Upload debug plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-linux-${{ matrix.arch }}.dbg
           path: ./cosmotop-linux-${{ matrix.arch }}.dbg
@@ -150,7 +150,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
@@ -162,7 +162,7 @@ jobs:
           cp build/cosmotop-plugin.exe ./cosmotop-macos-${{ matrix.arch }}.exe
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-macos-${{ matrix.arch }}
           path: ./cosmotop-macos-${{ matrix.arch }}.exe
@@ -175,10 +175,10 @@ jobs:
       - run: |
           echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null
           sudo dpkg-reconfigure man-db
-      - uses: jlumbroso/free-disk-space@v1.3.1
+      - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
 
       - name: Start VM
-        uses: bjia56/macppc-vm@main
+        uses: bjia56/macppc-vm@6001b0643a56ef85581eff057dae5b06e159e5a3
         with:
           vm_image: ${{ secrets.VM_IMAGE }}
           vm_image_sha256: ${{ secrets.VM_IMAGE_SHA256 }}
@@ -241,7 +241,7 @@ jobs:
           scp macppc:/Users/macuser/cosmotop-macos-ppc.exe .
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-macos-ppc
           path: ./cosmotop-macos-ppc.exe
@@ -256,7 +256,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
@@ -268,7 +268,7 @@ jobs:
           cp build/Release/cosmotop-plugin.dll ./cosmotop-windows-${{ matrix.arch }}.dll
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-windows-${{ matrix.arch }}
           path: ./cosmotop-windows-${{ matrix.arch }}.dll
@@ -283,12 +283,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
       - name: Start VM
-        uses: vmactions/freebsd-vm@v1
+        uses: vmactions/freebsd-vm@7ca82f79fe3078fecded6d3a2bff094995447bbd
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
@@ -305,7 +305,7 @@ jobs:
           cp build/cosmotop-plugin.exe ./cosmotop-freebsd-${{ matrix.arch }}.exe
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-freebsd-${{ matrix.arch }}
           path: ./cosmotop-freebsd-${{ matrix.arch }}.exe
@@ -320,12 +320,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
       - name: Start VM
-        uses: vmactions/netbsd-vm@v1
+        uses: vmactions/netbsd-vm@ca7ff0556959998c82761c34ea0c3c99fa084c48
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
@@ -342,7 +342,7 @@ jobs:
           cp build/cosmotop-plugin.exe ./cosmotop-netbsd-${{ matrix.arch }}.exe
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-netbsd-${{ matrix.arch }}
           path: ./cosmotop-netbsd-${{ matrix.arch }}.exe
@@ -357,12 +357,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
       - name: Start VM
-        uses: vmactions/openbsd-vm@v1
+        uses: vmactions/openbsd-vm@9004791062e748d95cc87e499e77485f91888ce1
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
@@ -379,7 +379,7 @@ jobs:
           cp build/cosmotop-plugin.exe ./cosmotop-openbsd-${{ matrix.arch }}.exe
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-openbsd-${{ matrix.arch }}
           path: ./cosmotop-openbsd-${{ matrix.arch }}.exe
@@ -394,12 +394,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
       - name: Start VM
-        uses: vmactions/dragonflybsd-vm@v1
+        uses: vmactions/dragonflybsd-vm@323497fa680c1856dd1ba5c4fd89182a9194f649
         with:
           sync: nfs
           release: "6.4.0"
@@ -417,7 +417,7 @@ jobs:
           cp build/cosmotop-plugin.exe ./cosmotop-dragonflybsd-${{ matrix.arch }}.exe
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-dragonflybsd-${{ matrix.arch }}
           path: ./cosmotop-dragonflybsd-${{ matrix.arch }}.exe
@@ -432,7 +432,7 @@ jobs:
 
     steps:
       - name: Start VM
-        uses: bjia56/midnightbsd-vm@main
+        uses: bjia56/midnightbsd-vm@5587e801bc15e673cab7cdd8a5ea0c00225f759d
 
       - name: Checkout
         shell: midnightbsd {0}
@@ -462,7 +462,7 @@ jobs:
           scp midnightbsd:/root/cosmotop-midnightbsd-${{ matrix.arch }}.exe .
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-midnightbsd-${{ matrix.arch }}
           path: ./cosmotop-midnightbsd-${{ matrix.arch }}.exe
@@ -477,12 +477,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
       - name: Start VM
-        uses: vmactions/solaris-vm@v1
+        uses: vmactions/solaris-vm@0a231b94365d1911cf62097ef342f6b30d95598f
         with:
           sync: nfs
           arch: ${{ matrix.arch }}
@@ -499,7 +499,7 @@ jobs:
           cp build/cosmotop-plugin.exe ./cosmotop-solaris-${{ matrix.arch }}.exe
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-solaris-${{ matrix.arch }}
           path: ./cosmotop-solaris-${{ matrix.arch }}.exe
@@ -514,7 +514,7 @@ jobs:
 
     steps:
       - name: Start VM
-        uses: cross-platform-actions/action@v0.28.0
+        uses: cross-platform-actions/action@3fbf2723ff48aac8defe0070706f36088999fd47
         with:
           operating_system: haiku
           version: r1beta5
@@ -557,7 +557,7 @@ jobs:
           scp user@cross_platform_actions_host:/boot/home/cosmotop-haiku-${{ matrix.arch }}.exe .
 
       - name: Upload plugin
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: plugin-haiku-${{ matrix.arch }}
           path: ./cosmotop-haiku-${{ matrix.arch }}.exe
@@ -581,28 +581,28 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
       - name: Setup cosmocc
-        uses: bjia56/setup-cosmocc@v0.0.4
+        uses: bjia56/setup-cosmocc@c0097c34319baeca1b41cc857ec5c643f2f5baf6
         with:
           version: ${{ env.cosmocc_version }}
 
       - name: Set up zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29
         with:
           version: ${{ env.zig_version }}
 
       - name: Download cosmotop parts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: cosmotop.parts
           path: .
 
       - name: Download plugins
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           pattern: plugin-*
           path: /tmp/cosmotop-plugin/
@@ -751,19 +751,19 @@ jobs:
             --os Darwin /tmp/blink/blink-macos-*
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: cosmotop.exe
           path: ./cosmotop.exe
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: cosmotop
           path: ./cosmotop
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: cosmotop.big
           path: ./cosmotop.big
@@ -795,20 +795,20 @@ jobs:
     steps:
       - name: Set up cosmocc
         if: ${{ matrix.platform.os == 'Linux' }}
-        uses: bjia56/setup-cosmocc@v0.0.4
+        uses: bjia56/setup-cosmocc@c0097c34319baeca1b41cc857ec5c643f2f5baf6
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: cosmotop
           path: .
 
       - name: Download artifact
         if: ${{ matrix.platform.os == 'Windows' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: cosmotop.exe
           path: .
@@ -865,23 +865,23 @@ jobs:
 
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: cosmotop.exe
           path: .
@@ -908,7 +908,7 @@ jobs:
           echo "tags=$TAGS" >> $GITHUB_ENV
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294
         with:
           context: .
           platforms: linux/amd64,linux/arm64
