@@ -1,6 +1,11 @@
 package app
 
-import "context"
+import (
+	"context"
+	"log"
+
+	"github.com/bjia56/cosmotop/desktop/internal/runtime"
+)
 
 type App struct {
 	ctx context.Context
@@ -12,6 +17,14 @@ func New() *App {
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+
+	info, err := runtime.EnsureExtracted(ctx)
+	if err != nil {
+		log.Printf("runtime extraction failed: %v", err)
+		return
+	}
+
+	log.Printf("runtime extracted path=%q digest=%s", info.Path, info.Digest)
 }
 
 func (a *App) DomReady(ctx context.Context) {
