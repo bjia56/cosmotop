@@ -1,0 +1,295 @@
+package terminal
+
+import (
+	"context"
+	"errors"
+	"io"
+	"sync"
+	"testing"
+	"time"
+)
+
+func TestManagerLifecycle(t *testing.T) {
+	origStarter := ptyStarter
+	defer func() { ptyStarter = origStarter }()
+
+	fake := newFakePTY()
+	fake.onGracefulStop = func() { fake.finish(0, nil) }
+	ptyStarter = func(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
+		if executablePath != "/tmp/cosmotop" {
+			t.Fatalf("executablePath = %q, want %q", executablePath, "/tmp/cosmotop")
+		}
+		if cols != 100 || rows != 40 {
+			t.Fatalf("size = %dx%d, want 100x40", cols, rows)
+		}
+		assertHasEnv(t, env, "TERM=xterm-256color")
+		assertHasEnv(t, env, "COLORTERM=truecolor")
+		return fake, nil
+	}
+
+	var (
+		statusMu sync.Mutex
+		statuses []Status
+		outputCh = make(chan []byte, 1)
+		exitCh   = make(chan struct {
+			code int
+			err  error
+		}, 1)
+	)
+
+	mgr := NewManager(Callbacks{
+		OnOutput: func(b []byte) {
+			outputCh <- b
+		},
+		OnStatus: func(status Status) {
+			statusMu.Lock()
+			statuses = append(statuses, status)
+			statusMu.Unlock()
+		},
+		OnExit: func(exitCode int, err error) {
+			exitCh <- struct {
+				code int
+				err  error
+			}{code: exitCode, err: err}
+		},
+	})
+
+	if err := mgr.Start("/tmp/cosmotop", 100, 40); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if !mgr.IsRunning() {
+		t.Fatal("IsRunning() = false, want true")
+	}
+
+	fake.pushOutput([]byte("hello"))
+	select {
+	case out := <-outputCh:
+		if string(out) != "hello" {
+			t.Fatalf("output = %q, want %q", string(out), "hello")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for output callback")
+	}
+
+	if err := mgr.Write([]byte("input")); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if err := mgr.Resize(120, 50); err != nil {
+		t.Fatalf("Resize() error = %v", err)
+	}
+
+	if err := mgr.Stop(200 * time.Millisecond); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	select {
+	case got := <-exitCh:
+		if got.code != 0 || got.err != nil {
+			t.Fatalf("exit = (%d, %v), want (0, nil)", got.code, got.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for exit callback")
+	}
+
+	statusMu.Lock()
+	defer statusMu.Unlock()
+	if len(statuses) < 4 {
+		t.Fatalf("statuses = %v, want at least 4 entries", statuses)
+	}
+	if statuses[0] != StatusStarting || statuses[1] != StatusRunning {
+		t.Fatalf("statuses prefix = %v, want [starting running ...]", statuses)
+	}
+	if statuses[len(statuses)-2] != StatusStopping || statuses[len(statuses)-1] != StatusStopped {
+		t.Fatalf("statuses suffix = %v, want [... stopping stopped]", statuses)
+	}
+
+	if mgr.IsRunning() {
+		t.Fatal("IsRunning() = true, want false")
+	}
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.gracefulCalls == 0 {
+		t.Fatal("GracefulStop() was not called")
+	}
+	if fake.forceKillCalls != 0 {
+		t.Fatalf("ForceKill() calls = %d, want 0", fake.forceKillCalls)
+	}
+	if len(fake.writes) == 0 || string(fake.writes[0]) != "input" {
+		t.Fatalf("writes = %q, want first write %q", fake.writes, "input")
+	}
+	if len(fake.resizes) == 0 || fake.resizes[0] != [2]int{120, 50} {
+		t.Fatalf("resizes = %v, want first resize [120 50]", fake.resizes)
+	}
+}
+
+func TestManagerDuplicateStart(t *testing.T) {
+	origStarter := ptyStarter
+	defer func() { ptyStarter = origStarter }()
+
+	fake := newFakePTY()
+	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
+
+	mgr := NewManager(Callbacks{})
+	if err := mgr.Start("/tmp/cosmotop", 80, 24); err != nil {
+		t.Fatalf("first Start() error = %v", err)
+	}
+
+	err := mgr.Start("/tmp/cosmotop", 80, 24)
+	if !errors.Is(err, ErrAlreadyRunning) {
+		t.Fatalf("second Start() error = %v, want ErrAlreadyRunning", err)
+	}
+
+	fake.finish(0, nil)
+	if err := mgr.Stop(100 * time.Millisecond); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+}
+
+func TestManagerStopForceKillAfterTimeout(t *testing.T) {
+	origStarter := ptyStarter
+	defer func() { ptyStarter = origStarter }()
+
+	fake := newFakePTY()
+	fake.onForceKill = func() { fake.finish(137, nil) }
+	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
+
+	mgr := NewManager(Callbacks{})
+	if err := mgr.Start("/tmp/cosmotop", 80, 24); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if err := mgr.Stop(10 * time.Millisecond); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.gracefulCalls == 0 {
+		t.Fatal("GracefulStop() calls = 0, want >= 1")
+	}
+	if fake.forceKillCalls == 0 {
+		t.Fatal("ForceKill() calls = 0, want >= 1")
+	}
+}
+
+func TestWithTerminalEnvOverridesTerminalVars(t *testing.T) {
+	env := withTerminalEnv([]string{"PATH=/bin", "TERM=vt100", "COLORTERM=24bit"})
+
+	assertHasEnv(t, env, "PATH=/bin")
+	assertHasEnv(t, env, "TERM=xterm-256color")
+	assertHasEnv(t, env, "COLORTERM=truecolor")
+}
+
+func assertHasEnv(t *testing.T, env []string, want string) {
+	t.Helper()
+	for _, entry := range env {
+		if entry == want {
+			return
+		}
+	}
+	t.Fatalf("env missing %q in %v", want, env)
+}
+
+type fakePTY struct {
+	mu sync.Mutex
+
+	outputCh chan []byte
+	waitCh   chan fakeWait
+
+	finishOnce sync.Once
+	closeOnce  sync.Once
+
+	writes  []string
+	resizes [][2]int
+
+	gracefulCalls  int
+	forceKillCalls int
+
+	onGracefulStop func()
+	onForceKill    func()
+}
+
+type fakeWait struct {
+	exitCode int
+	err      error
+}
+
+func newFakePTY() *fakePTY {
+	return &fakePTY{
+		outputCh: make(chan []byte, 8),
+		waitCh:   make(chan fakeWait, 1),
+	}
+}
+
+func (f *fakePTY) Read(p []byte) (int, error) {
+	b, ok := <-f.outputCh
+	if !ok {
+		return 0, io.EOF
+	}
+	n := copy(p, b)
+	return n, nil
+}
+
+func (f *fakePTY) Write(p []byte) (int, error) {
+	f.mu.Lock()
+	f.writes = append(f.writes, string(append([]byte(nil), p...)))
+	f.mu.Unlock()
+	return len(p), nil
+}
+
+func (f *fakePTY) Resize(cols, rows int) error {
+	f.mu.Lock()
+	f.resizes = append(f.resizes, [2]int{cols, rows})
+	f.mu.Unlock()
+	return nil
+}
+
+func (f *fakePTY) GracefulStop() error {
+	f.mu.Lock()
+	f.gracefulCalls++
+	hook := f.onGracefulStop
+	f.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return nil
+}
+
+func (f *fakePTY) ForceKill() error {
+	f.mu.Lock()
+	f.forceKillCalls++
+	hook := f.onForceKill
+	f.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return nil
+}
+
+func (f *fakePTY) Wait(ctx context.Context) (int, error) {
+	select {
+	case <-ctx.Done():
+		return -1, ctx.Err()
+	case result := <-f.waitCh:
+		return result.exitCode, result.err
+	}
+}
+
+func (f *fakePTY) Close() error {
+	f.closeOnce.Do(func() {
+		close(f.outputCh)
+	})
+	return nil
+}
+
+func (f *fakePTY) pushOutput(b []byte) {
+	f.outputCh <- append([]byte(nil), b...)
+}
+
+func (f *fakePTY) finish(exitCode int, err error) {
+	f.finishOnce.Do(func() {
+		f.waitCh <- fakeWait{exitCode: exitCode, err: err}
+		close(f.waitCh)
+	})
+}
