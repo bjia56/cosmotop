@@ -849,7 +849,7 @@ jobs:
       - name: Build desktop app
         shell: bash
         run: |
-          wails build -clean -platform ${{ matrix.target.platform }} ${{ matrix.tags && format('--tags {0}', matrix.tags) || '' }}
+          wails build -clean -platform ${{ matrix.target.platform }} ${{ matrix.target.tags && format('--tags {0}', matrix.target.tags) || '' }}
         working-directory: ./desktop
 
       - name: Upload desktop artifacts
