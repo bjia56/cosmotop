@@ -13,6 +13,8 @@ import { EventsOff, EventsOn } from "../wailsjs/runtime/runtime";
 
 const RESIZE_DEBOUNCE_MS = 120;
 const APP_CLEANUP_KEY = "__cosmotopDesktopCleanup";
+const TERMINAL_FONT_FAMILY = "CaskaydiaCoveNerdFontMono";
+const TERMINAL_FONT_SIZE = 13;
 
 function toErrorMessage(err) {
   if (err instanceof Error && err.message) {
@@ -59,6 +61,28 @@ function extractChunkFromEventArgs(args) {
   return "";
 }
 
+function nextAnimationFrame() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+async function waitForLayoutAndFontMetrics() {
+  await nextAnimationFrame();
+  await nextAnimationFrame();
+
+  if (!document.fonts) {
+    return;
+  }
+
+  try {
+    await document.fonts.load(`${TERMINAL_FONT_SIZE}px "${TERMINAL_FONT_FAMILY}"`);
+    await document.fonts.ready;
+    await nextAnimationFrame();
+  } catch {
+  }
+}
+
 function createApp() {
   const root = document.getElementById("app");
   if (!root) {
@@ -78,8 +102,8 @@ function createApp() {
 
   const terminal = new Terminal({
     allowProposedApi: false,
-    fontFamily: "JetBrains Mono, Cascadia Code, Menlo, Consolas, monospace",
-    fontSize: 13,
+    fontFamily: `${TERMINAL_FONT_FAMILY}, monospace`,
+    fontSize: TERMINAL_FONT_SIZE,
     scrollback: 0,
   });
   const fitAddon = new FitAddon();
@@ -158,10 +182,18 @@ function createApp() {
   window.addEventListener("resize", windowResizeHandler);
   cleanups.push(() => window.removeEventListener("resize", windowResizeHandler));
 
+  if (document.fonts && typeof document.fonts.addEventListener === "function") {
+    const fontLoadHandler = () => scheduleResizeSync();
+    document.fonts.addEventListener("loadingdone", fontLoadHandler);
+    cleanups.push(() => document.fonts.removeEventListener("loadingdone", fontLoadHandler));
+  }
+
   terminal.focus();
 
   (async () => {
     try {
+      await waitForLayoutAndFontMetrics();
+
       const isRunning = await IsRunning();
       if (isRunning) {
         await syncResizeToBackend();
