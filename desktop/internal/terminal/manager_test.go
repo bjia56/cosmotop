@@ -173,6 +173,186 @@ func TestManagerStopForceKillAfterTimeout(t *testing.T) {
 	}
 }
 
+func TestManagerStartFailureEmitsStartingThenStopped(t *testing.T) {
+	origStarter := ptyStarter
+	defer func() { ptyStarter = origStarter }()
+
+	startErr := errors.New("boom")
+	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return nil, startErr }
+
+	var statuses []Status
+	mgr := NewManager(Callbacks{
+		OnStatus: func(status Status) {
+			statuses = append(statuses, status)
+		},
+	})
+
+	err := mgr.Start("/tmp/cosmotop", 80, 24)
+	if err == nil {
+		t.Fatal("Start() error = nil, want failure")
+	}
+	if mgr.IsRunning() {
+		t.Fatal("IsRunning() = true, want false")
+	}
+
+	if len(statuses) != 2 {
+		t.Fatalf("statuses = %v, want exactly 2 entries", statuses)
+	}
+	if statuses[0] != StatusStarting || statuses[1] != StatusStopped {
+		t.Fatalf("statuses = %v, want [starting stopped]", statuses)
+	}
+}
+
+func TestManagerStopProcessExitsNaturallyDuringStop(t *testing.T) {
+	origStarter := ptyStarter
+	defer func() { ptyStarter = origStarter }()
+
+	fake := newFakePTY()
+	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
+
+	var (
+		statusMu sync.Mutex
+		statuses []Status
+		exitMu   sync.Mutex
+		exits    int
+		exitCh   = make(chan struct{}, 1)
+	)
+
+	mgr := NewManager(Callbacks{
+		OnStatus: func(status Status) {
+			statusMu.Lock()
+			statuses = append(statuses, status)
+			statusMu.Unlock()
+		},
+		OnExit: func(exitCode int, err error) {
+			if exitCode != 17 || err != nil {
+				t.Errorf("OnExit(%d, %v), want (17, nil)", exitCode, err)
+			}
+			exitMu.Lock()
+			exits++
+			exitMu.Unlock()
+			exitCh <- struct{}{}
+		},
+	})
+
+	if err := mgr.Start("/tmp/cosmotop", 80, 24); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- mgr.Stop(250 * time.Millisecond)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	fake.finish(17, nil)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for Stop()")
+	}
+
+	select {
+	case <-exitCh:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for OnExit callback")
+	}
+
+	time.Sleep(20 * time.Millisecond)
+
+	exitMu.Lock()
+	defer exitMu.Unlock()
+	if exits != 1 {
+		t.Fatalf("OnExit callback count = %d, want 1", exits)
+	}
+
+	statusMu.Lock()
+	defer statusMu.Unlock()
+	if len(statuses) < 4 {
+		t.Fatalf("statuses = %v, want at least 4 entries", statuses)
+	}
+	if statuses[0] != StatusStarting || statuses[1] != StatusRunning {
+		t.Fatalf("statuses prefix = %v, want [starting running ...]", statuses)
+	}
+	if statuses[len(statuses)-2] != StatusStopping || statuses[len(statuses)-1] != StatusStopped {
+		t.Fatalf("statuses suffix = %v, want [... stopping stopped]", statuses)
+	}
+
+	if mgr.IsRunning() {
+		t.Fatal("IsRunning() = true, want false")
+	}
+}
+
+func TestManagerStopForceKillErrorStillEmitsExitOnce(t *testing.T) {
+	origStarter := ptyStarter
+	defer func() { ptyStarter = origStarter }()
+
+	fake := newFakePTY()
+	fake.forceKillErr = errors.New("force kill failed")
+	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
+
+	var (
+		exitMu sync.Mutex
+		exits  int
+		exitCh = make(chan struct{}, 1)
+	)
+
+	mgr := NewManager(Callbacks{
+		OnExit: func(exitCode int, err error) {
+			if exitCode != 23 || err != nil {
+				t.Errorf("OnExit(%d, %v), want (23, nil)", exitCode, err)
+			}
+			exitMu.Lock()
+			exits++
+			exitMu.Unlock()
+			exitCh <- struct{}{}
+		},
+	})
+
+	if err := mgr.Start("/tmp/cosmotop", 80, 24); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- mgr.Stop(10 * time.Millisecond)
+	}()
+
+	time.Sleep(25 * time.Millisecond)
+	fake.finish(23, nil)
+
+	select {
+	case err := <-errCh:
+		if err == nil || err.Error() != "force kill terminal session: force kill failed" {
+			t.Fatalf("Stop() error = %v, want force kill terminal session error", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for Stop() error")
+	}
+
+	select {
+	case <-exitCh:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for OnExit callback")
+	}
+
+	time.Sleep(20 * time.Millisecond)
+
+	exitMu.Lock()
+	defer exitMu.Unlock()
+	if exits != 1 {
+		t.Fatalf("OnExit callback count = %d, want 1", exits)
+	}
+
+	if mgr.IsRunning() {
+		t.Fatal("IsRunning() = true, want false")
+	}
+}
+
 func TestWithTerminalEnvOverridesTerminalVars(t *testing.T) {
 	env := withTerminalEnv([]string{"PATH=/bin", "TERM=vt100", "COLORTERM=24bit"})
 
@@ -208,6 +388,9 @@ type fakePTY struct {
 
 	onGracefulStop func()
 	onForceKill    func()
+
+	gracefulErr  error
+	forceKillErr error
 }
 
 type fakeWait struct {
@@ -249,22 +432,24 @@ func (f *fakePTY) GracefulStop() error {
 	f.mu.Lock()
 	f.gracefulCalls++
 	hook := f.onGracefulStop
+	err := f.gracefulErr
 	f.mu.Unlock()
 	if hook != nil {
 		hook()
 	}
-	return nil
+	return err
 }
 
 func (f *fakePTY) ForceKill() error {
 	f.mu.Lock()
 	f.forceKillCalls++
 	hook := f.onForceKill
+	err := f.forceKillErr
 	f.mu.Unlock()
 	if hook != nil {
 		hook()
 	}
-	return nil
+	return err
 }
 
 func (f *fakePTY) Wait(ctx context.Context) (int, error) {

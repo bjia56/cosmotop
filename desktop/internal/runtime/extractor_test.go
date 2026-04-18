@@ -116,6 +116,45 @@ func TestEnsureExtractedRewriteCorruptedFile(t *testing.T) {
 	}
 }
 
+func TestEnsureExtractedIgnoresStalePartialTempFile(t *testing.T) {
+	hooks := setTestHooks(t, []byte("recovered-runtime"), "linux")
+	defer hooks()
+
+	cacheRoot := t.TempDir()
+	userCacheDirFunc = func() (string, error) { return cacheRoot, nil }
+
+	versionDir := filepath.Join(cacheRoot, runtimeCacheSubdir, bundleDigestFunc())
+	if err := os.MkdirAll(versionDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", versionDir, err)
+	}
+
+	staleTmp := filepath.Join(versionDir, ".tmp-cosmotop-stale")
+	if err := os.WriteFile(staleTmp, []byte("partial"), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", staleTmp, err)
+	}
+
+	info, err := EnsureExtracted(context.Background())
+	if err != nil {
+		t.Fatalf("EnsureExtracted() error = %v", err)
+	}
+
+	b, err := os.ReadFile(info.Path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", info.Path, err)
+	}
+	if got, want := string(b), "recovered-runtime"; got != want {
+		t.Fatalf("extracted bytes = %q, want %q", got, want)
+	}
+
+	staleBytes, err := os.ReadFile(staleTmp)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", staleTmp, err)
+	}
+	if got, want := string(staleBytes), "partial"; got != want {
+		t.Fatalf("stale temp bytes = %q, want %q", got, want)
+	}
+}
+
 func TestEnsureExtractedDigestMismatchError(t *testing.T) {
 	hooks := setTestHooks(t, []byte("actual-runtime-bytes"), "linux")
 	defer hooks()
