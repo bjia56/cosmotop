@@ -3,17 +3,17 @@ import "./style.css";
 
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
+import {
+  IsRunning,
+  Resize,
+  StartCosmotop,
+  StopCosmotop,
+  WriteInputBase64,
+} from "../wailsjs/go/app/App";
+import { EventsOff, EventsOn } from "../wailsjs/runtime/runtime";
 
 const RESIZE_DEBOUNCE_MS = 120;
 const APP_CLEANUP_KEY = "__cosmotopDesktopCleanup";
-
-function getAppBinding() {
-  return window.go?.app?.App ?? window.go?.main?.App ?? null;
-}
-
-function getRuntimeBinding() {
-  return window.runtime ?? null;
-}
 
 function toBase64(value) {
   const bytes = new TextEncoder().encode(value);
@@ -31,21 +31,6 @@ function fromBase64(value) {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
-}
-
-function createApi() {
-  const appBinding = getAppBinding();
-  if (!appBinding) {
-    throw new Error("Wails App bindings are unavailable.");
-  }
-
-  return {
-    StartCosmotop: (cols, rows) => appBinding.StartCosmotop(cols, rows),
-    WriteInputBase64: (data) => appBinding.WriteInputBase64(data),
-    Resize: (cols, rows) => appBinding.Resize(cols, rows),
-    StopCosmotop: () => appBinding.StopCosmotop(),
-    IsRunning: () => appBinding.IsRunning(),
-  };
 }
 
 function createApp() {
@@ -73,12 +58,9 @@ function createApp() {
     </main>
   `;
 
-  const runtime = getRuntimeBinding();
-  if (!runtime?.EventsOn) {
+  if (!window.runtime) {
     throw new Error("Wails runtime event APIs are unavailable.");
   }
-
-  const api = createApi();
   const statusIndicator = root.querySelector("#status-indicator");
   const errorBanner = root.querySelector("#error-banner");
   const terminalPanel = root.querySelector("#terminal-panel");
@@ -163,7 +145,7 @@ function createApp() {
   async function syncResizeToBackend() {
     const { cols, rows } = fitAndGetSize();
     if (cols > 0 && rows > 0) {
-      await api.Resize(cols, rows);
+      await Resize(cols, rows);
     }
     return { cols, rows };
   }
@@ -178,15 +160,9 @@ function createApp() {
   }
 
   function subscribe(eventName, callback) {
-    runtime.EventsOn(eventName, callback);
+    EventsOn(eventName, callback);
     return () => {
-      if (typeof runtime.EventsOff === "function") {
-        try {
-          runtime.EventsOff(eventName, callback);
-        } catch {
-          runtime.EventsOff(eventName);
-        }
-      }
+      EventsOff(eventName);
     };
   }
 
@@ -231,7 +207,7 @@ function createApp() {
     if (!data) {
       return;
     }
-    api.WriteInputBase64(toBase64(data)).catch(showError);
+    WriteInputBase64(toBase64(data)).catch(showError);
   });
   cleanups.push(() => inputDisposable.dispose());
 
@@ -246,7 +222,7 @@ function createApp() {
   cleanups.push(() => window.removeEventListener("resize", windowResizeHandler));
 
   const stopHandler = () => {
-    api.StopCosmotop().catch(showError);
+    StopCosmotop().catch(showError);
   };
   stopButton.addEventListener("click", stopHandler);
   cleanups.push(() => stopButton.removeEventListener("click", stopHandler));
@@ -254,12 +230,12 @@ function createApp() {
   const startSession = async () => {
     setStatus("starting");
     const { cols, rows } = fitAndGetSize();
-    await api.StartCosmotop(cols, rows);
+    await StartCosmotop(cols, rows);
   };
 
   const restartHandler = async () => {
     setStatus("starting");
-    await api.StopCosmotop();
+    await StopCosmotop();
     await startSession();
   };
   const restartClickHandler = () => {
@@ -272,7 +248,7 @@ function createApp() {
 
   (async () => {
     try {
-      const isRunning = await api.IsRunning();
+      const isRunning = await IsRunning();
       if (isRunning) {
         setStatus("running");
         await syncResizeToBackend();
