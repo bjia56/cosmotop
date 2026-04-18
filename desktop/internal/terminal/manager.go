@@ -18,18 +18,8 @@ const (
 
 var ErrAlreadyRunning = errors.New("terminal session already running")
 
-type Status string
-
-const (
-	StatusStarting Status = "starting"
-	StatusRunning  Status = "running"
-	StatusStopping Status = "stopping"
-	StatusStopped  Status = "stopped"
-)
-
 type Callbacks struct {
 	OnOutput func([]byte)
-	OnStatus func(Status)
 	OnExit   func(exitCode int, err error)
 }
 
@@ -79,12 +69,9 @@ func (m *Manager) Start(executablePath string, cols, rows int) error {
 	}
 	m.mu.Unlock()
 
-	m.emitStatus(StatusStarting)
-
 	env := withTerminalEnv(os.Environ())
 	proc, err := ptyStarter(executablePath, cols, rows, env)
 	if err != nil {
-		m.emitStatus(StatusStopped)
 		return fmt.Errorf("start PTY session: %w", err)
 	}
 
@@ -109,7 +96,6 @@ func (m *Manager) Start(executablePath string, cols, rows int) error {
 	go m.readLoop(s)
 	go m.waitLoop(s)
 
-	m.emitStatus(StatusRunning)
 	return nil
 }
 
@@ -151,7 +137,7 @@ func (m *Manager) Resize(cols, rows int) error {
 	return nil
 }
 
-func (m *Manager) Stop(timeout time.Duration) error {
+func (m *Manager) Kill(timeout time.Duration) error {
 	m.mu.Lock()
 	s := m.current
 	m.mu.Unlock()
@@ -162,15 +148,6 @@ func (m *Manager) Stop(timeout time.Duration) error {
 
 	if timeout <= 0 {
 		timeout = defaultStopTimeout
-	}
-
-	m.emitStatus(StatusStopping)
-	_ = s.pty.GracefulStop()
-
-	select {
-	case <-s.done:
-		return nil
-	case <-time.After(timeout):
 	}
 
 	if err := s.pty.ForceKill(); err != nil {
@@ -218,7 +195,6 @@ func (m *Manager) waitLoop(s *session) {
 	}
 	m.mu.Unlock()
 
-	m.emitStatus(StatusStopped)
 	m.emitExit(exitCode, waitErr)
 }
 
@@ -228,12 +204,6 @@ func (m *Manager) emitOutput(output []byte) {
 	}
 	if m.callbacks.OnOutput != nil {
 		m.callbacks.OnOutput(output)
-	}
-}
-
-func (m *Manager) emitStatus(status Status) {
-	if m.callbacks.OnStatus != nil {
-		m.callbacks.OnStatus(status)
 	}
 }
 

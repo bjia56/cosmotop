@@ -14,7 +14,7 @@ func TestManagerLifecycle(t *testing.T) {
 	defer func() { ptyStarter = origStarter }()
 
 	fake := newFakePTY()
-	fake.onGracefulStop = func() { fake.finish(0, nil) }
+	fake.onForceKill = func() { fake.finish(0, nil) }
 	ptyStarter = func(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
 		if executablePath != "/tmp/cosmotop" {
 			t.Fatalf("executablePath = %q, want %q", executablePath, "/tmp/cosmotop")
@@ -28,8 +28,6 @@ func TestManagerLifecycle(t *testing.T) {
 	}
 
 	var (
-		statusMu sync.Mutex
-		statuses []Status
 		outputCh = make(chan []byte, 1)
 		exitCh   = make(chan struct {
 			code int
@@ -40,11 +38,6 @@ func TestManagerLifecycle(t *testing.T) {
 	mgr := NewManager(Callbacks{
 		OnOutput: func(b []byte) {
 			outputCh <- b
-		},
-		OnStatus: func(status Status) {
-			statusMu.Lock()
-			statuses = append(statuses, status)
-			statusMu.Unlock()
 		},
 		OnExit: func(exitCode int, err error) {
 			exitCh <- struct {
@@ -78,8 +71,8 @@ func TestManagerLifecycle(t *testing.T) {
 		t.Fatalf("Resize() error = %v", err)
 	}
 
-	if err := mgr.Stop(200 * time.Millisecond); err != nil {
-		t.Fatalf("Stop() error = %v", err)
+	if err := mgr.Kill(200 * time.Millisecond); err != nil {
+		t.Fatalf("Kill() error = %v", err)
 	}
 
 	select {
@@ -91,29 +84,14 @@ func TestManagerLifecycle(t *testing.T) {
 		t.Fatal("timed out waiting for exit callback")
 	}
 
-	statusMu.Lock()
-	defer statusMu.Unlock()
-	if len(statuses) < 4 {
-		t.Fatalf("statuses = %v, want at least 4 entries", statuses)
-	}
-	if statuses[0] != StatusStarting || statuses[1] != StatusRunning {
-		t.Fatalf("statuses prefix = %v, want [starting running ...]", statuses)
-	}
-	if statuses[len(statuses)-2] != StatusStopping || statuses[len(statuses)-1] != StatusStopped {
-		t.Fatalf("statuses suffix = %v, want [... stopping stopped]", statuses)
-	}
-
 	if mgr.IsRunning() {
 		t.Fatal("IsRunning() = true, want false")
 	}
 
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
-	if fake.gracefulCalls == 0 {
-		t.Fatal("GracefulStop() was not called")
-	}
-	if fake.forceKillCalls != 0 {
-		t.Fatalf("ForceKill() calls = %d, want 0", fake.forceKillCalls)
+	if fake.forceKillCalls == 0 {
+		t.Fatalf("ForceKill() calls = %d, want >= 1", fake.forceKillCalls)
 	}
 	if len(fake.writes) == 0 || string(fake.writes[0]) != "input" {
 		t.Fatalf("writes = %q, want first write %q", fake.writes, "input")
@@ -141,12 +119,12 @@ func TestManagerDuplicateStart(t *testing.T) {
 	}
 
 	fake.finish(0, nil)
-	if err := mgr.Stop(100 * time.Millisecond); err != nil {
-		t.Fatalf("Stop() error = %v", err)
+	if err := mgr.Kill(100 * time.Millisecond); err != nil {
+		t.Fatalf("Kill() error = %v", err)
 	}
 }
 
-func TestManagerStopForceKillAfterTimeout(t *testing.T) {
+func TestManagerKillForceKillAfterTimeout(t *testing.T) {
 	origStarter := ptyStarter
 	defer func() { ptyStarter = origStarter }()
 
@@ -159,33 +137,25 @@ func TestManagerStopForceKillAfterTimeout(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	if err := mgr.Stop(10 * time.Millisecond); err != nil {
-		t.Fatalf("Stop() error = %v", err)
+	if err := mgr.Kill(10 * time.Millisecond); err != nil {
+		t.Fatalf("Kill() error = %v", err)
 	}
 
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
-	if fake.gracefulCalls == 0 {
-		t.Fatal("GracefulStop() calls = 0, want >= 1")
-	}
 	if fake.forceKillCalls == 0 {
 		t.Fatal("ForceKill() calls = 0, want >= 1")
 	}
 }
 
-func TestManagerStartFailureEmitsStartingThenStopped(t *testing.T) {
+func TestManagerStartFailureLeavesNotRunning(t *testing.T) {
 	origStarter := ptyStarter
 	defer func() { ptyStarter = origStarter }()
 
 	startErr := errors.New("boom")
 	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return nil, startErr }
 
-	var statuses []Status
-	mgr := NewManager(Callbacks{
-		OnStatus: func(status Status) {
-			statuses = append(statuses, status)
-		},
-	})
+	mgr := NewManager(Callbacks{})
 
 	err := mgr.Start("/tmp/cosmotop", 80, 24)
 	if err == nil {
@@ -194,16 +164,9 @@ func TestManagerStartFailureEmitsStartingThenStopped(t *testing.T) {
 	if mgr.IsRunning() {
 		t.Fatal("IsRunning() = true, want false")
 	}
-
-	if len(statuses) != 2 {
-		t.Fatalf("statuses = %v, want exactly 2 entries", statuses)
-	}
-	if statuses[0] != StatusStarting || statuses[1] != StatusStopped {
-		t.Fatalf("statuses = %v, want [starting stopped]", statuses)
-	}
 }
 
-func TestManagerStopProcessExitsNaturallyDuringStop(t *testing.T) {
+func TestManagerKillProcessExitsNaturallyDuringKill(t *testing.T) {
 	origStarter := ptyStarter
 	defer func() { ptyStarter = origStarter }()
 
@@ -211,19 +174,12 @@ func TestManagerStopProcessExitsNaturallyDuringStop(t *testing.T) {
 	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
 
 	var (
-		statusMu sync.Mutex
-		statuses []Status
-		exitMu   sync.Mutex
-		exits    int
-		exitCh   = make(chan struct{}, 1)
+		exitMu sync.Mutex
+		exits  int
+		exitCh = make(chan struct{}, 1)
 	)
 
 	mgr := NewManager(Callbacks{
-		OnStatus: func(status Status) {
-			statusMu.Lock()
-			statuses = append(statuses, status)
-			statusMu.Unlock()
-		},
 		OnExit: func(exitCode int, err error) {
 			if exitCode != 17 || err != nil {
 				t.Errorf("OnExit(%d, %v), want (17, nil)", exitCode, err)
@@ -241,7 +197,7 @@ func TestManagerStopProcessExitsNaturallyDuringStop(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- mgr.Stop(250 * time.Millisecond)
+		done <- mgr.Kill(250 * time.Millisecond)
 	}()
 
 	time.Sleep(20 * time.Millisecond)
@@ -250,10 +206,10 @@ func TestManagerStopProcessExitsNaturallyDuringStop(t *testing.T) {
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatalf("Stop() error = %v", err)
+			t.Fatalf("Kill() error = %v", err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for Stop()")
+		t.Fatal("timed out waiting for Kill()")
 	}
 
 	select {
@@ -270,24 +226,12 @@ func TestManagerStopProcessExitsNaturallyDuringStop(t *testing.T) {
 		t.Fatalf("OnExit callback count = %d, want 1", exits)
 	}
 
-	statusMu.Lock()
-	defer statusMu.Unlock()
-	if len(statuses) < 4 {
-		t.Fatalf("statuses = %v, want at least 4 entries", statuses)
-	}
-	if statuses[0] != StatusStarting || statuses[1] != StatusRunning {
-		t.Fatalf("statuses prefix = %v, want [starting running ...]", statuses)
-	}
-	if statuses[len(statuses)-2] != StatusStopping || statuses[len(statuses)-1] != StatusStopped {
-		t.Fatalf("statuses suffix = %v, want [... stopping stopped]", statuses)
-	}
-
 	if mgr.IsRunning() {
 		t.Fatal("IsRunning() = true, want false")
 	}
 }
 
-func TestManagerStopForceKillErrorStillEmitsExitOnce(t *testing.T) {
+func TestManagerKillForceKillErrorStillEmitsExitOnce(t *testing.T) {
 	origStarter := ptyStarter
 	defer func() { ptyStarter = origStarter }()
 
@@ -319,7 +263,7 @@ func TestManagerStopForceKillErrorStillEmitsExitOnce(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- mgr.Stop(10 * time.Millisecond)
+		errCh <- mgr.Kill(10 * time.Millisecond)
 	}()
 
 	time.Sleep(25 * time.Millisecond)
@@ -328,10 +272,10 @@ func TestManagerStopForceKillErrorStillEmitsExitOnce(t *testing.T) {
 	select {
 	case err := <-errCh:
 		if err == nil || err.Error() != "force kill terminal session: force kill failed" {
-			t.Fatalf("Stop() error = %v, want force kill terminal session error", err)
+			t.Fatalf("Kill() error = %v, want force kill terminal session error", err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for Stop() error")
+		t.Fatal("timed out waiting for Kill() error")
 	}
 
 	select {
@@ -383,13 +327,10 @@ type fakePTY struct {
 	writes  []string
 	resizes [][2]int
 
-	gracefulCalls  int
 	forceKillCalls int
 
-	onGracefulStop func()
-	onForceKill    func()
+	onForceKill func()
 
-	gracefulErr  error
 	forceKillErr error
 }
 
@@ -426,18 +367,6 @@ func (f *fakePTY) Resize(cols, rows int) error {
 	f.resizes = append(f.resizes, [2]int{cols, rows})
 	f.mu.Unlock()
 	return nil
-}
-
-func (f *fakePTY) GracefulStop() error {
-	f.mu.Lock()
-	f.gracefulCalls++
-	hook := f.onGracefulStop
-	err := f.gracefulErr
-	f.mu.Unlock()
-	if hook != nil {
-		hook()
-	}
-	return err
 }
 
 func (f *fakePTY) ForceKill() error {

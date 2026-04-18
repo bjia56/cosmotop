@@ -4,10 +4,13 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -28,7 +31,7 @@ type waitResult struct {
 }
 
 func startPTYProcess(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
-	cmd := exec.Command("sh", "-c", "exec \"$1\"", "sh", executablePath)
+	cmd := exec.Command("sh", executablePath)
 	cmd.Env = env
 	cmd.Dir = filepath.Dir(executablePath)
 
@@ -69,18 +72,25 @@ func (p *unixPTYProcess) Resize(cols, rows int) error {
 	return pty.Setsize(p.file, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 }
 
-func (p *unixPTYProcess) GracefulStop() error {
-	_, _ = p.file.Write([]byte("q"))
-	if p.cmd.Process != nil {
-		if err := p.cmd.Process.Signal(syscall.SIGINT); err != nil && err != os.ErrProcessDone {
-			return err
-		}
-	}
-	return nil
-}
-
 func (p *unixPTYProcess) ForceKill() error {
 	if p.cmd.Process == nil {
+		return nil
+	}
+
+	pid := p.cmd.Process.Pid
+	if pid > 0 {
+		descendants, err := descendantPIDs(pid)
+		if err == nil {
+			for _, childPID := range descendants {
+				if killErr := syscall.Kill(childPID, syscall.SIGKILL); killErr != nil && !errors.Is(killErr, syscall.ESRCH) {
+					return killErr
+				}
+			}
+		}
+
+		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return err
+		}
 		return nil
 	}
 	if err := p.cmd.Process.Kill(); err != nil && err != os.ErrProcessDone {
@@ -104,4 +114,51 @@ func (p *unixPTYProcess) Close() error {
 		err = p.file.Close()
 	})
 	return err
+}
+
+func descendantPIDs(rootPID int) ([]int, error) {
+	out, err := exec.Command("ps", "-A", "-o", "pid=", "-o", "ppid=").Output()
+	if err != nil {
+		return nil, err
+	}
+
+	childrenByParent := make(map[int][]int)
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		pid, pidErr := strconv.Atoi(fields[0])
+		ppid, ppidErr := strconv.Atoi(fields[1])
+		if pidErr != nil || ppidErr != nil {
+			continue
+		}
+
+		childrenByParent[ppid] = append(childrenByParent[ppid], pid)
+	}
+
+	visited := make(map[int]bool)
+	ordered := make([]int, 0)
+
+	var walk func(int)
+	walk = func(parent int) {
+		for _, child := range childrenByParent[parent] {
+			if visited[child] {
+				continue
+			}
+			visited[child] = true
+			walk(child)
+			ordered = append(ordered, child)
+		}
+	}
+
+	walk(rootPID)
+	return ordered, nil
 }

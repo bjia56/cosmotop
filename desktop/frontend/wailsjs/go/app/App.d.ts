@@ -7,8 +7,4 @@ export function Resize(arg1:number,arg2:number):Promise<void>;
 
 export function StartCosmotop(arg1:number,arg2:number):Promise<void>;
 
-export function Status():Promise<string>;
-
-export function StopCosmotop():Promise<void>;
-
 export function WriteInputBase64(arg1:string):Promise<void>;

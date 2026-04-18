@@ -16,28 +16,18 @@ import (
 )
 
 const (
-	terminalDataEventName   = "terminal:data"
-	terminalStatusEventName = "terminal:status"
-	terminalExitEventName   = "terminal:exit"
+	terminalDataEventName = "terminal:data"
 
 	defaultStopTimeout = 3 * time.Second
 	maxInputBytes      = 64 * 1024
 )
 
-type terminalStatusEvent struct {
-	State   string `json:"state"`
-	Message string `json:"message,omitempty"`
-}
-
-type terminalExitEvent struct {
-	Code  int    `json:"code"`
-	Error string `json:"error,omitempty"`
-}
-
 type App struct {
 	ctx context.Context
 
 	mu sync.Mutex
+
+	closing bool
 
 	runtimeInfo internalruntime.ExtractedBinaryInfo
 	runtimePath string
@@ -49,7 +39,6 @@ func New() *App {
 	a := &App{}
 	a.terminal = terminal.NewManager(terminal.Callbacks{
 		OnOutput: a.onTerminalOutput,
-		OnStatus: a.onTerminalStatus,
 		OnExit:   a.onTerminalExit,
 	})
 	return a
@@ -78,7 +67,11 @@ func (a *App) DomReady(ctx context.Context) {
 
 func (a *App) BeforeClose(ctx context.Context) bool {
 	a.ctx = ctx
-	if err := a.terminal.Stop(defaultStopTimeout); err != nil {
+	a.mu.Lock()
+	a.closing = true
+	a.mu.Unlock()
+
+	if err := a.terminal.Kill(defaultStopTimeout); err != nil {
 		log.Printf("failed to stop terminal before close: %v", err)
 	}
 	return false
@@ -86,25 +79,22 @@ func (a *App) BeforeClose(ctx context.Context) bool {
 
 func (a *App) Shutdown(ctx context.Context) {
 	a.ctx = ctx
-	if err := a.terminal.Stop(defaultStopTimeout); err != nil {
+	a.mu.Lock()
+	a.closing = true
+	a.mu.Unlock()
+
+	if err := a.terminal.Kill(defaultStopTimeout); err != nil {
 		log.Printf("failed to stop terminal on shutdown: %v", err)
 	}
 }
 
-func (a *App) Status() string {
-	return "Cosmotop terminal runtime is not wired yet."
-}
-
 func (a *App) StartCosmotop(cols int, rows int) error {
 	if a.terminal.IsRunning() {
-		err := errors.New("cosmotop session is already running")
-		a.emitStatus("error", err.Error())
-		return err
+		return errors.New("cosmotop session is already running")
 	}
 
 	runtimePath, err := a.ensureRuntimePath()
 	if err != nil {
-		a.emitStatus("error", err.Error())
 		return err
 	}
 
@@ -112,7 +102,6 @@ func (a *App) StartCosmotop(cols int, rows int) error {
 		if errors.Is(err, terminal.ErrAlreadyRunning) {
 			err = errors.New("cosmotop session is already running")
 		}
-		a.emitStatus("error", err.Error())
 		return err
 	}
 
@@ -141,14 +130,6 @@ func (a *App) WriteInputBase64(data string) error {
 
 func (a *App) Resize(cols int, rows int) error {
 	if err := a.terminal.Resize(cols, rows); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *App) StopCosmotop() error {
-	if err := a.terminal.Stop(defaultStopTimeout); err != nil {
-		a.emitStatus("error", err.Error())
 		return err
 	}
 	return nil
@@ -192,34 +173,19 @@ func (a *App) onTerminalOutput(output []byte) {
 	a.emitEvent(terminalDataEventName, base64.StdEncoding.EncodeToString(output))
 }
 
-func (a *App) onTerminalStatus(status terminal.Status) {
-	switch status {
-	case terminal.StatusStarting:
-		a.emitStatus("starting", "")
-	case terminal.StatusRunning:
-		a.emitStatus("running", "")
-	case terminal.StatusStopped:
-	case terminal.StatusStopping:
-	}
-}
-
 func (a *App) onTerminalExit(exitCode int, err error) {
-	message := ""
 	if err != nil {
-		message = err.Error()
-		a.emitStatus("error", message)
+		log.Printf("cosmotop exited with error: %v", err)
 	} else if exitCode != 0 {
-		message = fmt.Sprintf("cosmotop exited with code %d", exitCode)
-		a.emitStatus("error", message)
-	} else {
-		a.emitStatus("stopped", "")
+		log.Printf("cosmotop exited with code %d", exitCode)
 	}
 
-	a.emitEvent(terminalExitEventName, terminalExitEvent{Code: exitCode, Error: message})
-}
-
-func (a *App) emitStatus(state string, message string) {
-	a.emitEvent(terminalStatusEventName, terminalStatusEvent{State: state, Message: message})
+	a.mu.Lock()
+	shouldQuit := !a.closing && a.ctx != nil
+	a.mu.Unlock()
+	if shouldQuit {
+		wailsruntime.Quit(a.ctx)
+	}
 }
 
 func (a *App) emitEvent(name string, data any) {

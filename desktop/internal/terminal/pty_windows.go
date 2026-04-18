@@ -5,6 +5,7 @@ package terminal
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -54,14 +55,11 @@ func (p *windowsPTYProcess) Resize(cols, rows int) error {
 	return p.cpty.Resize(cols, rows)
 }
 
-func (p *windowsPTYProcess) GracefulStop() error {
-	_, _ = p.cpty.Write([]byte("q"))
-	_, _ = p.cpty.Write([]byte("\x03"))
-	_, _ = p.cpty.Write([]byte("\r"))
-	return nil
-}
-
 func (p *windowsPTYProcess) ForceKill() error {
+	pid := p.cpty.Pid()
+	if pid > 0 {
+		_ = exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/T", "/F").Run()
+	}
 	return p.Close()
 }
 

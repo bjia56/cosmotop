@@ -14,14 +14,6 @@ export function StartCosmotop(arg1, arg2) {
   return window['go']['app']['App']['StartCosmotop'](arg1, arg2);
 }
 
-export function Status() {
-  return window['go']['app']['App']['Status']();
-}
-
-export function StopCosmotop() {
-  return window['go']['app']['App']['StopCosmotop']();
-}
-
 export function WriteInputBase64(arg1) {
   return window['go']['app']['App']['WriteInputBase64'](arg1);
 }

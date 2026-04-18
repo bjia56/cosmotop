@@ -10,7 +10,6 @@ type ptyProcess interface {
 	io.Writer
 
 	Resize(cols, rows int) error
-	GracefulStop() error
 	ForceKill() error
 	Wait(ctx context.Context) (int, error)
 	Close() error
