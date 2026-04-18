@@ -768,6 +768,80 @@ jobs:
           name: cosmotop.big
           path: ./cosmotop.big
 
+  desktop_build:
+    name: Build desktop app ${{ matrix.target.name }}
+    needs: bundle
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: linux-amd64
+            runner: ubuntu-latest
+            platform: linux/amd64
+            artifact_name: desktop-linux-amd64
+          - name: macos-universal
+            runner: macos-15-intel
+            platform: darwin/universal
+            artifact_name: desktop-macos-universal
+          - name: windows-amd64
+            runner: windows-latest
+            platform: windows/amd64
+            artifact_name: desktop-windows-amd64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ./desktop/go.mod
+
+      - name: Install Wails CLI
+        shell: bash
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install Linux dependencies
+        if: ${{ matrix.target.runner == 'ubuntu-latest' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Download prebuilt cosmotop artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: cosmotop
+          path: ./desktop/internal/bundle/data
+
+      - name: Verify bundled cosmotop artifact exists
+        shell: bash
+        run: |
+          if [ ! -f ./desktop/internal/bundle/data/cosmotop ]; then
+            echo "Missing required artifact at desktop/internal/bundle/data/cosmotop"
+            exit 1
+          fi
+          chmod +x ./desktop/internal/bundle/data/cosmotop || true
+
+      - name: Build desktop app
+        shell: bash
+        run: |
+          wails build -clean -platform ${{ matrix.target.platform }}
+        working-directory: ./desktop
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: ${{ matrix.target.artifact_name }}
+          path: ./desktop/build/bin/*
+
   check:
     name: Check cosmotop ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
     needs: bundle
