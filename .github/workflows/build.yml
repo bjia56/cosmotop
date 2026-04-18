@@ -781,6 +781,7 @@ jobs:
             platform: linux/amd64
             artifact_name: desktop-linux-amd64
             embed_name: cosmotop
+            tags: webkit2_41
           - name: macos-universal
             runner: macos-15-intel
             platform: darwin/universal
@@ -848,7 +849,7 @@ jobs:
       - name: Build desktop app
         shell: bash
         run: |
-          wails build -clean -platform ${{ matrix.target.platform }}
+          wails build -clean -platform ${{ matrix.target.platform }} ${{ matrix.tags && format('--tags {0}', matrix.tags) || '' }}
         working-directory: ./desktop
 
       - name: Upload desktop artifacts
