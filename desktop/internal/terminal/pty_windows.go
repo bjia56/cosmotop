@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/UserExistsError/conpty"
@@ -21,8 +22,15 @@ type windowsPTYProcess struct {
 
 func startPTYProcess(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
 	workDir := filepath.Dir(executablePath)
+	commandLine := strconv.Quote(executablePath)
+
+	lowerPath := strings.ToLower(executablePath)
+	if strings.HasSuffix(lowerPath, ".cmd") || strings.HasSuffix(lowerPath, ".bat") {
+		commandLine = fmt.Sprintf("cmd.exe /d /s /c %s", strconv.Quote(executablePath))
+	}
+
 	cpty, err := conpty.Start(
-		strconv.Quote(executablePath),
+		commandLine,
 		conpty.ConPtyDimensions(cols, rows),
 		conpty.ConPtyWorkDir(workDir),
 		conpty.ConPtyEnv(env),

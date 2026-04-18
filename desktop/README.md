@@ -13,8 +13,11 @@ The desktop app is a two-part system:
 
 The desktop binary embeds a prebuilt `cosmotop` runtime artifact:
 
-- Embedded file: `desktop/internal/bundle/data/cosmotop`
-- Embed code: `desktop/internal/bundle/embed.go` via `//go:embed data/cosmotop`
+- Embedded file (unix): `desktop/internal/bundle/data/cosmotop`
+- Embedded file (windows): `desktop/internal/bundle/data/cosmotop.cmd`
+- Embed code:
+  - `desktop/internal/bundle/embed_unix.go` via `//go:embed data/cosmotop`
+  - `desktop/internal/bundle/embed_windows.go` via `//go:embed data/cosmotop.cmd`
 - Digest source: SHA-256 computed from embedded bytes at app startup/runtime use
 
 At startup (and lazily on demand), backend extraction logic in `desktop/internal/runtime/extractor.go`:
@@ -22,7 +25,8 @@ At startup (and lazily on demand), backend extraction logic in `desktop/internal
 1. Computes the expected digest from embedded bytes.
 2. Resolves cache root with `os.UserCacheDir()`.
 3. Extracts to a digest-versioned path:
-   - `<user-cache>/cosmotop-desktop/runtime/<sha256>/cosmotop`
+   - Unix: `<user-cache>/cosmotop-desktop/runtime/<sha256>/cosmotop`
+   - Windows: `<user-cache>/cosmotop-desktop/runtime/<sha256>/cosmotop.cmd`
 4. Verifies digest of an existing file and reuses it if valid.
 5. Otherwise writes a temp file, marks executable on non-Windows, atomically renames, and re-verifies digest.
 
@@ -103,14 +107,17 @@ go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.2
 
 The embedded runtime file must exist before backend build/test:
 
-- Required path: `desktop/internal/bundle/data/cosmotop`
-- Required filename: `cosmotop`
+- Unix builds: `desktop/internal/bundle/data/cosmotop`
+- Windows builds: `desktop/internal/bundle/data/cosmotop.cmd`
 
 Example:
 
 ```bash
 cp /path/to/prebuilt/cosmotop desktop/internal/bundle/data/cosmotop
 chmod +x desktop/internal/bundle/data/cosmotop
+
+# Windows build hosts should place runtime at:
+# desktop/internal/bundle/data/cosmotop.cmd
 ```
 
 ### Install frontend dependencies
@@ -151,18 +158,23 @@ Current flow in `.github/workflows/build.yml`:
 2. `desktop_build` job declares `needs: bundle`.
 3. `desktop_build` downloads artifact `cosmotop` into `./desktop/internal/bundle/data`.
 4. Workflow verifies `./desktop/internal/bundle/data/cosmotop` exists.
-5. Wails build runs in `./desktop`.
-6. Built desktop app binaries are uploaded as:
+5. Workflow copies the artifact to platform-specific embed filename:
+   - unix target: `cosmotop`
+   - windows target: `cosmotop.cmd`
+6. Wails build runs in `./desktop`.
+7. Built desktop app binaries are uploaded as:
    - `desktop-linux-amd64`
    - `desktop-macos-universal`
    - `desktop-windows-amd64`
 
-Key invariant: the downloaded runtime artifact filename must remain exactly `cosmotop` so `//go:embed data/cosmotop` resolves without code changes.
+Key invariant: desktop build must provide the platform-specific embed filename (`cosmotop` on unix, `cosmotop.cmd` on windows).
 
 ## Troubleshooting
 
 - **Build fails with embed/missing file errors**
-  - Ensure `desktop/internal/bundle/data/cosmotop` exists before `go test` or `wails build`.
+  - Ensure platform-specific runtime exists before `go test` or `wails build`:
+    - unix: `desktop/internal/bundle/data/cosmotop`
+    - windows: `desktop/internal/bundle/data/cosmotop.cmd`
 - **Desktop starts but terminal shows error immediately**
   - Check execution bit/permissions on extracted runtime and source bundle (`chmod +x .../cosmotop` on Unix).
 - **Frontend errors like missing Wails bindings/runtime**
@@ -178,5 +190,5 @@ Key invariant: the downloaded runtime artifact filename must remain exactly `cos
 - Extracted directory is created with `0700`; non-Windows extracted binary is chmodded `0700`.
 - Digest verification occurs before reuse and after write, with rewrite on mismatch/corruption.
 - No auto-update channel exists in desktop runtime management.
-  - The desktop app runs exactly the embedded `desktop/internal/bundle/data/cosmotop` bytes.
+  - The desktop app runs exactly the embedded runtime bytes (`cosmotop` on unix, `cosmotop.cmd` on windows).
   - Updating runtime means rebuilding desktop app with a new embedded artifact.

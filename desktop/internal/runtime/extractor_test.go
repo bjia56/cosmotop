@@ -183,7 +183,6 @@ func setTestHooks(t *testing.T, bundleBytes []byte, osName string) func() {
 	origUserCacheDir := userCacheDirFunc
 	origBundleBytes := bundleBytesFunc
 	origBundleDigest := bundleDigestFunc
-	origBundleName := bundleNameFunc
 	origGOOS := goos
 
 	userCacheDirFunc = os.UserCacheDir
@@ -192,14 +191,12 @@ func setTestHooks(t *testing.T, bundleBytes []byte, osName string) func() {
 		sum := sha256.Sum256(bundleBytes)
 		return hex.EncodeToString(sum[:])
 	}
-	bundleNameFunc = func() string { return "cosmotop" }
 	goos = osName
 
 	return func() {
 		userCacheDirFunc = origUserCacheDir
 		bundleBytesFunc = origBundleBytes
 		bundleDigestFunc = origBundleDigest
-		bundleNameFunc = origBundleName
 		goos = origGOOS
 	}
 }

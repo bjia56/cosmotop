@@ -28,7 +28,7 @@ type waitResult struct {
 }
 
 func startPTYProcess(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
-	cmd := exec.Command(executablePath)
+	cmd := exec.Command("sh", "-c", "exec \"$1\"", "sh", executablePath)
 	cmd.Env = env
 	cmd.Dir = filepath.Dir(executablePath)
 

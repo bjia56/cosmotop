@@ -780,14 +780,17 @@ jobs:
             runner: ubuntu-latest
             platform: linux/amd64
             artifact_name: desktop-linux-amd64
+            embed_name: cosmotop
           - name: macos-universal
             runner: macos-15-intel
             platform: darwin/universal
             artifact_name: desktop-macos-universal
+            embed_name: cosmotop
           - name: windows-amd64
             runner: windows-latest
             platform: windows/amd64
             artifact_name: desktop-windows-amd64
+            embed_name: cosmotop.cmd
 
     steps:
       - name: Checkout
@@ -828,7 +831,19 @@ jobs:
             echo "Missing required artifact at desktop/internal/bundle/data/cosmotop"
             exit 1
           fi
-          chmod +x ./desktop/internal/bundle/data/cosmotop || true
+
+          if [ "${{ matrix.target.embed_name }}" != "cosmotop" ]; then
+            cp ./desktop/internal/bundle/data/cosmotop ./desktop/internal/bundle/data/${{ matrix.target.embed_name }}
+          fi
+
+          if [ "${{ matrix.target.embed_name }}" = "cosmotop" ]; then
+            chmod +x ./desktop/internal/bundle/data/cosmotop || true
+          fi
+
+          if [ ! -f ./desktop/internal/bundle/data/${{ matrix.target.embed_name }} ]; then
+            echo "Missing required embed file at desktop/internal/bundle/data/${{ matrix.target.embed_name }}"
+            exit 1
+          fi
 
       - name: Build desktop app
         shell: bash

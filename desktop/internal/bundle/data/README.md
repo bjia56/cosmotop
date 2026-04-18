@@ -3,14 +3,16 @@
 This directory contains the single embedded artifact file used by
 `desktop/internal/bundle`.
 
-Expected filename:
+Expected filenames (platform-specific embed):
 
-- `cosmotop`
+- Unix builds (`linux`/`darwin`): `cosmotop`
+- Windows builds: `cosmotop.cmd`
 
 CI copy convention:
 
-- CI should copy the built desktop artifact into this directory using the exact
-  path `desktop/internal/bundle/data/cosmotop` before running `go test` or
-  packaging steps.
-- The filename must remain `cosmotop` so `//go:embed data/cosmotop` keeps
-  working without code changes.
+- CI should copy the built runtime artifact into this directory before desktop
+  build.
+- For Unix desktop builds, the runtime file must be at
+  `desktop/internal/bundle/data/cosmotop`.
+- For Windows desktop builds, the runtime file must be at
+  `desktop/internal/bundle/data/cosmotop.cmd`.

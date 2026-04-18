@@ -22,7 +22,6 @@ var (
 	userCacheDirFunc = os.UserCacheDir
 	bundleBytesFunc  = bundle.Bytes
 	bundleDigestFunc = bundle.SHA256Hex
-	bundleNameFunc   = bundle.Name
 	goos             = goruntime.GOOS
 )
 
@@ -80,13 +79,11 @@ func EnsureExtracted(ctx context.Context) (ExtractedBinaryInfo, error) {
 	return info, nil
 }
 
-// On Windows we keep the extracted runtime extensionless because the embedded
-// artifact is a Cosmopolitan APE binary named "cosmotop".
 func targetFilename() string {
 	if goos == "windows" {
-		return bundleNameFunc()
+		return "cosmotop.cmd"
 	}
-	return bundleNameFunc()
+	return "cosmotop"
 }
 
 func writeTempBinary(versionDir string) (string, error) {

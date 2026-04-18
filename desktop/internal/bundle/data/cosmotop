@@ -1,1 +1,26 @@
-placeholder-artifact
+#!/usr/bin/env sh
+
+printf '%s\n' "This is a placeholder. Press q to continue..."
+
+saved_tty=""
+if command -v stty >/dev/null 2>&1; then
+  saved_tty=$(stty -g 2>/dev/null || true)
+  if [ -n "$saved_tty" ]; then
+    stty -echo -icanon min 1 time 0 2>/dev/null || true
+  fi
+fi
+
+cleanup() {
+  if [ -n "$saved_tty" ]; then
+    stty "$saved_tty" 2>/dev/null || true
+  fi
+}
+
+trap cleanup EXIT INT TERM
+
+while :; do
+  ch=$(dd bs=1 count=1 2>/dev/null)
+  if [ "$ch" = "q" ]; then
+    break
+  fi
+done

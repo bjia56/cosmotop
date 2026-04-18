@@ -2,14 +2,8 @@ package bundle
 
 import (
 	"crypto/sha256"
-	_ "embed"
 	"encoding/hex"
 )
-
-const artifactName = "cosmotop"
-
-//go:embed data/cosmotop
-var artifactBytes []byte
 
 var artifactSHA256 = sha256Hex(artifactBytes)
 

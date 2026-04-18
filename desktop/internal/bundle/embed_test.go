@@ -3,11 +3,16 @@ package bundle
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"runtime"
 	"testing"
 )
 
 func TestName(t *testing.T) {
-	if got, want := Name(), "cosmotop"; got != want {
+	want := "cosmotop"
+	if runtime.GOOS == "windows" {
+		want = "cosmotop.cmd"
+	}
+	if got := Name(); got != want {
 		t.Fatalf("Name() = %q, want %q", got, want)
 	}
 }
