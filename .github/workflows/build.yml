@@ -782,6 +782,12 @@ jobs:
             artifact_name: desktop-linux-amd64
             embed_name: cosmotop
             tags: webkit2_41
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            artifact_name: desktop-linux-arm64
+            embed_name: cosmotop
+            tags: webkit2_41
           - name: macos-universal
             runner: macos-15-intel
             platform: darwin/universal
@@ -791,6 +797,11 @@ jobs:
             runner: windows-latest
             platform: windows/amd64
             artifact_name: desktop-windows-amd64
+            embed_name: cosmotop.cmd
+          - name: windows-arm64
+            runner: windows-11-arm
+            platform: windows/arm64
+            artifact_name: desktop-windows-arm64
             embed_name: cosmotop.cmd
 
     steps:
