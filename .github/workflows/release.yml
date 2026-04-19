@@ -75,6 +75,13 @@ jobs:
           path: .
           merge-multiple: true
 
+      - name: Download desktop artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: cosmotop-desktop-*
+          path: .
+          merge-multiple: true
+
       - name: Download artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
@@ -105,6 +112,9 @@ jobs:
           files: |
             cosmotop
             cosmotop-*.exe
+            cosmotop-desktop-linux-*
+            cosmotop-desktop-windows-*.exe
+            cosmotop-desktop-macos-universal.zip
             ${{ inputs.beta && 'debug.zip' || '' }}
           tag_name: ${{ inputs.version }}
           generate_release_notes: true

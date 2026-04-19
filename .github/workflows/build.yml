@@ -768,6 +768,131 @@ jobs:
           name: cosmotop.big
           path: ./cosmotop.big
 
+  desktop_build:
+    name: Build desktop app ${{ matrix.target.name }}
+    needs: bundle
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: linux-amd64
+            runner: ubuntu-latest
+            platform: linux/amd64
+            artifact_name: cosmotop-desktop-linux-amd64
+            embed_name: cosmotop
+            tags: webkit2_41
+            build_output: cosmotop-desktop
+            release_name: cosmotop-desktop-linux-amd64
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            artifact_name: cosmotop-desktop-linux-arm64
+            embed_name: cosmotop
+            tags: webkit2_41
+            build_output: cosmotop-desktop
+            release_name: cosmotop-desktop-linux-arm64
+          - name: macos-universal
+            runner: macos-15-intel
+            platform: darwin/universal
+            artifact_name: cosmotop-desktop-macos-universal
+            embed_name: cosmotop
+            build_output: cosmotop-desktop.app
+            release_name: cosmotop-desktop-macos-universal.zip
+          - name: windows-amd64
+            runner: windows-latest
+            platform: windows/amd64
+            artifact_name: cosmotop-desktop-windows-amd64
+            embed_name: cosmotop.cmd
+            build_output: cosmotop-desktop.exe
+            release_name: cosmotop-desktop-windows-amd64.exe
+          - name: windows-arm64
+            runner: windows-11-arm
+            platform: windows/arm64
+            artifact_name: cosmotop-desktop-windows-arm64
+            embed_name: cosmotop.cmd
+            build_output: cosmotop-desktop.exe
+            release_name: cosmotop-desktop-windows-arm64.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: 22
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417
+        with:
+          go-version-file: ./desktop/go.mod
+
+      - name: Install Wails CLI
+        shell: bash
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install Linux dependencies
+        if: ${{ startsWith(matrix.target.platform, 'linux/') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Download prebuilt cosmotop artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: cosmotop
+          path: ./desktop/internal/bundle/data
+
+      - name: Verify bundled cosmotop artifact exists
+        shell: bash
+        run: |
+          if [ ! -f ./desktop/internal/bundle/data/cosmotop ]; then
+            echo "Missing required artifact at desktop/internal/bundle/data/cosmotop"
+            exit 1
+          fi
+
+          if [ "${{ matrix.target.embed_name }}" != "cosmotop" ]; then
+            cp ./desktop/internal/bundle/data/cosmotop ./desktop/internal/bundle/data/${{ matrix.target.embed_name }}
+          fi
+
+          if [ "${{ matrix.target.embed_name }}" = "cosmotop" ]; then
+            chmod +x ./desktop/internal/bundle/data/cosmotop || true
+          fi
+
+          if [ ! -f ./desktop/internal/bundle/data/${{ matrix.target.embed_name }} ]; then
+            echo "Missing required embed file at desktop/internal/bundle/data/${{ matrix.target.embed_name }}"
+            exit 1
+          fi
+
+      - name: Build desktop app
+        shell: bash
+        run: |
+          wails build -clean -platform ${{ matrix.target.platform }} ${{ matrix.target.tags && format('--tags {0}', matrix.target.tags) || '' }}
+        working-directory: ./desktop
+
+      - name: Package macOS desktop app
+        if: ${{ matrix.target.platform == 'darwin/universal' }}
+        shell: bash
+        run: |
+          mkdir -p ./desktop/build/dist
+          ditto -c -k --sequesterRsrc --keepParent "./desktop/build/bin/${{ matrix.target.build_output }}" "./desktop/build/dist/${{ matrix.target.release_name }}"
+
+      - name: Package desktop app
+        if: ${{ matrix.target.platform != 'darwin/universal' }}
+        shell: bash
+        run: |
+          mkdir -p ./desktop/build/dist
+          cp "./desktop/build/bin/${{ matrix.target.build_output }}" "./desktop/build/dist/${{ matrix.target.release_name }}"
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: ${{ matrix.target.artifact_name }}
+          path: ./desktop/build/dist/${{ matrix.target.release_name }}
+
   check:
     name: Check cosmotop ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
     needs: bundle

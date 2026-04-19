@@ -88,6 +88,12 @@ Some options for exporters and their recommended `cosmotop` configuration values
 
 Currently, Prometheus monitoring is only enabled on Linux and MacOS.
 
+### Desktop app docs
+
+For Wails desktop architecture, setup, CI artifact flow, and runtime/event contracts, see:
+
+- `desktop/README.md`
+
 ### Container monitoring
 
 Monitoring of running OCI containers is suppored on Linux, Windows, and MacOS using Docker-compatible APIs.

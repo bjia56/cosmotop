@@ -1,0 +1,30 @@
+@font-face {
+  font-family: "CaskaydiaCoveNerdFontMono";
+  src: url("https://github.com/ryanoasis/nerd-fonts/raw/refs/tags/v3.4.0/patched-fonts/CascadiaCode/CaskaydiaCoveNerdFontMono-Regular.ttf")
+    format("truetype");
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #11111a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.terminal-host {
+  width: 100%;
+  height: 100%;
+}
+
+.terminal-host .xterm {
+  width: 100%;
+  height: 100%;
+}
