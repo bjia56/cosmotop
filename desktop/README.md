@@ -164,9 +164,11 @@ Current flow in `.github/workflows/build.yml`:
    - windows target: `cosmotop.cmd`
 6. Wails build runs in `./desktop`.
 7. Built desktop app binaries are uploaded as:
-   - `desktop-linux-amd64`
-   - `desktop-macos-universal`
-   - `desktop-windows-amd64`
+   - `cosmotop-desktop-linux-amd64`
+   - `cosmotop-desktop-linux-arm64`
+   - `cosmotop-desktop-windows-amd64`
+   - `cosmotop-desktop-windows-arm64`
+   - `cosmotop-desktop-macos-universal` (packaged as `cosmotop-desktop-macos-universal.zip`)
 
 Key invariant: desktop build must provide the platform-specific embed filename (`cosmotop` on unix, `cosmotop.cmd` on windows).
 

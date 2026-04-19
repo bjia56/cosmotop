@@ -779,30 +779,40 @@ jobs:
           - name: linux-amd64
             runner: ubuntu-latest
             platform: linux/amd64
-            artifact_name: desktop-linux-amd64
+            artifact_name: cosmotop-desktop-linux-amd64
             embed_name: cosmotop
             tags: webkit2_41
+            build_output: cosmotop-desktop
+            release_name: cosmotop-desktop-linux-amd64
           - name: linux-arm64
             runner: ubuntu-24.04-arm
             platform: linux/arm64
-            artifact_name: desktop-linux-arm64
+            artifact_name: cosmotop-desktop-linux-arm64
             embed_name: cosmotop
             tags: webkit2_41
+            build_output: cosmotop-desktop
+            release_name: cosmotop-desktop-linux-arm64
           - name: macos-universal
             runner: macos-15-intel
             platform: darwin/universal
-            artifact_name: desktop-macos-universal
+            artifact_name: cosmotop-desktop-macos-universal
             embed_name: cosmotop
+            build_output: cosmotop-desktop.app
+            release_name: cosmotop-desktop-macos-universal.zip
           - name: windows-amd64
             runner: windows-latest
             platform: windows/amd64
-            artifact_name: desktop-windows-amd64
+            artifact_name: cosmotop-desktop-windows-amd64
             embed_name: cosmotop.cmd
+            build_output: cosmotop-desktop.exe
+            release_name: cosmotop-desktop-windows-amd64.exe
           - name: windows-arm64
             runner: windows-11-arm
             platform: windows/arm64
-            artifact_name: desktop-windows-arm64
+            artifact_name: cosmotop-desktop-windows-arm64
             embed_name: cosmotop.cmd
+            build_output: cosmotop-desktop.exe
+            release_name: cosmotop-desktop-windows-arm64.exe
 
     steps:
       - name: Checkout
@@ -825,7 +835,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Install Linux dependencies
-        if: ${{ matrix.target.runner == 'ubuntu-latest' }}
+        if: ${{ startsWith(matrix.target.platform, 'linux/') }}
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
@@ -863,11 +873,25 @@ jobs:
           wails build -clean -platform ${{ matrix.target.platform }} ${{ matrix.target.tags && format('--tags {0}', matrix.target.tags) || '' }}
         working-directory: ./desktop
 
+      - name: Package macOS desktop app
+        if: ${{ matrix.target.platform == 'darwin/universal' }}
+        shell: bash
+        run: |
+          mkdir -p ./desktop/build/dist
+          ditto -c -k --sequesterRsrc --keepParent "./desktop/build/bin/${{ matrix.target.build_output }}" "./desktop/build/dist/${{ matrix.target.release_name }}"
+
+      - name: Package desktop app
+        if: ${{ matrix.target.platform != 'darwin/universal' }}
+        shell: bash
+        run: |
+          mkdir -p ./desktop/build/dist
+          cp "./desktop/build/bin/${{ matrix.target.build_output }}" "./desktop/build/dist/${{ matrix.target.release_name }}"
+
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: ${{ matrix.target.artifact_name }}
-          path: ./desktop/build/bin/*
+          path: ./desktop/build/dist/${{ matrix.target.release_name }}
 
   check:
     name: Check cosmotop ${{ matrix.platform.os }} ${{ matrix.platform.arch }}
