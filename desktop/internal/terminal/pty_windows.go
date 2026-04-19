@@ -21,14 +21,9 @@ type windowsPTYProcess struct {
 	closeErr  error
 }
 
-func startPTYProcess(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
+func startPTYProcess(executablePath string, args []string, cols, rows int, env []string) (ptyProcess, error) {
 	workDir := filepath.Dir(executablePath)
-	commandLine := quoteWindowsCommandArg(executablePath)
-
-	lowerPath := strings.ToLower(executablePath)
-	if strings.HasSuffix(lowerPath, ".cmd") || strings.HasSuffix(lowerPath, ".bat") {
-		commandLine = "cmd.exe /d /c call " + quoteWindowsCommandArg(executablePath)
-	}
+	commandLine := buildWindowsCommandLine(executablePath, args)
 
 	cpty, err := conpty.Start(
 		commandLine,
@@ -41,6 +36,37 @@ func startPTYProcess(executablePath string, cols, rows int, env []string) (ptyPr
 	}
 
 	return &windowsPTYProcess{cpty: cpty}, nil
+}
+
+func buildWindowsCommandLine(executablePath string, args []string) string {
+	lowerPath := strings.ToLower(executablePath)
+	quotedExecutablePath := quoteWindowsCommandArg(executablePath)
+	quotedArgs := quoteWindowsCommandArgs(args)
+
+	if strings.HasSuffix(lowerPath, ".cmd") || strings.HasSuffix(lowerPath, ".bat") {
+		commandLine := "cmd.exe /d /c call " + quotedExecutablePath
+		if quotedArgs != "" {
+			commandLine += " " + quotedArgs
+		}
+		return commandLine
+	}
+
+	if quotedArgs == "" {
+		return quotedExecutablePath
+	}
+	return quotedExecutablePath + " " + quotedArgs
+}
+
+func quoteWindowsCommandArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, quoteWindowsCommandArg(arg))
+	}
+	return strings.Join(quoted, " ")
 }
 
 func quoteWindowsCommandArg(s string) string {

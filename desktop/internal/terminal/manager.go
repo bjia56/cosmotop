@@ -50,7 +50,7 @@ func (m *Manager) IsRunning() bool {
 	return m.current != nil
 }
 
-func (m *Manager) Start(executablePath string, cols, rows int) error {
+func (m *Manager) Start(executablePath string, args []string, cols, rows int) error {
 	if strings.TrimSpace(executablePath) == "" {
 		return errors.New("executable path is required")
 	}
@@ -70,7 +70,7 @@ func (m *Manager) Start(executablePath string, cols, rows int) error {
 	m.mu.Unlock()
 
 	env := withTerminalEnv(os.Environ())
-	proc, err := ptyStarter(executablePath, cols, rows, env)
+	proc, err := ptyStarter(executablePath, args, cols, rows, env)
 	if err != nil {
 		return fmt.Errorf("start PTY session: %w", err)
 	}

@@ -31,12 +31,13 @@ type App struct {
 
 	runtimeInfo internalruntime.ExtractedBinaryInfo
 	runtimePath string
+	runtimeArgs []string
 
 	terminal *terminal.Manager
 }
 
-func New() *App {
-	a := &App{}
+func New(args []string) *App {
+	a := &App{runtimeArgs: append([]string(nil), args...)}
 	a.terminal = terminal.NewManager(terminal.Callbacks{
 		OnOutput: a.onTerminalOutput,
 		OnExit:   a.onTerminalExit,
@@ -98,7 +99,7 @@ func (a *App) StartCosmotop(cols int, rows int) error {
 		return err
 	}
 
-	if err := a.terminal.Start(runtimePath, cols, rows); err != nil {
+	if err := a.terminal.Start(runtimePath, a.runtimeArgs, cols, rows); err != nil {
 		if errors.Is(err, terminal.ErrAlreadyRunning) {
 			err = errors.New("cosmotop session is already running")
 		}

@@ -15,9 +15,12 @@ func TestManagerLifecycle(t *testing.T) {
 
 	fake := newFakePTY()
 	fake.onForceKill = func() { fake.finish(0, nil) }
-	ptyStarter = func(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
+	ptyStarter = func(executablePath string, args []string, cols, rows int, env []string) (ptyProcess, error) {
 		if executablePath != "/tmp/cosmotop" {
 			t.Fatalf("executablePath = %q, want %q", executablePath, "/tmp/cosmotop")
+		}
+		if len(args) != 2 || args[0] != "-p" || args[1] != "1" {
+			t.Fatalf("args = %v, want [-p 1]", args)
 		}
 		if cols != 100 || rows != 40 {
 			t.Fatalf("size = %dx%d, want 100x40", cols, rows)
@@ -47,7 +50,7 @@ func TestManagerLifecycle(t *testing.T) {
 		},
 	})
 
-	if err := mgr.Start("/tmp/cosmotop", 100, 40); err != nil {
+	if err := mgr.Start("/tmp/cosmotop", []string{"-p", "1"}, 100, 40); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	if !mgr.IsRunning() {
@@ -106,14 +109,14 @@ func TestManagerDuplicateStart(t *testing.T) {
 	defer func() { ptyStarter = origStarter }()
 
 	fake := newFakePTY()
-	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
+	ptyStarter = func(string, []string, int, int, []string) (ptyProcess, error) { return fake, nil }
 
 	mgr := NewManager(Callbacks{})
-	if err := mgr.Start("/tmp/cosmotop", 80, 24); err != nil {
+	if err := mgr.Start("/tmp/cosmotop", nil, 80, 24); err != nil {
 		t.Fatalf("first Start() error = %v", err)
 	}
 
-	err := mgr.Start("/tmp/cosmotop", 80, 24)
+	err := mgr.Start("/tmp/cosmotop", nil, 80, 24)
 	if !errors.Is(err, ErrAlreadyRunning) {
 		t.Fatalf("second Start() error = %v, want ErrAlreadyRunning", err)
 	}
@@ -130,10 +133,10 @@ func TestManagerKillForceKillAfterTimeout(t *testing.T) {
 
 	fake := newFakePTY()
 	fake.onForceKill = func() { fake.finish(137, nil) }
-	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
+	ptyStarter = func(string, []string, int, int, []string) (ptyProcess, error) { return fake, nil }
 
 	mgr := NewManager(Callbacks{})
-	if err := mgr.Start("/tmp/cosmotop", 80, 24); err != nil {
+	if err := mgr.Start("/tmp/cosmotop", nil, 80, 24); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
@@ -153,11 +156,11 @@ func TestManagerStartFailureLeavesNotRunning(t *testing.T) {
 	defer func() { ptyStarter = origStarter }()
 
 	startErr := errors.New("boom")
-	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return nil, startErr }
+	ptyStarter = func(string, []string, int, int, []string) (ptyProcess, error) { return nil, startErr }
 
 	mgr := NewManager(Callbacks{})
 
-	err := mgr.Start("/tmp/cosmotop", 80, 24)
+	err := mgr.Start("/tmp/cosmotop", nil, 80, 24)
 	if err == nil {
 		t.Fatal("Start() error = nil, want failure")
 	}
@@ -171,7 +174,7 @@ func TestManagerKillProcessExitsNaturallyDuringKill(t *testing.T) {
 	defer func() { ptyStarter = origStarter }()
 
 	fake := newFakePTY()
-	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
+	ptyStarter = func(string, []string, int, int, []string) (ptyProcess, error) { return fake, nil }
 
 	var (
 		exitMu sync.Mutex
@@ -191,7 +194,7 @@ func TestManagerKillProcessExitsNaturallyDuringKill(t *testing.T) {
 		},
 	})
 
-	if err := mgr.Start("/tmp/cosmotop", 80, 24); err != nil {
+	if err := mgr.Start("/tmp/cosmotop", nil, 80, 24); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
@@ -237,7 +240,7 @@ func TestManagerKillForceKillErrorStillEmitsExitOnce(t *testing.T) {
 
 	fake := newFakePTY()
 	fake.forceKillErr = errors.New("force kill failed")
-	ptyStarter = func(string, int, int, []string) (ptyProcess, error) { return fake, nil }
+	ptyStarter = func(string, []string, int, int, []string) (ptyProcess, error) { return fake, nil }
 
 	var (
 		exitMu sync.Mutex
@@ -257,7 +260,7 @@ func TestManagerKillForceKillErrorStillEmitsExitOnce(t *testing.T) {
 		},
 	})
 
-	if err := mgr.Start("/tmp/cosmotop", 80, 24); err != nil {
+	if err := mgr.Start("/tmp/cosmotop", nil, 80, 24); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 

@@ -30,8 +30,12 @@ type waitResult struct {
 	err      error
 }
 
-func startPTYProcess(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
-	cmd := exec.Command("sh", executablePath)
+func startPTYProcess(executablePath string, args []string, cols, rows int, env []string) (ptyProcess, error) {
+	commandArgs := make([]string, 0, len(args)+1)
+	commandArgs = append(commandArgs, executablePath)
+	commandArgs = append(commandArgs, args...)
+
+	cmd := exec.Command("sh", commandArgs...)
 	cmd.Env = env
 	cmd.Dir = filepath.Dir(executablePath)
 

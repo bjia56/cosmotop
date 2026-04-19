@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
 
 	"github.com/bjia56/cosmotop/desktop/internal/app"
 	"github.com/wailsapp/wails/v2"
@@ -14,7 +15,7 @@ import (
 var assets embed.FS
 
 func main() {
-	application := app.New()
+	application := app.New(append([]string{"+t"}, os.Args[1:]...))
 
 	err := wails.Run(&options.App{
 		Title:             "Cosmotop Desktop",

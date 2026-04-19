@@ -42,6 +42,7 @@ This gives deterministic runtime versioning, avoids in-place mutation of a share
 Process behavior:
 
 - Start command is the extracted `cosmotop` path (working directory set to its directory).
+- CLI args passed to the desktop app are forwarded to the extracted `cosmotop` process.
 - Input from frontend is base64-decoded in backend and written to PTY.
 - Output from PTY is base64-encoded in backend and emitted to frontend.
 - Resize events from frontend are forwarded to PTY size updates.
