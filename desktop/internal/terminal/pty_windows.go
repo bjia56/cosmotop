@@ -23,11 +23,11 @@ type windowsPTYProcess struct {
 
 func startPTYProcess(executablePath string, cols, rows int, env []string) (ptyProcess, error) {
 	workDir := filepath.Dir(executablePath)
-	commandLine := strconv.Quote(executablePath)
+	commandLine := quoteWindowsCommandArg(executablePath)
 
 	lowerPath := strings.ToLower(executablePath)
 	if strings.HasSuffix(lowerPath, ".cmd") || strings.HasSuffix(lowerPath, ".bat") {
-		commandLine = fmt.Sprintf("cmd.exe /d /s /c %s", strconv.Quote(executablePath))
+		commandLine = "cmd.exe /d /c call " + quoteWindowsCommandArg(executablePath)
 	}
 
 	cpty, err := conpty.Start(
@@ -41,6 +41,43 @@ func startPTYProcess(executablePath string, cols, rows int, env []string) (ptyPr
 	}
 
 	return &windowsPTYProcess{cpty: cpty}, nil
+}
+
+func quoteWindowsCommandArg(s string) string {
+	if s == "" {
+		return `""`
+	}
+
+	var b strings.Builder
+	b.Grow(len(s) + 2)
+	b.WriteByte('"')
+
+	backslashes := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			backslashes++
+		case '"':
+			for j := 0; j < backslashes*2+1; j++ {
+				b.WriteByte('\\')
+			}
+			b.WriteByte('"')
+			backslashes = 0
+		default:
+			for j := 0; j < backslashes; j++ {
+				b.WriteByte('\\')
+			}
+			backslashes = 0
+			b.WriteByte(s[i])
+		}
+	}
+
+	for j := 0; j < backslashes*2; j++ {
+		b.WriteByte('\\')
+	}
+	b.WriteByte('"')
+
+	return b.String()
 }
 
 func (p *windowsPTYProcess) Read(b []byte) (int, error) {
