@@ -94,9 +94,8 @@ func runRuntimePassthrough(args []string) int {
 	}
 
 	cmd := internalruntime.NewCommand(info.Path, args)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cleanupIO := configurePassthroughCommandIO(cmd)
+	defer cleanupIO()
 
 	err = cmd.Run()
 	if err == nil {
