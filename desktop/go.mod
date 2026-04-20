@@ -1,12 +1,12 @@
 module github.com/bjia56/cosmotop/desktop
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/UserExistsError/conpty v0.1.4
 	github.com/creack/pty v1.1.24
 	github.com/wailsapp/wails/v2 v2.10.2
-	golang.org/x/sys v0.30.0
+	golang.org/x/sys v0.43.0
 )
 
 require (
