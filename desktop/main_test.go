@@ -1,8 +1,6 @@
 package main
 
 import (
-	"runtime"
-	"strings"
 	"testing"
 )
 
@@ -34,28 +32,5 @@ func TestClassifyLaunchMode(t *testing.T) {
 				t.Fatalf("classifyLaunchMode(%v) = %v, want %v", tt.args, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestNewRuntimeCommandWindowsBatchWrapping(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS != "windows" {
-		t.Skip("windows-only command shape")
-	}
-
-	cmd := newRuntimeCommand(`C:\tmp\cosmotop.cmd`, []string{"--help"})
-
-	if got := strings.ToLower(cmd.Path); !strings.HasSuffix(got, "cmd.exe") {
-		t.Fatalf("cmd.Path = %q, want cmd.exe suffix", cmd.Path)
-	}
-	if len(cmd.Args) < 5 {
-		t.Fatalf("cmd.Args = %v, want cmd.exe wrapper args", cmd.Args)
-	}
-	if cmd.Args[1] != "/d" || cmd.Args[2] != "/c" || cmd.Args[3] != "call" {
-		t.Fatalf("cmd.Args prefix = %v, want [/d /c call ...]", cmd.Args[1:4])
-	}
-	if cmd.Args[4] != `C:\tmp\cosmotop.cmd` {
-		t.Fatalf("wrapped script path = %q, want %q", cmd.Args[4], `C:\tmp\cosmotop.cmd`)
 	}
 }

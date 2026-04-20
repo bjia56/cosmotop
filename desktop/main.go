@@ -8,8 +8,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	goruntime "runtime"
-	"strings"
 
 	"github.com/bjia56/cosmotop/desktop/internal/app"
 	internalruntime "github.com/bjia56/cosmotop/desktop/internal/runtime"
@@ -95,7 +93,7 @@ func runRuntimePassthrough(args []string) int {
 		return 1
 	}
 
-	cmd := newRuntimeCommand(info.Path, args)
+	cmd := internalruntime.NewCommand(info.Path, args)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -112,17 +110,4 @@ func runRuntimePassthrough(args []string) int {
 
 	fmt.Fprintf(os.Stderr, "failed to start embedded runtime %q: %v\n", info.Path, err)
 	return 1
-}
-
-func newRuntimeCommand(path string, args []string) *exec.Cmd {
-	if goruntime.GOOS == "windows" {
-		lowerPath := strings.ToLower(path)
-		if strings.HasSuffix(lowerPath, ".cmd") || strings.HasSuffix(lowerPath, ".bat") {
-			cmdArgs := []string{"/d", "/c", "call", path}
-			cmdArgs = append(cmdArgs, args...)
-			return exec.Command("cmd.exe", cmdArgs...)
-		}
-	}
-
-	return exec.Command(path, args...)
 }

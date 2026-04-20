@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 
+	internalruntime "github.com/bjia56/cosmotop/desktop/internal/runtime"
 	"github.com/creack/pty"
 )
 
@@ -31,11 +32,7 @@ type waitResult struct {
 }
 
 func startPTYProcess(executablePath string, args []string, cols, rows int, env []string) (ptyProcess, error) {
-	commandArgs := make([]string, 0, len(args)+1)
-	commandArgs = append(commandArgs, executablePath)
-	commandArgs = append(commandArgs, args...)
-
-	cmd := exec.Command("sh", commandArgs...)
+	cmd := internalruntime.NewCommand(executablePath, args)
 	cmd.Env = env
 	cmd.Dir = filepath.Dir(executablePath)
 

@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/UserExistsError/conpty"
+	internalruntime "github.com/bjia56/cosmotop/desktop/internal/runtime"
 )
 
 type windowsPTYProcess struct {
@@ -23,10 +24,10 @@ type windowsPTYProcess struct {
 
 func startPTYProcess(executablePath string, args []string, cols, rows int, env []string) (ptyProcess, error) {
 	workDir := filepath.Dir(executablePath)
-	commandLine := buildWindowsCommandLine(executablePath, args)
+	commandLine := internalruntime.WindowsCommandLine(executablePath, args)
 
 	cpty, err := conpty.Start(
-		commandLine,
+		strings.Join(commandLine, " "),
 		conpty.ConPtyDimensions(cols, rows),
 		conpty.ConPtyWorkDir(workDir),
 		conpty.ConPtyEnv(env),
@@ -37,75 +38,6 @@ func startPTYProcess(executablePath string, args []string, cols, rows int, env [
 
 	return &windowsPTYProcess{cpty: cpty}, nil
 }
-
-func buildWindowsCommandLine(executablePath string, args []string) string {
-	lowerPath := strings.ToLower(executablePath)
-	quotedExecutablePath := quoteWindowsCommandArg(executablePath)
-	quotedArgs := quoteWindowsCommandArgs(args)
-
-	if strings.HasSuffix(lowerPath, ".cmd") || strings.HasSuffix(lowerPath, ".bat") {
-		commandLine := "cmd.exe /d /c call " + quotedExecutablePath
-		if quotedArgs != "" {
-			commandLine += " " + quotedArgs
-		}
-		return commandLine
-	}
-
-	if quotedArgs == "" {
-		return quotedExecutablePath
-	}
-	return quotedExecutablePath + " " + quotedArgs
-}
-
-func quoteWindowsCommandArgs(args []string) string {
-	if len(args) == 0 {
-		return ""
-	}
-
-	quoted := make([]string, 0, len(args))
-	for _, arg := range args {
-		quoted = append(quoted, quoteWindowsCommandArg(arg))
-	}
-	return strings.Join(quoted, " ")
-}
-
-func quoteWindowsCommandArg(s string) string {
-	if s == "" {
-		return `""`
-	}
-
-	var b strings.Builder
-	b.Grow(len(s) + 2)
-	b.WriteByte('"')
-
-	backslashes := 0
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '\\':
-			backslashes++
-		case '"':
-			for j := 0; j < backslashes*2+1; j++ {
-				b.WriteByte('\\')
-			}
-			b.WriteByte('"')
-			backslashes = 0
-		default:
-			for j := 0; j < backslashes; j++ {
-				b.WriteByte('\\')
-			}
-			backslashes = 0
-			b.WriteByte(s[i])
-		}
-	}
-
-	for j := 0; j < backslashes*2; j++ {
-		b.WriteByte('\\')
-	}
-	b.WriteByte('"')
-
-	return b.String()
-}
-
 func (p *windowsPTYProcess) Read(b []byte) (int, error) {
 	return p.cpty.Read(b)
 }
