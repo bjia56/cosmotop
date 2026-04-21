@@ -8,7 +8,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"runtime"
 
+	"github.com/andybalholm/crlf"
 	"github.com/bjia56/cosmotop/desktop/internal/app"
 	internalruntime "github.com/bjia56/cosmotop/desktop/internal/runtime"
 	"github.com/bjia56/cosmotop/desktop/internal/terminal"
@@ -101,7 +103,11 @@ func runRuntimePassthrough(args []string) int {
 	}
 
 	cmd := internalruntime.NewCommand(info.Path, args)
-	cmd.Stdout = os.Stdout
+	if runtime.GOOS == "windows" {
+		cmd.Stdout = crlf.NewWriter(os.Stdout)
+	} else {
+		cmd.Stdout = os.Stdout
+	}
 	cmd.Stdin = os.Stdin
 
 	err = cmd.Run()

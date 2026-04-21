@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/UserExistsError/conpty v0.1.4
+	github.com/andybalholm/crlf v0.0.0-20171020200849-670099aa064f
 	github.com/creack/pty v1.1.24
 	github.com/wailsapp/wails/v2 v2.10.2
 	golang.org/x/sys v0.43.0
