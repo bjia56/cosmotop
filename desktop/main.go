@@ -11,6 +11,7 @@ import (
 
 	"github.com/bjia56/cosmotop/desktop/internal/app"
 	internalruntime "github.com/bjia56/cosmotop/desktop/internal/runtime"
+	"github.com/bjia56/cosmotop/desktop/internal/terminal"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -93,11 +94,20 @@ func runRuntimePassthrough(args []string) int {
 		return 1
 	}
 
+	err = terminal.FixupConsole()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to fix up console: %v\n", err)
+		return 1
+	}
+
 	cmd := internalruntime.NewCommand(info.Path, args)
-	cleanupIO := configurePassthroughCommandIO(cmd)
-	defer cleanupIO()
+	cmd.Stdout = os.Stdout
+	cmd.Stdin = os.Stdin
 
 	err = cmd.Run()
+	fmt.Println("Press Enter to exit...")
+	os.Stdin.Read(make([]byte, 1))
+
 	if err == nil {
 		return 0
 	}

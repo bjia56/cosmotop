@@ -1,20 +1,19 @@
+//go:build windows
+
 package runtime
 
 import (
 	"os/exec"
 	"strings"
+
+	"golang.org/x/sys/windows"
 )
 
 func NewCommand(path string, args []string) *exec.Cmd {
-	if goos == "windows" {
-		commandArgs := WindowsCommandLine(path, args)
-		return exec.Command(commandArgs[0], commandArgs[1:]...)
-	}
-
-	commandArgs := make([]string, 0, len(args)+1)
-	commandArgs = append(commandArgs, path)
-	commandArgs = append(commandArgs, args...)
-	return exec.Command("sh", commandArgs...)
+	commandArgs := WindowsCommandLine(path, args)
+	cmd := exec.Command(commandArgs[0])
+	cmd.SysProcAttr = &windows.SysProcAttr{CmdLine: strings.Join(commandArgs, " ")}
+	return cmd
 }
 
 func WindowsCommandLine(path string, args []string) []string {

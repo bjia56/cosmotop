@@ -22,6 +22,7 @@ var (
 	userCacheDirFunc = os.UserCacheDir
 	bundleBytesFunc  = bundle.Bytes
 	bundleDigestFunc = bundle.SHA256Hex
+	targetFilename   = bundle.Name
 	goos             = goruntime.GOOS
 )
 
@@ -77,13 +78,6 @@ func EnsureExtracted(ctx context.Context) (ExtractedBinaryInfo, error) {
 	}
 
 	return info, nil
-}
-
-func targetFilename() string {
-	if goos == "windows" {
-		return "cosmotop.cmd"
-	}
-	return "cosmotop"
 }
 
 func writeTempBinary(versionDir string) (string, error) {
