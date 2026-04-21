@@ -7,18 +7,18 @@ This directory contains the Wails desktop wrapper for `cosmotop`.
 The desktop app is a two-part system:
 
 - **Backend (Go + Wails):** `desktop/main.go` boots Wails and binds `internal/app.App` into the frontend runtime.
-- **Frontend (Vite + xterm.js):** `desktop/frontend/src/main.js` renders the window, terminal, toolbar, and event wiring.
+- **Frontend (Vite + xterm.js):** `desktop/frontend/src/main.js` renders the window, terminal, and event wiring.
 
 ### Runtime bundle and extraction
 
 The desktop binary embeds a prebuilt `cosmotop` runtime artifact:
 
-- Embedded file (unix): `desktop/internal/bundle/data/cosmotop`
+- Embedded file (linux/darwin): `desktop/internal/bundle/data/cosmotop`
 - Embedded file (windows): `desktop/internal/bundle/data/cosmotop.cmd`
 - Embed code:
-  - `desktop/internal/bundle/embed_unix.go` via `//go:embed data/cosmotop`
+  - `desktop/internal/bundle/embed_unix.go` (`//go:build linux || darwin`) via `//go:embed data/cosmotop`
   - `desktop/internal/bundle/embed_windows.go` via `//go:embed data/cosmotop.cmd`
-- Digest source: SHA-256 computed from embedded bytes at app startup/runtime use
+- Digest source: SHA-256 computed from embedded bytes at package init time (`bundle/embed_common.go`)
 
 At startup (and lazily on demand), backend extraction logic in `desktop/internal/runtime/extractor.go`:
 
@@ -42,11 +42,11 @@ This gives deterministic runtime versioning, avoids in-place mutation of a share
 Process behavior:
 
 - Start command is the extracted `cosmotop` path (working directory set to its directory).
-- CLI args passed to the desktop app are forwarded to the extracted `cosmotop` process.
+- `+t` is always prepended to args; remaining CLI args passed to the desktop app are forwarded to the extracted `cosmotop` process.
 - Input from frontend is base64-decoded in backend and written to PTY.
 - Output from PTY is base64-encoded in backend and emitted to frontend.
 - Resize events from frontend are forwarded to PTY size updates.
-- Stop uses graceful shutdown first, then force-kill after timeout.
+- Stop sends SIGKILL (and kills descendant processes on Unix); session cleanup is awaited up to a timeout.
 
 ### Event protocol
 
@@ -55,17 +55,8 @@ Backend emits Wails runtime events; frontend subscribes with `runtime.EventsOn(.
 - Event `terminal:data`
   - Payload type: `string`
   - Meaning: base64-encoded PTY output chunk
-- Event `terminal:status`
-  - Payload type: object
-  - Fields:
-    - `state: string`
-    - `message?: string`
-  - Common states from backend: `starting`, `running`, `stopping`, `stopped`, `error`
-- Event `terminal:exit`
-  - Payload type: object
-  - Fields:
-    - `code: number`
-    - `error?: string`
+
+When the cosmotop process exits, the backend calls `wailsruntime.Quit` directly rather than emitting an event.
 
 ## Backend API contract (exact binding names)
 
@@ -79,12 +70,8 @@ Frontend calls Go-bound methods from `window.go.app.App` (fallback `window.go.ma
   - Max decoded payload is 64 KiB per call
 - `Resize(cols, rows)`
   - Resizes running PTY
-- `StopCosmotop()`
-  - Stops session gracefully with timeout fallback
 - `IsRunning()`
   - Returns current session state
-- `Status()`
-  - Legacy placeholder status string
 
 ## Local development setup
 
@@ -185,7 +172,7 @@ Key invariant: desktop build must provide the platform-specific embed filename (
 - **Linux build failures for WebKit/GTK packages**
   - Install `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`.
 - **`cosmotop session is already running`**
-  - Wait for `terminal:exit`/`stopped` state before retrying start, or call `StopCosmotop()` first.
+  - Wait for the app to quit (the backend quits the Wails app on process exit) before retrying start.
 
 ## Security and operational notes
 
