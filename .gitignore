@@ -51,6 +51,8 @@ stage/
 cosmotop.1
 
 build*/
+!desktop/build/
+desktop/build/bin/*
 bin
 cosmotop
 /obj/
