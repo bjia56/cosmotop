@@ -52,8 +52,7 @@ cosmotop.1
 
 build*/
 !desktop/build/
-desktop/build/*
-!desktop/build/appicon.png
+desktop/build/bin/*
 bin
 cosmotop
 /obj/
