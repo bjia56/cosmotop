@@ -30,6 +30,10 @@ docker run -it --rm --net=host --pid=host ghcr.io/bjia56/cosmotop:latest
 
 On Windows, rename `cosmotop` to either `cosmotop.cmd` or `cosmotop.bat` before running. This allows Windows to execute the file as a batch script, which can then properly self-extract and execute the embedded executable.
 
+### Desktop application
+
+A desktop GUI application is available on Linux, MacOS, and Windows. Pre-built versions are available in the GitHub releases, which contain `cosmotop` embedded inside the desktop executable. It is highly recommended to use the Homebrew tap install method on MacOS to bypass the Gatekeeper security warning for the pre-built MacOS app.
+
 ## Usage and features
 
 ```
@@ -87,12 +91,6 @@ Some options for exporters and their recommended `cosmotop` configuration values
   ```
 
 Currently, Prometheus monitoring is only enabled on Linux and MacOS.
-
-### Desktop app docs
-
-For Wails desktop architecture, setup, CI artifact flow, and runtime/event contracts, see:
-
-- `desktop/README.md`
 
 ### Container monitoring
 
