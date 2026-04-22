@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 
 	"github.com/andybalholm/crlf"
 	"github.com/bjia56/cosmotop/desktop/internal/app"
@@ -111,8 +112,14 @@ func runRuntimePassthrough(args []string) int {
 	cmd.Stdin = os.Stdin
 
 	err = cmd.Run()
-	fmt.Println("Press Enter to exit...")
-	os.Stdin.Read(make([]byte, 1))
+	if err == nil && slices.Contains(args, "--version") {
+		fmt.Printf("Desktop application compiled with: %s\n", runtime.Version())
+	}
+
+	if runtime.GOOS == "windows" {
+		fmt.Println("Press Enter to exit...")
+		os.Stdin.Read(make([]byte, 1))
+	}
 
 	if err == nil {
 		return 0
