@@ -13,7 +13,7 @@ import { EventsOff, EventsOn } from "../wailsjs/runtime/runtime";
 
 const RESIZE_DEBOUNCE_MS = 120;
 const APP_CLEANUP_KEY = "__cosmotopDesktopCleanup";
-const TERMINAL_FONT_FAMILY = "CaskaydiaCoveNerdFontMono";
+const TERMINAL_FONT_FAMILY = "Fira Code";
 const TERMINAL_FONT_SIZE = 13;
 
 function toErrorMessage(err) {
