@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "CaskaydiaCoveNerdFontMono";
+  src: url("https://github.com/ryanoasis/nerd-fonts/raw/refs/tags/v3.4.0/patched-fonts/CascadiaCode/CaskaydiaCoveNerdFontMono-Regular.ttf")
+    format("truetype");
+}
+
 html,
 body,
 #app {
