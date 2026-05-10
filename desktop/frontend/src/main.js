@@ -1,3 +1,5 @@
+import "@fontsource/ubuntu-mono";
+
 import "@xterm/xterm/css/xterm.css";
 import "./style.css";
 
@@ -13,7 +15,7 @@ import { EventsOff, EventsOn } from "../wailsjs/runtime/runtime";
 
 const RESIZE_DEBOUNCE_MS = 120;
 const APP_CLEANUP_KEY = "__cosmotopDesktopCleanup";
-const TERMINAL_FONT_FAMILY = "Noto Sans Mono";
+const TERMINAL_FONT_FAMILY = "Ubuntu Mono";
 const TERMINAL_FONT_SIZE = 13;
 
 function toErrorMessage(err) {
@@ -59,28 +61,6 @@ function extractChunkFromEventArgs(args) {
     return args[0];
   }
   return "";
-}
-
-function nextAnimationFrame() {
-  return new Promise((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
-}
-
-async function waitForLayoutAndFontMetrics() {
-  await nextAnimationFrame();
-  await nextAnimationFrame();
-
-  if (!document.fonts) {
-    return;
-  }
-
-  try {
-    await document.fonts.load(`${TERMINAL_FONT_SIZE}px "${TERMINAL_FONT_FAMILY}"`);
-    await document.fonts.ready;
-    await nextAnimationFrame();
-  } catch {
-  }
 }
 
 function createApp() {
@@ -192,8 +172,6 @@ function createApp() {
 
   (async () => {
     try {
-      await waitForLayoutAndFontMetrics();
-
       const isRunning = await IsRunning();
       if (isRunning) {
         await syncResizeToBackend();
